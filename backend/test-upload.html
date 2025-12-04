@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Teste de Upload</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        button {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        input[type="file"] {
+            margin-top: 10px;
+        }
+        #preview {
+            max-width: 300px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Teste de Upload de Imagem</h1>
+    
+    <div>
+        <h3>1. Token de Autenticação:</h3>
+        <input type="text" id="token" placeholder="Cole seu token JWT aqui" style="width: 100%; padding: 8px;">
+        <button onclick="getTokenFromLocalStorage()">Pegar do LocalStorage</button>
+        <button onclick="testToken()">Testar Token</button>
+    </div>
+    
+    <div style="margin-top: 30px;">
+        <h3>2. Upload de Imagem:</h3>
+        <input type="file" id="fileInput" accept="image/*" onchange="previewImage()">
+        <button onclick="uploadImage()">Upload</button>
+        <img id="preview" style="display:none;">
+    </div>
+    
+    <div id="result"></div>
+
+    <script>
+        function getTokenFromLocalStorage() {
+            const token = localStorage.getItem('zucropay_token');
+            if (token) {
+                document.getElementById('token').value = token;
+                showResult('Token encontrado no LocalStorage!', true);
+            } else {
+                showResult('Token não encontrado. Faça login primeiro.', false);
+            }
+        }
+
+        async function testToken() {
+            const token = document.getElementById('token').value;
+            if (!token) {
+                showResult('Por favor, insira um token', false);
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:8000/balance.php', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    showResult('✅ Token válido! Usuário autenticado.', true);
+                } else {
+                    showResult('❌ Token inválido: ' + (data.message || 'Erro desconhecido'), false);
+                }
+            } catch (error) {
+                showResult('❌ Erro ao testar token: ' + error.message, false);
+            }
+        }
+
+        function previewImage() {
+            const file = document.getElementById('fileInput').files[0];
+            const preview = document.getElementById('preview');
+            
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    preview.style.display = 'block';
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+
+        async function uploadImage() {
+            const token = document.getElementById('token').value;
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+
+            if (!token) {
+                showResult('❌ Por favor, insira um token primeiro', false);
+                return;
+            }
+
+            if (!file) {
+                showResult('❌ Por favor, selecione uma imagem', false);
+                return;
+            }
+
+            showResult('⏳ Enviando imagem...', true);
+
+            const formData = new FormData();
+            formData.append('image', file);
+
+            try {
+                console.log('Enviando para:', 'http://localhost:8000/upload-image.php');
+                console.log('Token:', token);
+                console.log('Arquivo:', file.name, file.type, file.size);
+
+                const response = await fetch('http://localhost:8000/upload-image.php', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: formData
+                });
+
+                console.log('Status:', response.status);
+                console.log('Headers:', Object.fromEntries(response.headers.entries()));
+
+                const text = await response.text();
+                console.log('Resposta (texto):', text);
+
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    showResult(`❌ Resposta não é JSON:\n\n${text}`, false);
+                    return;
+                }
+
+                if (response.ok && data.success) {
+                    const imageUrl = `http://localhost:8000${data.url}`;
+                    showResult(`✅ Upload realizado com sucesso!\n\nURL: ${imageUrl}\nFilename: ${data.filename}`, true);
+                    document.getElementById('preview').src = imageUrl;
+                } else {
+                    showResult(`❌ Erro no upload:\n\n${data.message || 'Erro desconhecido'}`, false);
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                showResult(`❌ Erro ao fazer upload:\n\n${error.message}`, false);
+            }
+        }
+
+        function showResult(message, isSuccess) {
+            const result = document.getElementById('result');
+            result.textContent = message;
+            result.className = 'result ' + (isSuccess ? 'success' : 'error');
+        }
+
+        // Tentar pegar token automaticamente ao carregar
+        window.onload = function() {
+            getTokenFromLocalStorage();
+        };
+    </script>
+</body>
+</html>

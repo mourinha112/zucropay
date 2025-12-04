@@ -1,0 +1,47 @@
+services:
+  # Backend PHP
+  - type: web
+    name: zucropay-backend
+    env: php
+    region: oregon
+    plan: starter
+    buildCommand: ""
+    startCommand: "php -S 0.0.0.0:$PORT -t backend router.php"
+    healthCheckPath: /login.php
+    envVars:
+      - key: DB_HOST
+        fromDatabase:
+          name: zucropay-db
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: zucropay-db
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: zucropay-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: zucropay-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: zucropay-db
+          property: password
+      - key: ASAAS_API_KEY
+        sync: false
+      - key: ASAAS_ENVIRONMENT
+        value: production
+      - key: FRONTEND_URL
+        value: https://zucropay.vercel.app
+      - key: JWT_SECRET
+        generateValue: true
+
+databases:
+  # MySQL Database
+  - name: zucropay-db
+    plan: starter
+    databaseName: zucropay
+    user: zucropay_user
+    region: oregon

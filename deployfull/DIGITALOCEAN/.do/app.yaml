@@ -1,0 +1,85 @@
+name: zucropay
+region: nyc
+
+services:
+  # Backend PHP
+  - name: backend
+    github:
+      branch: main
+      deploy_on_push: true
+      repo: seu-usuario/zucropay
+    source_dir: /
+    build_command: ""
+    run_command: "php -S 0.0.0.0:8080 -t backend router.php"
+    environment_slug: php
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    routes:
+      - path: /
+    health_check:
+      http_path: /login.php
+      initial_delay_seconds: 20
+      period_seconds: 10
+    envs:
+      - key: DB_HOST
+        scope: RUN_TIME
+        value: ${db.HOSTNAME}
+      - key: DB_PORT
+        scope: RUN_TIME
+        value: ${db.PORT}
+      - key: DB_NAME
+        scope: RUN_TIME
+        value: ${db.DATABASE}
+      - key: DB_USER
+        scope: RUN_TIME
+        value: ${db.USERNAME}
+      - key: DB_PASSWORD
+        scope: RUN_TIME
+        value: ${db.PASSWORD}
+        type: SECRET
+      - key: ASAAS_API_KEY
+        scope: RUN_TIME
+        value: "SEU_TOKEN_ASAAS_AQUI"
+        type: SECRET
+      - key: ASAAS_ENVIRONMENT
+        scope: RUN_TIME
+        value: "production"
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        value: "GERE_STRING_ALEATORIA_32_CARACTERES"
+        type: SECRET
+      - key: FRONTEND_URL
+        scope: RUN_TIME
+        value: "${APP_URL}"
+
+  # Frontend React
+  - name: frontend
+    github:
+      branch: main
+      deploy_on_push: true
+      repo: seu-usuario/zucropay
+    source_dir: /
+    build_command: "npm install && npm run build"
+    output_dir: dist
+    environment_slug: node-js
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    static_sites:
+      - name: zucropay-frontend
+        routes:
+          - path: /
+    envs:
+      - key: VITE_API_URL
+        scope: BUILD_TIME
+        value: "${backend.PUBLIC_URL}"
+
+databases:
+  # MySQL Database
+  - name: db
+    engine: MYSQL
+    version: "8"
+    production: true
+    cluster_name: zucropay-db-cluster
+    db_name: zucropay
+    db_user: zucropay_user

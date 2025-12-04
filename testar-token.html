@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Testar Token - ZucroPay</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 10px;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        
+        .btn-info {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+        }
+        
+        .resultado {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .info {
+            color: #17a2b8;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+        
+        .status.ok {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status.fail {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Tester de Token ZucroPay</h1>
+        
+        <!-- Botão de Logout -->
+        <div class="card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
+            <h2 style="color: white;">🚪 Fazer Logout</h2>
+            <button class="btn-danger" onclick="fazerLogout()" style="background: white; color: #dc3545;">
+                Limpar Token e Fazer Logout
+            </button>
+            <div id="resultadoLogout" class="resultado" style="display: none; background: rgba(255,255,255,0.2); color: white;"></div>
+        </div>
+        
+        <!-- Teste 1 -->
+        <div class="card">
+            <h2>1️⃣ Verificar Token no LocalStorage</h2>
+            <button class="btn-primary" onclick="verificarToken()">
+                Verificar Token
+            </button>
+            <div id="resultado1" class="resultado" style="display: none;"></div>
+        </div>
+        
+        <!-- Teste 2 -->
+        <div class="card">
+            <h2>2️⃣ Testar Debug de Autenticação</h2>
+            <button class="btn-success" onclick="testarDebugAuth()">
+                Testar Debug
+            </button>
+            <div id="resultado2" class="resultado" style="display: none;"></div>
+        </div>
+        
+        <!-- Teste 3 -->
+        <div class="card">
+            <h2>3️⃣ Criar Produto de Teste</h2>
+            <button class="btn-warning" onclick="criarProduto()">
+                Criar Produto
+            </button>
+            <div id="resultado3" class="resultado" style="display: none;"></div>
+        </div>
+        
+        <!-- Teste 4 -->
+        <div class="card">
+            <h2>4️⃣ Verificar Headers</h2>
+            <button class="btn-info" onclick="verificarHeaders()">
+                Verificar Headers
+            </button>
+            <div id="resultado4" class="resultado" style="display: none;"></div>
+        </div>
+        
+        <!-- Teste 5 -->
+        <div class="card">
+            <h2>5️⃣ Fazer Login Novo</h2>
+            <button class="btn-danger" onclick="fazerLogin()">
+                Login + Teste Completo
+            </button>
+            <div id="resultado5" class="resultado" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Função auxiliar para mostrar resultado
+        function mostrarResultado(id, conteudo) {
+            const elemento = document.getElementById(id);
+            elemento.style.display = 'block';
+            elemento.innerHTML = conteudo;
+        }
+
+        // Função de Logout
+        function fazerLogout() {
+            localStorage.removeItem('zucropay_token');
+            localStorage.removeItem('zucropay_user');
+            
+            let resultado = '<span class="success">✅ LOGOUT REALIZADO!</span>\n\n';
+            resultado += '<span class="status ok">Token removido do localStorage</span>\n';
+            resultado += '<span class="status ok">Dados do usuário removidos</span>\n\n';
+            resultado += 'Você pode fazer login novamente usando o botão 5️⃣ abaixo.';
+            
+            mostrarResultado('resultadoLogout', resultado);
+            
+            // Limpar outros resultados
+            ['resultado1', 'resultado2', 'resultado3', 'resultado4', 'resultado5'].forEach(id => {
+                document.getElementById(id).style.display = 'none';
+            });
+        }
+
+        // Teste 1: Verificar Token
+        function verificarToken() {
+            const token = localStorage.getItem('zucropay_token');
+            let resultado = '';
+            
+            if (token) {
+                resultado = `<span class="success">✅ TOKEN EXISTE!</span>\n\n`;
+                resultado += `<span class="status ok">Tamanho: ${token.length} caracteres</span>\n\n`;
+                resultado += `Token completo:\n${token.substring(0, 100)}...\n\n`;
+                
+                // Tentar decodificar
+                try {
+                    const partes = token.split('.');
+                    if (partes.length === 3) {
+                        const payload = JSON.parse(atob(partes[1]));
+                        resultado += `<span class="info">Payload decodificado:</span>\n`;
+                        resultado += JSON.stringify(payload, null, 2);
+                    }
+                } catch (e) {
+                    resultado += `<span class="error">Erro ao decodificar: ${e.message}</span>`;
+                }
+            } else {
+                resultado = `<span class="error">❌ TOKEN NÃO ENCONTRADO!</span>\n\n`;
+                resultado += `<span class="status fail">Você precisa fazer login primeiro</span>`;
+            }
+            
+            mostrarResultado('resultado1', resultado);
+        }
+
+        // Teste 2: Debug Auth
+        async function testarDebugAuth() {
+            mostrarResultado('resultado2', 'Testando... ⏳');
+            
+            try {
+                const token = localStorage.getItem('zucropay_token');
+                if (!token) {
+                    mostrarResultado('resultado2', '<span class="error">❌ Token não encontrado! Faça login primeiro.</span>');
+                    return;
+                }
+
+                const response = await fetch('http://localhost:8000/debug-auth.php', {
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+
+                const data = await response.json();
+                let resultado = `<span class="success">Status HTTP: ${response.status}</span>\n\n`;
+                resultado += `<span class="info">=== DEBUG DE AUTENTICAÇÃO ===</span>\n\n`;
+                resultado += JSON.stringify(data, null, 2);
+                
+                if (data.error) {
+                    resultado += `\n\n<span class="error">❌ ERRO: ${data.error}</span>`;
+                }
+                
+                if (data.user_id) {
+                    resultado += `\n\n<span class="success">✅ TOKEN VÁLIDO! User ID: ${data.user_id}</span>`;
+                }
+                
+                mostrarResultado('resultado2', resultado);
+            } catch (error) {
+                mostrarResultado('resultado2', `<span class="error">❌ ERRO NA REQUISIÇÃO:\n${error.message}</span>`);
+            }
+        }
+
+        // Teste 3: Criar Produto
+        async function criarProduto() {
+            mostrarResultado('resultado3', 'Criando produto... ⏳');
+            
+            try {
+                const token = localStorage.getItem('zucropay_token');
+                if (!token) {
+                    mostrarResultado('resultado3', '<span class="error">❌ Token não encontrado! Faça login primeiro.</span>');
+                    return;
+                }
+
+                const response = await fetch('http://localhost:8000/products.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify({
+                        name: 'Produto Teste ' + new Date().toLocaleTimeString(),
+                        description: 'Produto criado pelo teste automático',
+                        price: 99.90,
+                        active: true
+                    })
+                });
+
+                const data = await response.json();
+                let resultado = `<span class="info">Status HTTP: ${response.status}</span>\n\n`;
+                
+                if (response.status === 200 || response.status === 201) {
+                    resultado += `<span class="success">✅ PRODUTO CRIADO COM SUCESSO!</span>\n\n`;
+                } else if (response.status === 401) {
+                    resultado += `<span class="error">❌ ERRO 401 - Token inválido ou expirado</span>\n\n`;
+                } else {
+                    resultado += `<span class="error">❌ ERRO ${response.status}</span>\n\n`;
+                }
+                
+                resultado += JSON.stringify(data, null, 2);
+                mostrarResultado('resultado3', resultado);
+            } catch (error) {
+                mostrarResultado('resultado3', `<span class="error">❌ ERRO NA REQUISIÇÃO:\n${error.message}</span>`);
+            }
+        }
+
+        // Teste 4: Verificar Headers
+        async function verificarHeaders() {
+            mostrarResultado('resultado4', 'Verificando headers... ⏳');
+            
+            try {
+                const token = localStorage.getItem('zucropay_token');
+                if (!token) {
+                    mostrarResultado('resultado4', '<span class="error">❌ Token não encontrado! Faça login primeiro.</span>');
+                    return;
+                }
+
+                const response = await fetch('http://localhost:8000/debug-auth.php', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    }
+                });
+
+                const data = await response.json();
+                let resultado = `<span class="info">=== HEADERS RECEBIDOS PELO BACKEND ===</span>\n\n`;
+                
+                resultado += `<span class="info">Todos os headers:</span>\n`;
+                resultado += JSON.stringify(data.headers_all, null, 2) + '\n\n';
+                
+                resultado += `<span class="info">Authorization no $_SERVER:</span>\n`;
+                resultado += JSON.stringify(data.server_auth, null, 2) + '\n\n';
+                
+                resultado += `<span class="info">Extração do Bearer:</span>\n`;
+                resultado += JSON.stringify(data.bearer_extraction, null, 2) + '\n\n';
+                
+                resultado += `<span class="info">Token decodificado:</span>\n`;
+                resultado += JSON.stringify(data.token_decoded, null, 2);
+                
+                if (data.error) {
+                    resultado += `\n\n<span class="error">❌ PROBLEMA ENCONTRADO:\n${data.error}</span>`;
+                }
+                
+                mostrarResultado('resultado4', resultado);
+            } catch (error) {
+                mostrarResultado('resultado4', `<span class="error">❌ ERRO NA REQUISIÇÃO:\n${error.message}</span>`);
+            }
+        }
+
+        // Teste 5: Login Completo
+        async function fazerLogin() {
+            mostrarResultado('resultado5', 'Fazendo login... ⏳');
+            
+            try {
+                // Passo 1: Login
+                const loginResponse = await fetch('http://localhost:8000/login.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'zucro@zucro.com',
+                        password: 'zucro2025'
+                    })
+                });
+
+                const loginData = await loginResponse.json();
+                let resultado = `<span class="info">=== TESTE DE LOGIN COMPLETO ===</span>\n\n`;
+                resultado += `<span class="info">1. Login:</span>\n`;
+                resultado += `Status: ${loginResponse.status}\n`;
+                resultado += JSON.stringify(loginData, null, 2) + '\n\n';
+
+                if (loginData.success && loginData.token) {
+                    // Salvar token
+                    localStorage.setItem('zucropay_token', loginData.token);
+                    resultado += `<span class="success">✅ Login bem-sucedido!</span>\n`;
+                    resultado += `<span class="success">✅ Token salvo no localStorage</span>\n\n`;
+
+                    // Passo 2: Testar acesso aos produtos
+                    resultado += `<span class="info">2. Testando acesso aos produtos...</span>\n`;
+                    
+                    const productsResponse = await fetch('http://localhost:8000/products.php', {
+                        headers: {
+                            'Authorization': 'Bearer ' + loginData.token
+                        }
+                    });
+
+                    const productsData = await productsResponse.json();
+                    resultado += `Status: ${productsResponse.status}\n`;
+                    resultado += JSON.stringify(productsData, null, 2) + '\n\n';
+
+                    if (productsResponse.status === 200) {
+                        resultado += `<span class="success">✅ PRODUTOS ACESSADOS COM SUCESSO!</span>\n`;
+                        resultado += `<span class="status ok">Total de produtos: ${productsData.length || 0}</span>`;
+                    } else {
+                        resultado += `<span class="error">❌ Erro ao acessar produtos: ${productsResponse.status}</span>`;
+                    }
+                } else {
+                    resultado += `<span class="error">❌ Erro no login: ${loginData.message}</span>`;
+                }
+
+                mostrarResultado('resultado5', resultado);
+            } catch (error) {
+                mostrarResultado('resultado5', `<span class="error">❌ ERRO NA REQUISIÇÃO:\n${error.message}</span>`);
+            }
+        }
+    </script>
+</body>
+</html>

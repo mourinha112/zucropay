@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Exemplos ZucroPay SDK</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 40px 20px;
+      background: #f5f5f5;
+    }
+    .example {
+      background: white;
+      padding: 30px;
+      margin-bottom: 30px;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    h1 { color: #5818C8; }
+    h2 { color: #333; margin-top: 0; }
+    code {
+      background: #f5f5f5;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-family: 'Courier New', monospace;
+    }
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+    }
+    .result {
+      background: #e8f5e9;
+      padding: 15px;
+      border-radius: 8px;
+      margin-top: 20px;
+      border-left: 4px solid #4caf50;
+    }
+  </style>
+</head>
+<body>
+  <h1>🚀 ZucroPay SDK - Exemplos de Integração</h1>
+  <p>Exemplos práticos de como integrar pagamentos <strong>sem precisar configurar banco de dados</strong>.</p>
+
+  <!-- Exemplo 1: Botão Simples -->
+  <div class="example">
+    <h2>1️⃣ Botão de Pagamento Simples</h2>
+    <p>Apenas copie e cole este código no seu HTML:</p>
+    
+    <pre><code>&lt;!-- Incluir SDK --&gt;
+&lt;script src="http://localhost:5173/zucropay-sdk.js"&gt;&lt;/script&gt;
+
+&lt;!-- Container do botão --&gt;
+&lt;div id="payment-button"&gt;&lt;/div&gt;
+
+&lt;script&gt;
+  // Inicializar ZucroPay
+  const zucropay = new ZucroPay('sua_api_key_aqui');
+
+  // Criar botão
+  zucropay.createButton('payment-button', {
+    amount: 99.90,
+    customer: {
+      name: 'João Silva',
+      email: 'joao@example.com',
+      document: '12345678900'
+    },
+    description: 'Produto Exemplo'
+  });
+&lt;/script&gt;</code></pre>
+
+    <div class="result">
+      <strong>Resultado:</strong>
+      <div id="example1"></div>
+    </div>
+  </div>
+
+  <!-- Exemplo 2: Botão Customizado -->
+  <div class="example">
+    <h2>2️⃣ Botão Customizado</h2>
+    <p>Personalize cores e textos:</p>
+    
+    <pre><code>&lt;div id="custom-button"&gt;&lt;/div&gt;
+
+&lt;script&gt;
+  const zucropay = new ZucroPay('sua_api_key_aqui');
+
+  zucropay.createButton('custom-button', {
+    amount: 49.90,
+    customer: {
+      name: 'Maria Santos',
+      email: 'maria@example.com',
+      document: '98765432100'
+    }
+  }, {
+    text: '🛒 Comprar Agora - R$ 49,90',
+    color: '#FF6B6B',
+    hoverColor: '#FF5252',
+    onSuccess: (result) => {
+      console.log('Pagamento criado!', result);
+    },
+    onError: (error) => {
+      alert('Erro: ' + error.message);
+    }
+  });
+&lt;/script&gt;</code></pre>
+
+    <div class="result">
+      <strong>Resultado:</strong>
+      <div id="example2"></div>
+    </div>
+  </div>
+
+  <!-- Exemplo 3: Formulário Completo -->
+  <div class="example">
+    <h2>3️⃣ Formulário de Checkout Completo</h2>
+    <p>Formulário com todos os campos:</p>
+    
+    <pre><code>&lt;div id="checkout-form"&gt;&lt;/div&gt;
+
+&lt;script&gt;
+  const zucropay = new ZucroPay('sua_api_key_aqui');
+
+  zucropay.createCheckoutForm('checkout-form', {
+    amount: 199.90,
+    title: '💳 Finalizar Compra',
+    description: 'Curso de Marketing Digital',
+    orderId: 'ORDER-12345',
+    onSuccess: (result) => {
+      // Redirecionar para página de obrigado
+      window.location.href = '/obrigado?payment=' + result.payment.id;
+    }
+  });
+&lt;/script&gt;</code></pre>
+
+    <div class="result">
+      <strong>Resultado:</strong>
+      <div id="example3"></div>
+    </div>
+  </div>
+
+  <!-- Exemplo 4: Integração Manual -->
+  <div class="example">
+    <h2>4️⃣ Integração Manual (API Direto)</h2>
+    <p>Use a API diretamente para mais controle:</p>
+    
+    <pre><code>&lt;button onclick="pagarAgora()"&gt;Pagar Agora&lt;/button&gt;
+
+&lt;script&gt;
+  async function pagarAgora() {
+    const zucropay = new ZucroPay('sua_api_key_aqui', {
+      debug: true  // Ativa logs no console
+    });
+
+    try {
+      const payment = await zucropay.createPayment({
+        amount: 150.00,
+        customer: {
+          name: 'Pedro Oliveira',
+          email: 'pedro@example.com',
+          document: '11122233344',
+          phone: '11999999999'
+        },
+        billing_type: 'PIX',
+        description: 'Consultoria 1h',
+        external_reference: 'CONSULT-456'
+      });
+
+      console.log('Pagamento criado:', payment);
+      
+      // Exibir QR Code
+      zucropay.showPaymentModal(payment);
+      
+    } catch (error) {
+      console.error('Erro:', error);
+      alert('Erro ao criar pagamento');
+    }
+  }
+&lt;/script&gt;</code></pre>
+
+    <div class="result">
+      <strong>Resultado:</strong>
+      <button onclick="pagarManual()" style="background: #5818C8; color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer;">
+        Testar Pagamento Manual
+      </button>
+    </div>
+  </div>
+
+  <!-- Exemplo 5: E-commerce (WooCommerce, PrestaShop, etc) -->
+  <div class="example">
+    <h2>5️⃣ Integração com E-commerce</h2>
+    <p>Para WooCommerce, Shopify, PrestaShop, Magento:</p>
+    
+    <pre><code>&lt;!-- No template do seu e-commerce --&gt;
+&lt;script src="http://localhost:5173/zucropay-sdk.js"&gt;&lt;/script&gt;
+
+&lt;script&gt;
+  // Pegar dados do pedido
+  const orderId = '{{ order.id }}';
+  const orderTotal = {{ order.total }};
+  const customerName = '{{ order.customer.name }}';
+  const customerEmail = '{{ order.customer.email }}';
+  
+  // Criar pagamento
+  const zucropay = new ZucroPay('{{ shop.zucropay_api_key }}');
+  
+  zucropay.createButton('zucropay-payment', {
+    amount: orderTotal,
+    customer: {
+      name: customerName,
+      email: customerEmail,
+      document: '{{ order.customer.document }}'
+    },
+    external_reference: orderId
+  }, {
+    text: 'Pagar com PIX',
+    onSuccess: (result) => {
+      // Atualizar pedido no e-commerce
+      fetch('/order/' + orderId + '/payment', {
+        method: 'POST',
+        body: JSON.stringify({
+          payment_id: result.payment.id,
+          status: 'pending'
+        })
+      });
+    }
+  });
+&lt;/script&gt;</code></pre>
+  </div>
+
+  <!-- Exemplo 6: WordPress (sem código) -->
+  <div class="example">
+    <h2>6️⃣ WordPress (Shortcode)</h2>
+    <p>Adicione este shortcode no seu post/página:</p>
+    
+    <pre><code>[zucropay amount="99.90" description="Produto XYZ" button_text="Comprar Agora"]</code></pre>
+    
+    <p>Ou use o Gutenberg Block:</p>
+    <ul>
+      <li>Adicionar Bloco → ZucroPay Pagamento</li>
+      <li>Configurar valor e descrição</li>
+      <li>Publicar</li>
+    </ul>
+  </div>
+
+  <hr style="margin: 40px 0;">
+  
+  <div style="background: #e3f2fd; padding: 20px; border-radius: 12px; border-left: 4px solid #2196f3;">
+    <h3>📚 Onde pegar sua API Key?</h3>
+    <ol>
+      <li>Acesse o painel ZucroPay: <a href="http://localhost:5173">http://localhost:5173</a></li>
+      <li>Vá em <strong>Integrações</strong></li>
+      <li>Copie sua API Key (gerada automaticamente)</li>
+      <li>Cole no código acima substituindo <code>sua_api_key_aqui</code></li>
+    </ol>
+  </div>
+
+  <!-- Scripts -->
+  <script src="http://localhost:5173/zucropay-sdk.js"></script>
+  <script>
+    // Exemplo 1
+    const zucropay1 = new ZucroPay('demo_key_for_testing');
+    zucropay1.createButton('example1', {
+      amount: 99.90,
+      customer: {
+        name: 'João Silva',
+        email: 'joao@example.com',
+        document: '12345678900'
+      },
+      description: 'Produto Exemplo'
+    });
+
+    // Exemplo 2
+    const zucropay2 = new ZucroPay('demo_key_for_testing');
+    zucropay2.createButton('example2', {
+      amount: 49.90,
+      customer: {
+        name: 'Maria Santos',
+        email: 'maria@example.com',
+        document: '98765432100'
+      }
+    }, {
+      text: '🛒 Comprar Agora - R$ 49,90',
+      color: '#FF6B6B',
+      hoverColor: '#FF5252'
+    });
+
+    // Exemplo 3
+    const zucropay3 = new ZucroPay('demo_key_for_testing');
+    zucropay3.createCheckoutForm('example3', {
+      amount: 199.90,
+      title: '💳 Finalizar Compra',
+      description: 'Curso de Marketing Digital',
+      orderId: 'ORDER-12345'
+    });
+
+    // Exemplo 4
+    function pagarManual() {
+      const zucropay = new ZucroPay('demo_key_for_testing', { debug: true });
+      zucropay.createPayment({
+        amount: 150.00,
+        customer: {
+          name: 'Pedro Oliveira',
+          email: 'pedro@example.com',
+          document: '11122233344'
+        },
+        description: 'Consultoria 1h'
+      }).then(payment => {
+        zucropay.showPaymentModal(payment);
+      }).catch(error => {
+        alert('Erro: ' + error.message);
+      });
+    }
+  </script>
+</body>
+</html>
