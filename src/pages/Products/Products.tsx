@@ -34,7 +34,7 @@ import Header from '../../components/Header/Header';
 import * as api from '../../services/api-supabase';
 
 interface Product {
-  id?: number;
+  id?: string;
   name: string;
   description?: string;
   price: number;
@@ -44,8 +44,8 @@ interface Product {
 }
 
 interface PaymentLink {
-  id?: number;
-  productId?: number;
+  id?: string;
+  productId?: string;
   url?: string;
   name?: string;
   amount?: number;
@@ -194,7 +194,7 @@ const Products: React.FC = () => {
     }
   };
 
-  const handleDeleteProduct = async (id: number) => {
+  const handleDeleteProduct = async (id: string) => {
     if (window.confirm('Tem certeza que deseja excluir este produto?')) {
       try {
         await api.deleteProduct(id);
@@ -233,7 +233,7 @@ const Products: React.FC = () => {
     showSnackbar('Link copiado para a área de transferência!', 'success');
   };
 
-  const getProductLink = (productId: number) => {
+  const getProductLink = (productId: string) => {
     return paymentLinks.find(link => link.productId === productId);
   };
 

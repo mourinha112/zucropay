@@ -1,7 +1,7 @@
 // ZucroPay API Service - Supabase Version
 // Comunicação completa via Supabase + Edge Functions
 
-import { supabase, callAsaasAPI, uploadFile, deleteFile } from '../config/supabase';
+import { supabase, callAsaasAPI, uploadFile } from '../config/supabase';
 
 // ========================================
 // TIPOS E INTERFACES
@@ -867,6 +867,27 @@ export const deleteCheckoutCustomization = async (productId: string) => {
 // MARKETPLACE
 // ========================================
 
+export const getMyMarketplaceProducts = async () => {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Usuário não autenticado');
+
+  const { data, error } = await supabase
+    .from('products')
+    .select(`
+      *,
+      affiliates:affiliates(count)
+    `)
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return {
+    success: true,
+    products: data,
+  };
+};
+
 export const getMarketplaceProducts = async () => {
   const user = await getCurrentUser();
 
@@ -1143,10 +1164,30 @@ export const createPublicPayment = async (data: {
     expiryYear: string;
     ccv: string;
   };
-}) => {
-  // Esta função precisa ser implementada via Edge Function para não expor a API key
-  // Por enquanto, retornar erro
-  throw new Error('Função ainda não implementada - Use Edge Function');
+}): Promise<{
+  success: boolean;
+  message?: string;
+  payment?: any;
+  pix?: any;
+}> => {
+  // Chamar Edge Function para processar pagamento público
+  const EDGE_FUNCTIONS_URL = import.meta.env.VITE_EDGE_FUNCTIONS_URL || 
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+
+  const response = await fetch(`${EDGE_FUNCTIONS_URL}/public-payment`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || 'Erro ao processar pagamento');
+  }
+
+  return response.json();
 };
 
 // Exportar tudo como default também
@@ -1174,6 +1215,7 @@ export default {
   saveCheckoutCustomization,
   deleteCheckoutCustomization,
   getMarketplaceProducts,
+  getMyMarketplaceProducts,
   getMyAffiliates,
   affiliateToProduct,
   cancelAffiliation,

@@ -1,0 +1,39 @@
+# ============================================
+# COMANDOS RÁPIDOS - Copie e Cole
+# ============================================
+
+# 1. Instalar dependência do Supabase
+npm install @supabase/supabase-js
+
+# 2. Instalar Supabase CLI
+npm install -g supabase
+
+# 3. Login no Supabase
+supabase login
+
+# 4. Link com projeto (substitua seu-project-ref)
+supabase link --project-ref seu-project-ref
+
+# 5. Configurar secrets
+supabase secrets set ASAAS_API_KEY=sua-chave-asaas
+supabase secrets set ASAAS_API_URL=https://api.asaas.com/v3
+
+# 6. Deploy das Edge Functions
+supabase functions deploy asaas-webhook
+supabase functions deploy asaas-api  
+supabase functions deploy public-payment
+
+# 7. Testar localmente
+npm run dev
+
+# 8. Build para produção
+npm run build
+
+# 9. Deploy na Vercel (via CLI)
+npm i -g vercel
+vercel --prod
+
+# ============================================
+# FIM
+# ============================================
+

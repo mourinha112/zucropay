@@ -134,7 +134,8 @@ export const resetToDefault = (): void => {
  * Verificar se está usando ngrok (para adicionar headers especiais)
  */
 export const isUsingNgrok = (): boolean => {
-  return ACTIVE_MODE === 'ngrok';
+  const mode: EnvironmentMode = ACTIVE_MODE as EnvironmentMode;
+  return mode === 'ngrok';
 };
 
 /**
