@@ -9,8 +9,29 @@ import { createClient } from '@supabase/supabase-js';
 // Cole aqui as credenciais do seu projeto Supabase
 // ============================================
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://your-project.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'your-anon-key';
+// Helper para pegar variável de ambiente limpa (sem espaços extras)
+const getEnvVar = (key: string, defaultValue: string): string => {
+  const value = import.meta.env[key];
+  return value ? String(value).trim() : defaultValue;
+};
+
+const SUPABASE_URL = getEnvVar('VITE_SUPABASE_URL', 'https://your-project.supabase.co');
+const SUPABASE_ANON_KEY = getEnvVar('VITE_SUPABASE_ANON_KEY', 'your-anon-key');
+
+// Validação de URL para evitar erro "Invalid value" no fetch
+try {
+  new URL(SUPABASE_URL);
+} catch (e) {
+  console.error('❌ URL do Supabase INVÁLIDA:', SUPABASE_URL);
+}
+
+if (import.meta.env.DEV) {
+  console.log('🔧 Supabase Config:', {
+    url: SUPABASE_URL,
+    keyLength: SUPABASE_ANON_KEY.length,
+    isDefault: SUPABASE_URL === 'https://your-project.supabase.co'
+  });
+}
 
 // ============================================
 // 🔐 CLIENTE SUPABASE
