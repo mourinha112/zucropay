@@ -32,9 +32,9 @@ const Login: React.FC = () => {
 
   // DEBUG: Verificar config atual
   const debugConfig = {
-    url: supabase.supabaseUrl,
-    keyConfigured: !!supabase.supabaseKey && supabase.supabaseKey.length > 10,
-    keyPrefix: supabase.supabaseKey ? supabase.supabaseKey.substring(0, 5) + '...' : 'N/A'
+    url: (supabase as any).supabaseUrl,
+    keyConfigured: !!(supabase as any).supabaseKey && (supabase as any).supabaseKey.length > 10,
+    keyPrefix: (supabase as any).supabaseKey ? (supabase as any).supabaseKey.substring(0, 5) + '...' : 'N/A'
   };
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
