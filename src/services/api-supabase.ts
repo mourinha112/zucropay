@@ -1,7 +1,9 @@
 // ZucroPay API Service - Supabase Version
 // Comunicação completa via Supabase + Edge Functions
 
-import { supabase, callAsaasAPI, uploadFile } from '../config/supabase';
+import { supabase, callAsaasAPI, uploadFile, isSupabaseConfigured } from '../config/supabase';
+
+export { isSupabaseConfigured };
 
 // ========================================
 // TIPOS E INTERFACES
