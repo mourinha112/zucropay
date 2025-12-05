@@ -6,32 +6,36 @@ import { createClient } from '@supabase/supabase-js';
 
 // ============================================
 // 📍 CONFIGURAÇÕES DO SUPABASE
-// Cole aqui as credenciais do seu projeto Supabase
 // ============================================
 
-// Helper para pegar variável de ambiente limpa (sem espaços extras)
-const getEnvVar = (key: string, defaultValue: string): string => {
-  const value = import.meta.env[key];
-  return value ? String(value).trim() : defaultValue;
+// ⚠️ IMPORTANTE: Acesso direto para garantir que o Vite substitua os valores no build
+const rawUrl = import.meta.env.VITE_SUPABASE_URL;
+const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Função para limpar as variáveis (remove espaços e aspas extras)
+const cleanEnv = (value: any): string => {
+  if (!value) return '';
+  
+  let clean = String(value).trim();
+  
+  // Remove aspas duplas ou simples do início e fim, se houver
+  if ((clean.startsWith('"') && clean.endsWith('"')) || 
+      (clean.startsWith("'") && clean.endsWith("'"))) {
+    clean = clean.slice(1, -1);
+  }
+  
+  return clean;
 };
 
-const SUPABASE_URL = getEnvVar('VITE_SUPABASE_URL', 'https://your-project.supabase.co');
-const SUPABASE_ANON_KEY = getEnvVar('VITE_SUPABASE_ANON_KEY', 'your-anon-key');
+const cleanUrl = cleanEnv(rawUrl);
+const cleanKey = cleanEnv(rawKey);
 
-// Validação de URL para evitar erro "Invalid value" no fetch
-try {
-  new URL(SUPABASE_URL);
-} catch (e) {
-  console.error('❌ URL do Supabase INVÁLIDA:', SUPABASE_URL);
-}
+const DEFAULT_URL = 'https://your-project.supabase.co';
+const DEFAULT_KEY = 'your-anon-key';
 
-if (import.meta.env.DEV) {
-  console.log('🔧 Supabase Config:', {
-    url: SUPABASE_URL,
-    keyLength: SUPABASE_ANON_KEY.length,
-    isDefault: SUPABASE_URL === 'https://your-project.supabase.co'
-  });
-}
+// Usa a variável limpa ou o fallback
+const SUPABASE_URL = (cleanUrl && cleanUrl.length > 0) ? cleanUrl : DEFAULT_URL;
+const SUPABASE_ANON_KEY = (cleanKey && cleanKey.length > 0) ? cleanKey : DEFAULT_KEY;
 
 // ============================================
 // 🔐 CLIENTE SUPABASE
@@ -57,7 +61,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 // 🌐 CONFIGURAÇÃO DE ASAAS
 // ============================================
 
-// Chave API do Asaas (pode ser sobrescrita por usuário)
 export const ASAAS_API_KEY = import.meta.env.VITE_ASAAS_API_KEY || '';
 export const ASAAS_API_URL = import.meta.env.VITE_ASAAS_API_URL || 'https://api.asaas.com/v3';
 
@@ -73,8 +76,9 @@ export const EDGE_FUNCTIONS_URL = import.meta.env.VITE_EDGE_FUNCTIONS_URL ||
  * Verificar se o Supabase está configurado corretamente
  */
 export const isSupabaseConfigured = (): boolean => {
-  return SUPABASE_URL !== 'https://your-project.supabase.co' && 
-         SUPABASE_ANON_KEY !== 'your-anon-key';
+  return SUPABASE_URL !== DEFAULT_URL && 
+         SUPABASE_ANON_KEY !== DEFAULT_KEY &&
+         SUPABASE_URL.startsWith('http');
 };
 
 /**
@@ -188,24 +192,12 @@ export const deleteFile = async (
   if (error) throw error;
 };
 
-// ============================================
-// 📊 TIPOS AUXILIARES
-// ============================================
-
-export interface Database {
-  public: {
-    Tables: {
-      users: any;
-      products: any;
-      payments: any;
-      transactions: any;
-      // ... adicione outros tipos conforme necessário
-    };
-  };
+// Debug em desenvolvimento
+if (import.meta.env.DEV) {
+  console.log('🔧 Supabase Config:', {
+    url: SUPABASE_URL,
+    configured: isSupabaseConfigured()
+  });
 }
 
-export type Tables<T extends keyof Database['public']['Tables']> = 
-  Database['public']['Tables'][T];
-
 export default supabase;
-
