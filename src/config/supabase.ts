@@ -12,13 +12,18 @@ import { createClient } from '@supabase/supabase-js';
 const rawUrl = import.meta.env.VITE_SUPABASE_URL;
 const rawKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Função para limpar as variáveis (remove espaços e aspas extras)
+// Função para limpar as variáveis (remove espaços, aspas e caracteres invisíveis)
 const cleanEnv = (value: any): string => {
   if (!value) return '';
   
-  let clean = String(value).trim();
+  let clean = String(value);
   
-  // Remove aspas duplas ou simples do início e fim, se houver
+  // Remove caracteres não imprimíveis (invisíveis, quebras de linha, etc)
+  clean = clean.replace(/[^\x20-\x7E]/g, '');
+  
+  clean = clean.trim();
+  
+  // Remove aspas duplas ou simples do início e fim
   if ((clean.startsWith('"') && clean.endsWith('"')) || 
       (clean.startsWith("'") && clean.endsWith("'"))) {
     clean = clean.slice(1, -1);

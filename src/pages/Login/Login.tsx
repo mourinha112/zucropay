@@ -24,8 +24,18 @@ import {
 import { useNavigate } from 'react-router-dom';
 import * as api from '../../services/api-supabase';
 
+import { supabase } from '../../config/supabase'; // Importar supabase para debug
+
 const Login: React.FC = () => {
   const navigate = useNavigate();
+  // ... (resto do código)
+
+  // DEBUG: Verificar config atual
+  const debugConfig = {
+    url: supabase.supabaseUrl,
+    keyConfigured: !!supabase.supabaseKey && supabase.supabaseKey.length > 10,
+    keyPrefix: supabase.supabaseKey ? supabase.supabaseKey.substring(0, 5) + '...' : 'N/A'
+  };
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -601,13 +611,18 @@ const Login: React.FC = () => {
           </Card>
 
           {/* Footer */}
-          <Box
-            sx={{
-              mt: 5,
-              pt: 4,
-              borderTop: '1px solid rgba(101, 27, 229, 0.1)',
-            }}
-          >
+          <Box sx={{ mt: 5, textAlign: 'center' }}>
+            {/* DEBUG INFO - REMOVER EM PRODUÇÃO FINAL */}
+            <Box sx={{ mb: 3, p: 2, bgcolor: '#000', color: '#0f0', borderRadius: 1, fontSize: '10px', fontFamily: 'monospace', textAlign: 'left' }}>
+              <Typography variant="caption" sx={{ display: 'block', fontWeight: 'bold', mb: 1, color: '#fff' }}>
+                🛠️ DIAGNÓSTICO DE CONFIGURAÇÃO
+              </Typography>
+              <div>URL: {debugConfig.url}</div>
+              <div>Key Status: {debugConfig.keyConfigured ? 'OK' : 'MISSING/SHORT'}</div>
+              <div>Key Start: {debugConfig.keyPrefix}</div>
+              <div>Is Configured: {api.isSupabaseConfigured() ? 'YES' : 'NO'}</div>
+            </Box>
+
             <Typography
               variant="caption"
               sx={{
