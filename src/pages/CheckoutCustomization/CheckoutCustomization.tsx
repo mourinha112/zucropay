@@ -18,10 +18,6 @@ import {
   Card,
   CardMedia,
   Slider,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
   Chip,
 } from '@mui/material';
 import {

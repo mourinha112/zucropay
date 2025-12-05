@@ -156,8 +156,9 @@ const Integrations: React.FC = () => {
       
       const data = await response.json();
       if (data.success && data.apiKeys.length > 0) {
-        setApiKeys(data.apiKeys);
+        setApiKeys(data.apiKeys); // Store keys
         setApiKey(data.apiKeys[0].api_key_full); // Primeira chave
+        console.log('Loaded API Keys:', apiKeys);
       } else {
         // Se não tem nenhuma chave, criar uma automaticamente
         await createApiKey();

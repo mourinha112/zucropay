@@ -19,9 +19,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Paper,
   LinearProgress,
-  Divider,
   InputAdornment,
   Tooltip,
 } from '@mui/material';
@@ -52,13 +50,12 @@ interface Referral {
 }
 
 const Indique: React.FC = () => {
-  const [referralCode, setReferralCode] = useState('ZUCRO2025');
+  const [referralCode] = useState('ZUCRO2025');
   const [referralLink, setReferralLink] = useState('');
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
-  const [loading, setLoading] = useState(false);
   
   // Stats
-  const [stats, setStats] = useState({
+  const [stats] = useState({
     totalReferrals: 12,
     activeReferrals: 8,
     totalEarnings: 1850.50,
@@ -68,7 +65,7 @@ const Indique: React.FC = () => {
   });
 
   // Referrals list
-  const [referrals, setReferrals] = useState<Referral[]>([
+  const [referrals] = useState<Referral[]>([
     {
       id: 1,
       name: 'João Silva',

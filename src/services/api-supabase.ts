@@ -889,7 +889,7 @@ export const getMyMarketplaceProducts = async () => {
 };
 
 export const getMarketplaceProducts = async () => {
-  const user = await getCurrentUser();
+  await getCurrentUser();
 
   const { data, error } = await supabase
     .from('products')

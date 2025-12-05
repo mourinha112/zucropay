@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
   Box,
-  Container,
   Typography,
   Card,
   CardContent,
@@ -138,7 +137,7 @@ const FinanceCard = ({ title, value, icon, color, trend, trendValue }: any) => (
 const Finances: React.FC = () => {
   const [timeRange, setTimeRange] = useState(0);
 
-  const handleTimeRangeChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTimeRangeChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTimeRange(newValue);
   };
 

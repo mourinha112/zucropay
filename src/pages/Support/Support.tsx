@@ -13,18 +13,13 @@ import {
   ListItemAvatar,
   CircularProgress,
   Grid,
-  Card,
-  CardContent,
   Chip,
-  Divider,
   ListItemButton,
 } from '@mui/material';
 import SendIcon from '@mui/icons-material/Send';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
 import Header from '../../components/Header/Header';
-import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import ArticleIcon from '@mui/icons-material/Article';
 import LiveHelpIcon from '@mui/icons-material/LiveHelp';
 import ContactSupportIcon from '@mui/icons-material/ContactSupport';
 import PhoneIcon from '@mui/icons-material/Phone';

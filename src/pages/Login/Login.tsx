@@ -20,7 +20,6 @@ import {
   VisibilityOff,
   Email as EmailIcon,
   Lock as LockIcon,
-  AccountBalance as AccountBalanceIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import * as api from '../../services/api-supabase';

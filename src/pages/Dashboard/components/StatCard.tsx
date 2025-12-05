@@ -1,4 +1,3 @@
-import React from 'react';
 import { Card, CardContent, Typography, Box, SvgIcon } from '@mui/material';
 import { styled } from '@mui/material/styles';
 

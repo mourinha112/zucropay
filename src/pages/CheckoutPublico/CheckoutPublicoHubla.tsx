@@ -6,12 +6,9 @@ import {
   Typography,
   TextField,
   Button,
-  RadioGroup,
-  Radio,
   FormControlLabel,
   Alert,
   CircularProgress,
-  Divider,
   Paper,
   Stack,
   IconButton,
@@ -20,7 +17,6 @@ import {
   MenuItem,
   Checkbox,
   FormControl,
-  InputLabel,
 } from '@mui/material';
 import {
   CreditCard as CreditCardIcon,
@@ -29,7 +25,6 @@ import {
   CheckCircle,
   ContentCopy,
   Lock,
-  KeyboardArrowDown,
   Visibility,
   VisibilityOff,
 } from '@mui/icons-material';
@@ -138,8 +133,8 @@ const CheckoutPublicoHubla: React.FC = () => {
 
     try {
       const paymentData = {
-        paymentLinkId: linkId,
-        billingType: paymentMethod,
+        linkId: linkId!,
+        billingType: paymentMethod as 'PIX' | 'CREDIT_CARD' | 'BOLETO',
         customer: {
           name: customerData.name,
           email: customerData.email,
@@ -147,7 +142,7 @@ const CheckoutPublicoHubla: React.FC = () => {
           phone: customerData.phone.replace(/\D/g, ''),
         },
         creditCard: paymentMethod === 'CREDIT_CARD' ? {
-          holderName: cardData.name,
+          name: cardData.name,
           number: cardData.number.replace(/\s/g, ''),
           expiryMonth: cardData.expiryMonth,
           expiryYear: cardData.expiryYear,
