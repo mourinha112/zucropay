@@ -69,7 +69,11 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 export const ASAAS_API_KEY = import.meta.env.VITE_ASAAS_API_KEY || '';
 export const ASAAS_API_URL = import.meta.env.VITE_ASAAS_API_URL || 'https://api.asaas.com/v3';
 
-// URL das Edge Functions
+// URL das API Functions (Vercel Serverless)
+// Em produção usa /api, em desenvolvimento pode usar Edge Functions do Supabase
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
+// URL das Edge Functions (legado - não usado mais)
 export const EDGE_FUNCTIONS_URL = import.meta.env.VITE_EDGE_FUNCTIONS_URL || 
   `${SUPABASE_URL}/functions/v1`;
 
@@ -136,17 +140,26 @@ export const callEdgeFunction = async (
 };
 
 /**
- * Chamar API do Asaas via Edge Function
+ * Chamar API do Asaas via Vercel Serverless Function
  */
 export const callAsaasAPI = async (
   method: string,
   endpoint: string,
   data?: any
 ): Promise<any> => {
-  const response = await callEdgeFunction('asaas-api', {
-    method,
-    endpoint,
-    data,
+  const token = await getAuthToken();
+
+  const response = await fetch(`${API_BASE_URL}/asaas-api`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({
+      method,
+      endpoint,
+      data,
+    }),
   });
 
   if (!response.ok) {
