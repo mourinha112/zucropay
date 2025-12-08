@@ -175,9 +175,12 @@ export const login = async (data: LoginData): Promise<AuthResponse> => {
     throw new Error(authError.message);
   }
 
-  if (!authData.user) {
+  if (!authData.user || !authData.session) {
     throw new Error('Falha no login');
   }
+
+  // Salvar token no localStorage para o PrivateRoute funcionar
+  localStorage.setItem('zucropay_token', authData.session.access_token);
 
   // Buscar dados completos do usuário
   const { data: userData, error: userError } = await supabase
@@ -190,20 +193,24 @@ export const login = async (data: LoginData): Promise<AuthResponse> => {
     throw new Error(userError.message);
   }
 
+  // Salvar dados do usuário no localStorage
+  const user = {
+    id: userData.id,
+    name: userData.name,
+    email: userData.email,
+    cpfCnpj: userData.cpf_cnpj,
+    phone: userData.phone,
+    avatar: userData.avatar,
+    balance: userData.balance,
+    asaasCustomerId: userData.asaas_customer_id,
+    asaasApiKey: userData.asaas_api_key,
+  };
+  localStorage.setItem('zucropay_user', JSON.stringify(user));
+
   return {
     success: true,
     message: 'Login realizado com sucesso',
-    user: {
-      id: userData.id,
-      name: userData.name,
-      email: userData.email,
-      cpfCnpj: userData.cpf_cnpj,
-      phone: userData.phone,
-      avatar: userData.avatar,
-      balance: userData.balance,
-      asaasCustomerId: userData.asaas_customer_id,
-      asaasApiKey: userData.asaas_api_key,
-    },
+    user,
   };
 };
 
@@ -263,6 +270,10 @@ export const register = async (data: RegisterData): Promise<AuthResponse> => {
 };
 
 export const logout = async () => {
+  // Limpar localStorage
+  localStorage.removeItem('zucropay_token');
+  localStorage.removeItem('zucropay_user');
+  
   const { error } = await supabase.auth.signOut();
   if (error) throw new Error(error.message);
 };

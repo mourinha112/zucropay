@@ -46,6 +46,7 @@ const Header = () => {
 
   const handleLogout = () => {
     localStorage.removeItem('zucropay_token');
+    localStorage.removeItem('zucropay_user');
     handleMenuClose();
     navigate('/login');
   };
