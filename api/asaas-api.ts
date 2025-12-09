@@ -16,6 +16,9 @@ const corsHeaders = {
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
+    Object.entries(corsHeaders).forEach(([key, value]) => {
+      res.setHeader(key, value);
+    });
     return res.status(200).json({ ok: true });
   }
 
@@ -24,13 +27,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     res.setHeader(key, value);
   });
 
+  // GET para verificar se a API está funcionando
+  if (req.method === 'GET') {
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Asaas API proxy is working',
+      configured: !!ASAAS_API_KEY,
+      apiUrl: ASAAS_API_URL
+    });
+  }
+
+  // Verificar se a API key está configurada
+  if (!ASAAS_API_KEY) {
+    return res.status(500).json({
+      success: false,
+      message: 'ASAAS_API_KEY not configured. Please add it to Vercel Environment Variables.'
+    });
+  }
+
   try {
-    const { method, endpoint, data } = req.body;
+    const { method, endpoint, data } = req.body || {};
 
     if (!method || !endpoint) {
       return res.status(400).json({ 
         success: false, 
-        message: 'Method and endpoint are required' 
+        message: 'Method and endpoint are required in request body' 
       });
     }
 
