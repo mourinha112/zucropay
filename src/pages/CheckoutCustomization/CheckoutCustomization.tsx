@@ -50,7 +50,7 @@ function TabPanel(props: TabPanelProps) {
 }
 
 interface CheckoutCustomization {
-  productId: number;
+  productId: number | string;
   productName: string;
   
   // Imagens
