@@ -3,11 +3,6 @@
   "outputDirectory": "dist",
   "installCommand": "npm install",
   "framework": "vite",
-  "functions": {
-    "api/*.ts": {
-      "runtime": "@vercel/node@3.2.0"
-    }
-  },
   "rewrites": [
     {
       "source": "/api/:path*",

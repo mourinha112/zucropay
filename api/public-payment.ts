@@ -1,22 +1,16 @@
 // Vercel Serverless Function - Pagamento Público (Checkout)
-// Não requer autenticação - usado para checkout público
 
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-const ASAAS_API_URL = process.env.ASAAS_API_URL || 'https://api.asaas.com/v3';
-const ASAAS_API_KEY = process.env.ASAAS_API_KEY || '';
-
-// Headers CORS
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+export const config = {
+  runtime: 'nodejs20.x',
 };
+
+const ASAAS_API_URL = process.env.ASAAS_API_URL || process.env.VITE_ASAAS_API_URL || 'https://api.asaas.com/v3';
+const ASAAS_API_KEY = process.env.ASAAS_API_KEY || process.env.VITE_ASAAS_API_KEY || '';
 
 async function asaasRequest(method: string, endpoint: string, data?: any) {
   const url = `${ASAAS_API_URL}${endpoint}`;
 
-  const options: RequestInit = {
+  const options: any = {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -39,17 +33,19 @@ async function asaasRequest(method: string, endpoint: string, data?: any) {
 
 async function createOrGetCustomer(customerData: any) {
   // Buscar cliente existente por CPF
-  const searchResponse = await asaasRequest(
-    'GET',
-    `/customers?cpfCnpj=${encodeURIComponent(customerData.cpfCnpj)}`
-  );
-
-  if (searchResponse.code === 200 && searchResponse.data?.data?.length > 0) {
-    return searchResponse.data.data[0];
+  const cpf = customerData.cpfCnpj?.replace(/\D/g, '');
+  if (cpf) {
+    const searchResponse = await asaasRequest('GET', `/customers?cpfCnpj=${encodeURIComponent(cpf)}`);
+    if (searchResponse.code === 200 && searchResponse.data?.data?.length > 0) {
+      return searchResponse.data.data[0];
+    }
   }
 
   // Criar novo cliente
-  const createResponse = await asaasRequest('POST', '/customers', customerData);
+  const createResponse = await asaasRequest('POST', '/customers', {
+    ...customerData,
+    cpfCnpj: cpf
+  });
   
   if (createResponse.code === 200 || createResponse.code === 201) {
     return createResponse.data;
@@ -58,22 +54,35 @@ async function createOrGetCustomer(customerData: any) {
   return null;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
+  // Headers CORS
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    Object.entries(corsHeaders).forEach(([key, value]) => {
-      res.setHeader(key, value);
-    });
-    return res.status(200).json({ ok: true });
+    return res.status(200).end();
   }
 
-  // Adicionar headers CORS
-  Object.entries(corsHeaders).forEach(([key, value]) => {
-    res.setHeader(key, value);
-  });
+  // GET para teste
+  if (req.method === 'GET') {
+    return res.status(200).json({ 
+      success: true, 
+      message: 'Public payment endpoint is working',
+      configured: !!ASAAS_API_KEY
+    });
+  }
 
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Method not allowed' });
+  }
+
+  if (!ASAAS_API_KEY) {
+    return res.status(200).json({
+      success: false,
+      message: 'ASAAS_API_KEY not configured'
+    });
   }
 
   try {
@@ -87,11 +96,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       description,
       creditCard,
       creditCardHolderInfo 
-    } = req.body;
+    } = req.body || {};
 
     // Validar dados obrigatórios
     if (!customerName || !customerCpfCnpj || !billingType || !value) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: 'Missing required fields: customerName, customerCpfCnpj, billingType, value',
       });
@@ -101,12 +110,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const customer = await createOrGetCustomer({
       name: customerName,
       email: customerEmail,
-      cpfCnpj: customerCpfCnpj.replace(/\D/g, ''),
+      cpfCnpj: customerCpfCnpj,
       phone: customerPhone,
     });
 
     if (!customer) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: 'Failed to create or find customer',
       });
@@ -116,7 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const paymentData: any = {
       customer: customer.id,
       billingType,
-      value,
+      value: parseFloat(value),
       dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
       description: description || 'Pagamento ZucroPay',
     };
@@ -130,7 +139,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const paymentResponse = await asaasRequest('POST', '/payments', paymentData);
 
     if (!paymentResponse.success) {
-      return res.status(400).json({
+      return res.status(200).json({
         success: false,
         message: 'Failed to create payment',
         error: paymentResponse.data,
@@ -164,10 +173,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   } catch (error: any) {
     console.error('Error processing payment:', error);
-    return res.status(500).json({
+    return res.status(200).json({
       success: false,
       error: error.message || 'Internal server error',
     });
   }
 }
-
