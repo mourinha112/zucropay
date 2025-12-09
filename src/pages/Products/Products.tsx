@@ -157,7 +157,8 @@ const Products: React.FC = () => {
     setUploading(true);
     try {
       const result = await api.uploadImage(file);
-      const imageUrl = `http://localhost:8000${result.url}`;
+      // URL já vem completa do Supabase Storage
+      const imageUrl = result.url;
       setFormData({ ...formData, imageUrl });
       setImagePreview(imageUrl);
       showSnackbar('Imagem enviada com sucesso!', 'success');
