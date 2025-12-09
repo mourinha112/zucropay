@@ -32,6 +32,7 @@ import {
 } from '@mui/icons-material';
 import { useNavigate, useParams } from 'react-router-dom';
 import Header from '../../components/Header/Header';
+import * as api from '../../services/api-supabase';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -118,16 +119,11 @@ const CheckoutCustomization: React.FC = () => {
   }, [productId]);
 
   const loadProductInfo = async () => {
-    // Carregar informações do produto
+    // Carregar informações do produto via Supabase
     try {
-      const response = await fetch(`http://localhost:8000/products.php/${productId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('zucropay_token')}`,
-        },
-      });
-      const data = await response.json();
-      if (data.success && data.product) {
-        setCustomization(prev => ({ ...prev, productName: data.product.name }));
+      const result = await api.getProduct(productId!);
+      if (result.success && result.product) {
+        setCustomization(prev => ({ ...prev, productName: result.product.name }));
       }
     } catch (error) {
       console.error('Erro ao carregar produto:', error);
@@ -135,30 +131,11 @@ const CheckoutCustomization: React.FC = () => {
   };
 
   const loadCustomization = async () => {
-    // Carregar personalização salva
+    // Carregar personalização salva via Supabase
     try {
-      const response = await fetch(`http://localhost:8000/checkout-customization.php?productId=${productId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('zucropay_token')}`,
-        },
-      });
-      
-      // Debug: Ver resposta antes de parsear
-      const text = await response.text();
-      console.log('Response text:', text);
-      
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error('JSON parse error:', e);
-        console.error('Response was:', text.substring(0, 500));
-        showSnackbar('Erro ao carregar personalização. Verifique o console.', 'error');
-        return;
-      }
-      
-      if (data.success && data.customization) {
-        setCustomization(prev => ({ ...prev, ...JSON.parse(data.customization.settings) }));
+      const result = await api.getCheckoutCustomization(productId!);
+      if (result) {
+        setCustomization(prev => ({ ...prev, ...result }));
       }
     } catch (error) {
       console.error('Erro ao carregar personalização:', error);
@@ -167,66 +144,27 @@ const CheckoutCustomization: React.FC = () => {
 
   const handleSave = async () => {
     try {
-      const response = await fetch('http://localhost:8000/checkout-customization.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('zucropay_token')}`,
-        },
-        body: JSON.stringify({
-          productId: customization.productId,
-          settings: JSON.stringify(customization),
-        }),
-      });
-
-      // Debug: Ver resposta antes de parsear
-      const text = await response.text();
-      console.log('Save response:', text);
-      
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        console.error('JSON parse error on save:', e);
-        console.error('Response was:', text.substring(0, 500));
-        showSnackbar('Erro ao salvar. Verifique o console para detalhes.', 'error');
-        return;
-      }
-
-      if (data.success) {
-        showSnackbar('Personalização salva com sucesso!', 'success');
-      } else {
-        throw new Error(data.error || data.message || 'Erro ao salvar');
-      }
+      await api.saveCheckoutCustomization(customization);
+      showSnackbar('Personalização salva com sucesso!', 'success');
     } catch (error: any) {
-      console.error('Erro completo ao salvar:', error);
+      console.error('Erro ao salvar:', error);
       showSnackbar(error.message || 'Erro ao salvar personalização', 'error');
     }
   };
 
   const handleImageUpload = async (file: File, type: 'logo' | 'banner' | 'background') => {
     setUploading(true);
-    const formData = new FormData();
-    formData.append('image', file);
 
     try {
-      const response = await fetch('http://localhost:8000/upload-image.php', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('zucropay_token')}`,
-        },
-        body: formData,
-      });
-
-      const data = await response.json();
-      if (data.success) {
+      const result = await api.uploadImage(file);
+      if (result.success) {
         setCustomization(prev => ({
           ...prev,
-          [`${type}Url`]: data.url,
+          [`${type}Url`]: result.url,
         }));
         showSnackbar('Imagem enviada com sucesso!', 'success');
       } else {
-        throw new Error(data.error || 'Erro ao enviar imagem');
+        throw new Error('Erro ao enviar imagem');
       }
     } catch (error: any) {
       showSnackbar(error.message || 'Erro ao enviar imagem', 'error');

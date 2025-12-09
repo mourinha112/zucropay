@@ -79,16 +79,13 @@ const CheckoutPublicoHubla: React.FC = () => {
       if (!productData?.productId) return;
 
       try {
-        const response = await fetch(`http://localhost:8000/checkout-customization.php?productId=${productData.productId}`);
-        const data = await response.json();
-        
-        if (data.success && data.customization) {
-          const settings = JSON.parse(data.customization.settings);
-          setCustomization(settings);
+        const result = await api.getCheckoutCustomization(productData.productId);
+        if (result) {
+          setCustomization(result);
           
           // Iniciar cronômetro se estiver ativado
-          if (settings.timerEnabled && settings.timerMinutes) {
-            setTimeLeft(settings.timerMinutes * 60); // converter minutos para segundos
+          if (result.timerEnabled && result.timerMinutes) {
+            setTimeLeft(result.timerMinutes * 60); // converter minutos para segundos
           }
         }
       } catch (error) {

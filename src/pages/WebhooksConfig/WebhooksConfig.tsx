@@ -34,9 +34,10 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import Header from '../../components/Header/Header';
+import * as api from '../../services/api-supabase';
 
 interface Webhook {
-  id: number;
+  id: string;
   url: string;
   secret: string;
   events: string[];
@@ -76,16 +77,9 @@ const WebhooksConfig: React.FC = () => {
 
   const loadWebhooks = async () => {
     try {
-      const token = localStorage.getItem('zucropay_token');
-      const response = await fetch('http://localhost:8000/webhooks-config.php', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        setWebhooks(data.webhooks);
+      const result = await api.getWebhooks();
+      if (result.success) {
+        setWebhooks(result.webhooks);
       }
     } catch (error) {
       console.error('Erro ao carregar webhooks:', error);
@@ -127,66 +121,46 @@ const WebhooksConfig: React.FC = () => {
     }
 
     try {
-      const token = localStorage.getItem('zucropay_token');
-      const method = editingWebhook ? 'PUT' : 'POST';
-      const body: any = {
-        url,
-        events: selectedEvents,
-      };
-
-      if (editingWebhook) {
-        body.id = editingWebhook.id;
-      }
-
-      const response = await fetch('http://localhost:8000/webhooks-config.php', {
-        method,
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-      });
-
-      const data = await response.json();
+      let result;
       
-      if (data.success) {
-        showMessage('success', data.message);
+      if (editingWebhook) {
+        result = await api.updateWebhook(editingWebhook.id, {
+          url,
+          events: selectedEvents,
+        });
+      } else {
+        result = await api.createWebhook({
+          url,
+          events: selectedEvents,
+        });
+      }
+      
+      if (result.success) {
+        showMessage('success', result.message);
         loadWebhooks();
         handleCloseDialog();
-      } else {
-        showMessage('error', data.message);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao salvar webhook:', error);
-      showMessage('error', 'Erro ao salvar webhook');
+      showMessage('error', error.message || 'Erro ao salvar webhook');
     }
   };
 
-  const handleDeleteWebhook = async (id: number) => {
+  const handleDeleteWebhook = async (id: string) => {
     if (!confirm('Tem certeza que deseja deletar este webhook?')) {
       return;
     }
 
     try {
-      const token = localStorage.getItem('zucropay_token');
-      const response = await fetch(`http://localhost:8000/webhooks-config.php?id=${id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      const data = await response.json();
+      const result = await api.deleteWebhook(id);
       
-      if (data.success) {
+      if (result.success) {
         showMessage('success', 'Webhook deletado com sucesso');
         loadWebhooks();
-      } else {
-        showMessage('error', data.message);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao deletar webhook:', error);
-      showMessage('error', 'Erro ao deletar webhook');
+      showMessage('error', error.message || 'Erro ao deletar webhook');
     }
   };
 
@@ -194,22 +168,9 @@ const WebhooksConfig: React.FC = () => {
     const newStatus = webhook.status === 'active' ? 'inactive' : 'active';
     
     try {
-      const token = localStorage.getItem('zucropay_token');
-      const response = await fetch('http://localhost:8000/webhooks-config.php', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          id: webhook.id,
-          status: newStatus
-        })
-      });
-
-      const data = await response.json();
+      const result = await api.updateWebhook(webhook.id, { status: newStatus });
       
-      if (data.success) {
+      if (result.success) {
         showMessage('success', `Webhook ${newStatus === 'active' ? 'ativado' : 'desativado'}`);
         loadWebhooks();
       } else {

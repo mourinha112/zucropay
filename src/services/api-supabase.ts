@@ -1183,11 +1183,10 @@ export const createPublicPayment = async (data: {
   payment?: any;
   pix?: any;
 }> => {
-  // Chamar Edge Function para processar pagamento público
-  const EDGE_FUNCTIONS_URL = import.meta.env.VITE_EDGE_FUNCTIONS_URL || 
-    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`;
+  // Chamar API Vercel para processar pagamento público
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
-  const response = await fetch(`${EDGE_FUNCTIONS_URL}/public-payment`, {
+  const response = await fetch(`${API_BASE_URL}/public-payment`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1201,6 +1200,158 @@ export const createPublicPayment = async (data: {
   }
 
   return response.json();
+};
+
+// ========================================
+// API KEYS
+// ========================================
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  api_key: string;
+  api_key_full?: string;
+  created_at: string;
+  last_used_at?: string;
+  is_active: boolean;
+}
+
+export const getApiKeys = async (): Promise<{ success: boolean; apiKeys: ApiKey[] }> => {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Usuário não autenticado');
+
+  const { data, error } = await supabase
+    .from('api_keys')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return {
+    success: true,
+    apiKeys: data || [],
+  };
+};
+
+export const createApiKey = async (name: string): Promise<{ success: boolean; apiKey: ApiKey }> => {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Usuário não autenticado');
+
+  // Gerar uma API key única
+  const apiKey = `zp_${crypto.randomUUID().replace(/-/g, '')}`;
+
+  const { data, error } = await supabase
+    .from('api_keys')
+    .insert({
+      user_id: user.id,
+      name,
+      api_key: apiKey,
+      is_active: true,
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  return {
+    success: true,
+    apiKey: data,
+  };
+};
+
+export const deleteApiKey = async (id: string): Promise<{ success: boolean }> => {
+  const { error } = await supabase
+    .from('api_keys')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw new Error(error.message);
+
+  return { success: true };
+};
+
+// ========================================
+// WEBHOOKS
+// ========================================
+
+export interface Webhook {
+  id: string;
+  url: string;
+  events: string[];
+  status: 'active' | 'inactive';
+  created_at: string;
+  last_triggered_at?: string;
+}
+
+export const getWebhooks = async (): Promise<{ success: boolean; webhooks: Webhook[] }> => {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Usuário não autenticado');
+
+  const { data, error } = await supabase
+    .from('webhooks')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+
+  return {
+    success: true,
+    webhooks: data || [],
+  };
+};
+
+export const createWebhook = async (webhook: { url: string; events: string[] }): Promise<{ success: boolean; webhook: Webhook; message: string }> => {
+  const user = await getCurrentUser();
+  if (!user) throw new Error('Usuário não autenticado');
+
+  const { data, error } = await supabase
+    .from('webhooks')
+    .insert({
+      user_id: user.id,
+      url: webhook.url,
+      events: webhook.events,
+      status: 'active',
+    })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  return {
+    success: true,
+    webhook: data,
+    message: 'Webhook criado com sucesso',
+  };
+};
+
+export const updateWebhook = async (id: string, updates: Partial<Webhook>): Promise<{ success: boolean; message: string }> => {
+  const { error } = await supabase
+    .from('webhooks')
+    .update(updates)
+    .eq('id', id);
+
+  if (error) throw new Error(error.message);
+
+  return {
+    success: true,
+    message: 'Webhook atualizado com sucesso',
+  };
+};
+
+export const deleteWebhook = async (id: string): Promise<{ success: boolean; message: string }> => {
+  const { error } = await supabase
+    .from('webhooks')
+    .delete()
+    .eq('id', id);
+
+  if (error) throw new Error(error.message);
+
+  return {
+    success: true,
+    message: 'Webhook deletado com sucesso',
+  };
 };
 
 // Exportar tudo como default também
@@ -1238,5 +1389,12 @@ export default {
   deletePaymentLink,
   getPublicPaymentLink,
   createPublicPayment,
+  getApiKeys,
+  createApiKey,
+  deleteApiKey,
+  getWebhooks,
+  createWebhook,
+  updateWebhook,
+  deleteWebhook,
 };
 

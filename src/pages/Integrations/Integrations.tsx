@@ -25,6 +25,7 @@ import {
 } from '@mui/icons-material';
 import Header from '../../components/Header/Header';
 import { useNavigate } from 'react-router-dom';
+import * as api from '../../services/api-supabase';
 
 interface IntegrationCardProps {
   title: string;
@@ -147,21 +148,14 @@ const Integrations: React.FC = () => {
 
   const loadApiKeys = async () => {
     try {
-      const token = localStorage.getItem('zucropay_token');
-      const response = await fetch('http://localhost:8000/api-keys.php', {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-      
-      const data = await response.json();
-      if (data.success && data.apiKeys.length > 0) {
-        setApiKeys(data.apiKeys); // Store keys
-        setApiKey(data.apiKeys[0].api_key_full); // Primeira chave
-        console.log('Loaded API Keys:', apiKeys);
+      const result = await api.getApiKeys();
+      if (result.success && result.apiKeys.length > 0) {
+        setApiKeys(result.apiKeys);
+        setApiKey(result.apiKeys[0].api_key);
+        console.log('Loaded API Keys:', result.apiKeys);
       } else {
         // Se não tem nenhuma chave, criar uma automaticamente
-        await createApiKey();
+        await handleCreateApiKey();
       }
     } catch (error) {
       console.error('Erro ao carregar API Keys:', error);
@@ -170,21 +164,11 @@ const Integrations: React.FC = () => {
     }
   };
 
-  const createApiKey = async () => {
+  const handleCreateApiKey = async () => {
     try {
-      const token = localStorage.getItem('zucropay_token');
-      const response = await fetch('http://localhost:8000/api-keys.php', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ name: 'Chave Principal' })
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        setApiKey(data.apiKey.api_key);
+      const result = await api.createApiKey('Chave Principal');
+      if (result.success) {
+        setApiKey(result.apiKey.api_key);
         loadApiKeys(); // Recarregar lista
       }
     } catch (error) {
