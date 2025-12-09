@@ -137,7 +137,7 @@ const Integrations: React.FC = () => {
   const navigate = useNavigate();
   const [openApiKeyDialog, setOpenApiKeyDialog] = useState(false);
   const [apiKey, setApiKey] = useState('');
-  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [_apiKeys, setApiKeys] = useState<any[]>([]); // Lista de chaves (para uso futuro)
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
 

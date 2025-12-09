@@ -104,21 +104,39 @@ export interface PaymentLink {
 
 export interface CheckoutCustomization {
   id?: string;
-  product_id: string;
+  product_id?: string;
+  productId?: string | number;
+  productName?: string;
   logo_url?: string;
+  logoUrl?: string;
   banner_url?: string;
+  bannerUrl?: string;
   background_image_url?: string;
+  backgroundUrl?: string;
   primary_color?: string;
+  primaryColor?: string;
   secondary_color?: string;
+  secondaryColor?: string;
   text_color?: string;
+  textColor?: string;
   background_color?: string;
+  backgroundColor?: string;
+  buttonColor?: string;
   countdown_enabled?: boolean;
   countdown_minutes?: number;
   countdown_text?: string;
+  // Timer (alias for countdown)
+  timerEnabled?: boolean;
+  timerMinutes?: number;
+  timerMessage?: string;
   guarantee_enabled?: boolean;
+  guaranteeEnabled?: boolean;
   guarantee_days?: number;
+  guaranteeDays?: number;
   guarantee_text?: string;
+  guaranteeText?: string;
   testimonials_enabled?: boolean;
+  showTestimonials?: boolean;
   testimonials?: Array<{
     name: string;
     text: string;
@@ -843,16 +861,37 @@ export const getCheckoutCustomization = async (productId: string): Promise<Check
   return data || { product_id: productId };
 };
 
-export const saveCheckoutCustomization = async (customization: CheckoutCustomization) => {
+export const saveCheckoutCustomization = async (customization: Partial<CheckoutCustomization> & { productId?: string | number }) => {
   const user = await getCurrentUser();
   if (!user) throw new Error('Usuário não autenticado');
 
+  // Mapear campos camelCase para snake_case
+  const data: any = {
+    user_id: user.id,
+    product_id: customization.product_id || customization.productId,
+    logo_url: customization.logo_url || customization.logoUrl,
+    banner_url: customization.banner_url || customization.bannerUrl,
+    background_image_url: customization.background_image_url || customization.backgroundUrl,
+    primary_color: customization.primary_color || customization.primaryColor,
+    secondary_color: customization.secondary_color || customization.secondaryColor,
+    text_color: customization.text_color || customization.textColor,
+    background_color: customization.background_color || customization.backgroundColor,
+    countdown_enabled: customization.countdown_enabled ?? customization.timerEnabled,
+    countdown_minutes: customization.countdown_minutes ?? customization.timerMinutes,
+    countdown_text: customization.countdown_text || customization.timerMessage,
+    guarantee_enabled: customization.guarantee_enabled ?? customization.guaranteeEnabled,
+    guarantee_days: customization.guarantee_days ?? customization.guaranteeDays,
+    guarantee_text: customization.guarantee_text || customization.guaranteeText,
+    testimonials_enabled: customization.testimonials_enabled ?? customization.showTestimonials,
+    testimonials: customization.testimonials,
+  };
+
+  // Remover campos undefined
+  Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
+
   const { error } = await supabase
     .from('checkout_customization')
-    .upsert({
-      ...customization,
-      user_id: user.id,
-    });
+    .upsert(data);
 
   if (error) throw new Error(error.message);
 
@@ -1278,10 +1317,14 @@ export const deleteApiKey = async (id: string): Promise<{ success: boolean }> =>
 export interface Webhook {
   id: string;
   url: string;
+  secret?: string;
   events: string[];
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'failed';
   created_at: string;
   last_triggered_at?: string;
+  last_success_at?: string | null;
+  last_failure_at?: string | null;
+  failure_count?: number;
 }
 
 export const getWebhooks = async (): Promise<{ success: boolean; webhooks: Webhook[] }> => {

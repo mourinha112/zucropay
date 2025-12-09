@@ -35,18 +35,7 @@ import {
 } from '@mui/icons-material';
 import Header from '../../components/Header/Header';
 import * as api from '../../services/api-supabase';
-
-interface Webhook {
-  id: string;
-  url: string;
-  secret: string;
-  events: string[];
-  status: 'active' | 'inactive' | 'failed';
-  last_success_at: string | null;
-  last_failure_at: string | null;
-  failure_count: number;
-  created_at: string;
-}
+import type { Webhook } from '../../services/api-supabase';
 
 const WebhooksConfig: React.FC = () => {
   const [webhooks, setWebhooks] = useState<Webhook[]>([]);
@@ -173,12 +162,10 @@ const WebhooksConfig: React.FC = () => {
       if (result.success) {
         showMessage('success', `Webhook ${newStatus === 'active' ? 'ativado' : 'desativado'}`);
         loadWebhooks();
-      } else {
-        showMessage('error', data.message);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao atualizar status:', error);
-      showMessage('error', 'Erro ao atualizar status');
+      showMessage('error', error.message || 'Erro ao atualizar status');
     }
   };
 
@@ -335,16 +322,18 @@ const WebhooksConfig: React.FC = () => {
                         <TableCell>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.75rem' }}>
-                              {webhook.secret.substring(0, 12)}...
+                              {webhook.secret ? `${webhook.secret.substring(0, 12)}...` : 'N/A'}
                             </Typography>
-                            <Tooltip title={copiedSecret === webhook.secret ? 'Copiado!' : 'Copiar'}>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleCopySecret(webhook.secret)}
-                              >
-                                <CopyIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            {webhook.secret && (
+                              <Tooltip title={copiedSecret === webhook.secret ? 'Copiado!' : 'Copiar'}>
+                                <IconButton
+                                  size="small"
+                                  onClick={() => handleCopySecret(webhook.secret!)}
+                                >
+                                  <CopyIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            )}
                           </Box>
                         </TableCell>
                         <TableCell>
@@ -367,7 +356,7 @@ const WebhooksConfig: React.FC = () => {
                               Nunca usado
                             </Typography>
                           )}
-                          {webhook.failure_count > 0 && (
+                          {(webhook.failure_count ?? 0) > 0 && (
                             <Typography variant="caption" color="error">
                               {webhook.failure_count} falha(s)
                             </Typography>
