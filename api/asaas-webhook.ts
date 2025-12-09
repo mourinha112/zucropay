@@ -1,10 +1,6 @@
 // Vercel Serverless Function - Webhook do Asaas
 // URL: https://dashboard.appzucropay.com/api/asaas-webhook
 
-export const config = {
-  runtime: 'nodejs20.x',
-};
-
 export default async function handler(req: any, res: any) {
   // Headers CORS
   res.setHeader('Access-Control-Allow-Origin', '*');

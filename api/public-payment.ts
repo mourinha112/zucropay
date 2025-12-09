@@ -1,9 +1,5 @@
 // Vercel Serverless Function - Pagamento Público (Checkout)
 
-export const config = {
-  runtime: 'nodejs20.x',
-};
-
 const ASAAS_API_URL = process.env.ASAAS_API_URL || process.env.VITE_ASAAS_API_URL || 'https://api.asaas.com/v3';
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY || process.env.VITE_ASAAS_API_KEY || '';
 
