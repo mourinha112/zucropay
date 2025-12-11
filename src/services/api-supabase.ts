@@ -1091,15 +1091,20 @@ export const getPaymentLinks = async () => {
 
   if (error) throw new Error(error.message);
 
+  // Gerar URL do checkout do ZucroPay
+  const baseUrl = window.location.origin;
+  
   return {
     success: true,
     paymentLinks: data.map(link => ({
       id: link.id,
+      productId: link.product_id,
       name: link.name,
       description: link.description,
       amount: link.amount,
       billingType: link.billing_type,
-      url: link.asaas_link_url,
+      url: `${baseUrl}/checkout/${link.id}`,
+      asaasUrl: link.asaas_link_url,
       active: link.active,
       clicks: link.clicks,
       paymentsCount: link.payments_count,
@@ -1197,7 +1202,20 @@ export const getPublicPaymentLink = async (linkId: string) => {
 
   if (error) throw new Error('Link de pagamento não encontrado');
 
-  return data;
+  // Mapear dados para o formato esperado pelo checkout
+  return {
+    id: data.id,
+    name: data.name,
+    description: data.description,
+    amount: data.amount,
+    value: data.amount,
+    billingType: data.billing_type,
+    productId: data.product_id,
+    productName: data.product?.name || data.name,
+    productDescription: data.product?.description || data.description,
+    productImage: data.product?.image_url,
+    productPrice: data.product?.price || data.amount,
+  };
 };
 
 export const createPublicPayment = async (data: {
@@ -1222,23 +1240,66 @@ export const createPublicPayment = async (data: {
   payment?: any;
   pix?: any;
 }> => {
+  // Buscar dados do link para obter o valor
+  const { data: linkData, error: linkError } = await supabase
+    .from('payment_links')
+    .select('amount, name, description')
+    .eq('id', data.linkId)
+    .single();
+
+  if (linkError || !linkData) {
+    throw new Error('Link de pagamento não encontrado');
+  }
+
   // Chamar API Vercel para processar pagamento público
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
+  // Transformar dados para o formato que a API espera
+  const apiData = {
+    customerName: data.customer.name,
+    customerEmail: data.customer.email,
+    customerCpfCnpj: data.customer.cpfCnpj,
+    customerPhone: data.customer.phone,
+    billingType: data.billingType,
+    value: linkData.amount,
+    description: linkData.description || linkData.name,
+    creditCard: data.creditCard,
+    creditCardHolderInfo: data.creditCard ? {
+      name: data.creditCard.name,
+      email: data.customer.email,
+      cpfCnpj: data.customer.cpfCnpj,
+      phone: data.customer.phone,
+      postalCode: '00000000',
+      addressNumber: '0',
+    } : undefined,
+  };
 
   const response = await fetch(`${API_BASE_URL}/public-payment`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify(apiData),
   });
 
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'Erro ao processar pagamento');
+  const result = await response.json();
+  
+  if (!result.success) {
+    throw new Error(result.message || result.error || 'Erro ao processar pagamento');
   }
 
-  return response.json();
+  // Mapear resposta para o formato esperado pelo frontend
+  return {
+    success: true,
+    payment: {
+      id: result.payment?.id,
+      status: result.payment?.status,
+      pixCode: result.payment?.pixCopyPaste,
+      pixQrCode: result.payment?.pixQrCode,
+      bankSlipUrl: result.payment?.bankSlipUrl,
+      invoiceUrl: result.payment?.invoiceUrl,
+    },
+  };
 };
 
 // ========================================

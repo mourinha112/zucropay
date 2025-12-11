@@ -61,6 +61,8 @@ const Products: React.FC = () => {
   const [paymentLinks, setPaymentLinks] = useState<PaymentLink[]>([]);
   const [openProductDialog, setOpenProductDialog] = useState(false);
   const [openLinkDialog, setOpenLinkDialog] = useState(false);
+  const [openLinkCreatedDialog, setOpenLinkCreatedDialog] = useState(false);
+  const [createdLinkUrl, setCreatedLinkUrl] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
@@ -219,9 +221,13 @@ const Products: React.FC = () => {
         billingType: linkFormData.billingType,
       };
       
-      await api.createPaymentLink(linkData);
-      showSnackbar('Link de pagamento criado com sucesso!', 'success');
+      const result = await api.createPaymentLink(linkData);
+      
+      // Gerar URL do checkout
+      const checkoutUrl = `${window.location.origin}/checkout/${result.paymentLink.id}`;
+      setCreatedLinkUrl(checkoutUrl);
       setOpenLinkDialog(false);
+      setOpenLinkCreatedDialog(true);
       setSelectedProduct(null);
       loadPaymentLinks();
     } catch (error: any) {
@@ -539,6 +545,66 @@ const Products: React.FC = () => {
           <Button onClick={() => setOpenLinkDialog(false)}>Cancelar</Button>
           <Button onClick={handleGenerateLink} variant="contained">
             Gerar Link
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Dialog Link Criado */}
+      <Dialog open={openLinkCreatedDialog} onClose={() => setOpenLinkCreatedDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ bgcolor: '#4caf50', color: 'white' }}>
+          ✅ Link Criado com Sucesso!
+        </DialogTitle>
+        <DialogContent sx={{ mt: 2 }}>
+          <Alert severity="success" sx={{ mb: 3 }}>
+            Seu link de checkout está pronto para ser compartilhado!
+          </Alert>
+          <Typography variant="subtitle2" gutterBottom>
+            Link do Checkout:
+          </Typography>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: 1, 
+            p: 2, 
+            bgcolor: '#f5f5f5', 
+            borderRadius: 1,
+            border: '1px solid #ddd'
+          }}>
+            <Typography 
+              variant="body2" 
+              sx={{ 
+                flex: 1, 
+                wordBreak: 'break-all',
+                fontFamily: 'monospace',
+                fontSize: '0.85rem'
+              }}
+            >
+              {createdLinkUrl}
+            </Typography>
+            <IconButton 
+              color="primary" 
+              onClick={() => {
+                navigator.clipboard.writeText(createdLinkUrl);
+                showSnackbar('Link copiado!', 'success');
+              }}
+            >
+              <CopyIcon />
+            </IconButton>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenLinkCreatedDialog(false)}>
+            Fechar
+          </Button>
+          <Button 
+            variant="contained" 
+            startIcon={<CopyIcon />}
+            onClick={() => {
+              navigator.clipboard.writeText(createdLinkUrl);
+              showSnackbar('Link copiado!', 'success');
+            }}
+          >
+            Copiar Link
           </Button>
         </DialogActions>
       </Dialog>
