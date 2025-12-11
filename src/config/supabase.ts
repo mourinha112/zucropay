@@ -149,24 +149,51 @@ export const callAsaasAPI = async (
 ): Promise<any> => {
   const token = await getAuthToken();
 
-  const response = await fetch(`${API_BASE_URL}/asaas-api`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify({
-      method,
-      endpoint,
-      data,
-    }),
-  });
+  try {
+    console.log(`[callAsaasAPI] ${method} ${endpoint}`, data);
+    
+    const response = await fetch(`${API_BASE_URL}/asaas-api`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        method,
+        endpoint,
+        data,
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`Asaas API error: ${response.statusText}`);
+    // Verificar se a resposta é válida
+    const responseText = await response.text();
+    
+    if (!responseText) {
+      throw new Error('API retornou resposta vazia. Verifique as variáveis de ambiente na Vercel.');
+    }
+
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch (e) {
+      console.error('Invalid JSON response:', responseText);
+      throw new Error('Resposta inválida da API. Verifique os logs na Vercel.');
+    }
+
+    console.log('[callAsaasAPI] Response:', result);
+
+    // Verificar se a API retornou erro
+    if (!result.success) {
+      const errorMessage = result.message || result.error || result.data?.errors?.[0]?.description || 'Erro na API do Asaas';
+      console.error('Asaas API Error:', result);
+      throw new Error(errorMessage);
+    }
+
+    return result;
+  } catch (error: any) {
+    console.error('callAsaasAPI error:', error);
+    throw new Error(error.message || 'Erro ao conectar com a API do Asaas');
   }
-
-  return response.json();
 };
 
 /**
