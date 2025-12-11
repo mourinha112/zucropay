@@ -1,4 +1,4 @@
-// Vercel Serverless Function - Pagamento Público (Checkout)
+// Vercel Serverless Function - Pagamento Público (ES Module)
 
 const ASAAS_API_URL = process.env.ASAAS_API_URL || process.env.VITE_ASAAS_API_URL || 'https://api.asaas.com/v3';
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY || process.env.VITE_ASAAS_API_KEY || '';
@@ -41,7 +41,7 @@ async function createOrGetCustomer(customerData) {
   
   if (cpf) {
     const searchResponse = await asaasRequest('GET', `/customers?cpfCnpj=${encodeURIComponent(cpf)}`);
-    if (searchResponse.code === 200 && searchResponse.data && searchResponse.data.data && searchResponse.data.data.length > 0) {
+    if (searchResponse.code === 200 && searchResponse.data?.data?.length > 0) {
       return searchResponse.data.data[0];
     }
   }
@@ -58,7 +58,7 @@ async function createOrGetCustomer(customerData) {
   return null;
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   // Headers CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -163,8 +163,8 @@ module.exports = async function handler(req, res) {
         billingType: payment.billingType,
         invoiceUrl: payment.invoiceUrl,
         bankSlipUrl: payment.bankSlipUrl,
-        pixQrCode: pixData ? pixData.encodedImage : null,
-        pixCopyPaste: pixData ? pixData.payload : null,
+        pixQrCode: pixData?.encodedImage || null,
+        pixCopyPaste: pixData?.payload || null,
       },
     });
 
@@ -175,5 +175,4 @@ module.exports = async function handler(req, res) {
       error: error.message || 'Internal server error',
     });
   }
-};
-
+}

@@ -1,7 +1,6 @@
-// Vercel Serverless Function - Webhook do Asaas
-// URL: https://dashboard.appzucropay.com/api/asaas-webhook
+// Vercel Serverless Function - Webhook do Asaas (ES Module)
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   // Headers CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
@@ -89,5 +88,4 @@ module.exports = async function handler(req, res) {
     console.error('Webhook error:', error);
     return res.status(200).json({ success: true, message: 'Webhook received with errors' });
   }
-};
-
+}

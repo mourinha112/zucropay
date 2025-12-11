@@ -1,6 +1,6 @@
-// Vercel Serverless Function - Proxy para API do Asaas (JavaScript)
+// Vercel Serverless Function - Proxy para API do Asaas (ES Module)
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   // Headers CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -89,5 +89,4 @@ module.exports = async function handler(req, res) {
       data: { error: error.message }
     });
   }
-};
-
+}
