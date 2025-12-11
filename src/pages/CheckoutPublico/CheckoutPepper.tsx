@@ -318,59 +318,84 @@ const CheckoutPepper: React.FC = () => {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
-      {/* Header com produto e timer */}
-      <Box sx={{ bgcolor: '#b91c1c', color: 'white', py: 2 }}>
+      {/* Timer bar */}
+      <Box sx={{ bgcolor: '#b91c1c', color: 'white', py: 1.5 }}>
         <Container maxWidth="md">
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-            {/* Produto */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              {productData?.productImage ? (
-                <Box
-                  component="img"
-                  src={productData.productImage}
-                  alt={productData.productName}
-                  sx={{ width: 60, height: 60, borderRadius: 1, objectFit: 'cover' }}
-                />
-              ) : (
-                <Box sx={{ width: 60, height: 60, bgcolor: 'rgba(255,255,255,0.2)', borderRadius: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Typography variant="h6" fontWeight={700}>
-                    {productData?.productName?.charAt(0) || 'P'}
-                  </Typography>
-                </Box>
-              )}
-              <Box>
-                <Typography variant="subtitle1" fontWeight={600}>
-                  {productData?.productName || productData?.name}
-                </Typography>
-                <Typography variant="caption" sx={{ textDecoration: 'line-through', opacity: 0.7 }}>
-                  De {installments}x R$ {(getPrice() / installments).toFixed(2)} por
-                </Typography>
-                <Typography variant="h6" fontWeight={700}>
-                  {installments}x R$ {getInstallmentValue(installments).toFixed(2)}
-                </Typography>
-                <Typography variant="caption">
-                  Ou R$ {getFinalPrice().toFixed(2)} à vista
-                </Typography>
-              </Box>
-            </Box>
-
-            {/* Timer */}
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <Typography variant="h4" fontWeight={700} sx={{ fontFamily: 'monospace' }}>
-                00:{formatTime(timeLeft)}
-              </Typography>
-              <TimerIcon />
-              <Typography variant="body2">
-                Aproveite essa oferta!
-              </Typography>
-            </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
+            <Typography variant="h5" fontWeight={700} sx={{ fontFamily: 'monospace' }}>
+              00:{formatTime(timeLeft)}
+            </Typography>
+            <TimerIcon />
+            <Typography variant="body1" fontWeight={500}>
+              Aproveite essa oferta!
+            </Typography>
           </Box>
         </Container>
       </Box>
 
       {/* Formulário */}
       <Container maxWidth="md" sx={{ py: 4 }}>
-        <Box sx={{ bgcolor: 'white', borderRadius: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+        {/* Card do Produto */}
+        <Box sx={{ 
+          bgcolor: 'white', 
+          borderRadius: 3, 
+          p: 3, 
+          mb: 3,
+          boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
+          borderLeft: '4px solid #3b82f6',
+        }}>
+          <Typography variant="caption" sx={{ color: '#3b82f6', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, mb: 2, display: 'block' }}>
+            VOCÊ ESTÁ ADQUIRINDO:
+          </Typography>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2.5 }}>
+            {productData?.productImage ? (
+              <Box
+                component="img"
+                src={productData.productImage}
+                alt={productData.productName}
+                sx={{ 
+                  width: 90, 
+                  height: 90, 
+                  borderRadius: 2, 
+                  objectFit: 'cover',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                }}
+              />
+            ) : (
+              <Box sx={{ 
+                width: 90, 
+                height: 90, 
+                background: 'linear-gradient(135deg, #1e3a5f 0%, #3b82f6 100%)', 
+                borderRadius: 2, 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              }}>
+                <Typography variant="h4" fontWeight={700} color="white">
+                  {productData?.productName?.charAt(0) || 'P'}
+                </Typography>
+              </Box>
+            )}
+            <Box sx={{ flex: 1 }}>
+              <Typography variant="h6" fontWeight={700} color="#1e293b" sx={{ mb: 0.5 }}>
+                {productData?.productName || productData?.name}
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#94a3b8' }}>
+                <span style={{ textDecoration: 'line-through' }}>De 12x R$ {(getPrice() / 12).toFixed(2)}</span>
+                {' '}por
+              </Typography>
+              <Typography variant="h5" fontWeight={700} color="#1e293b">
+                12x R$ {getInstallmentValue(12).toFixed(2)}
+              </Typography>
+              <Typography variant="body2" sx={{ color: '#64748b' }}>
+                Ou R$ {getFinalPrice().toFixed(2)} à vista
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+
+        <Box sx={{ bgcolor: 'white', borderRadius: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', overflow: 'hidden' }}>
           
           {/* Seção 1 - Dados Pessoais */}
           <Box sx={{ p: 3, borderBottom: '1px solid #eee' }}>
@@ -383,7 +408,7 @@ const CheckoutPepper: React.FC = () => {
               </Typography>
             </Box>
 
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
               <Box>
                 <Typography variant="caption" fontWeight={600} sx={{ mb: 0.5, display: 'block', textTransform: 'uppercase', color: '#666' }}>
                   Nome Completo
@@ -394,9 +419,17 @@ const CheckoutPepper: React.FC = () => {
                   value={customerData.name}
                   onChange={(e) => setCustomerData({ ...customerData, name: e.target.value })}
                   InputProps={{
-                    startAdornment: <InputAdornment position="start"><PersonIcon sx={{ color: '#999' }} /></InputAdornment>,
+                    startAdornment: <InputAdornment position="start"><PersonIcon sx={{ color: '#9ca3af' }} /></InputAdornment>,
                   }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+                  sx={{ 
+                    '& .MuiOutlinedInput-root': { 
+                      borderRadius: 3,
+                      bgcolor: '#f9fafb',
+                      '& fieldset': { borderColor: '#e5e7eb' },
+                      '&:hover fieldset': { borderColor: '#d1d5db' },
+                      '&.Mui-focused fieldset': { borderColor: '#b91c1c' },
+                    } 
+                  }}
                 />
               </Box>
 
@@ -411,9 +444,17 @@ const CheckoutPepper: React.FC = () => {
                   value={customerData.email}
                   onChange={(e) => setCustomerData({ ...customerData, email: e.target.value })}
                   InputProps={{
-                    startAdornment: <InputAdornment position="start"><EmailIcon sx={{ color: '#999' }} /></InputAdornment>,
+                    startAdornment: <InputAdornment position="start"><EmailIcon sx={{ color: '#9ca3af' }} /></InputAdornment>,
                   }}
-                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+                  sx={{ 
+                    '& .MuiOutlinedInput-root': { 
+                      borderRadius: 3,
+                      bgcolor: '#f9fafb',
+                      '& fieldset': { borderColor: '#e5e7eb' },
+                      '&:hover fieldset': { borderColor: '#d1d5db' },
+                      '&.Mui-focused fieldset': { borderColor: '#b91c1c' },
+                    } 
+                  }}
                 />
               </Box>
 
@@ -424,13 +465,21 @@ const CheckoutPepper: React.FC = () => {
                   </Typography>
                   <TextField
                     fullWidth
-                    placeholder="(00) 00000-0000"
+                    placeholder="(51) 99999-9999"
                     value={customerData.phone}
                     onChange={(e) => setCustomerData({ ...customerData, phone: formatPhone(e.target.value) })}
                     InputProps={{
-                      startAdornment: <InputAdornment position="start"><PhoneIcon sx={{ color: '#999' }} /></InputAdornment>,
+                      startAdornment: <InputAdornment position="start"><PhoneIcon sx={{ color: '#9ca3af' }} /></InputAdornment>,
                     }}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': { 
+                        borderRadius: 3,
+                        bgcolor: '#f9fafb',
+                        '& fieldset': { borderColor: '#e5e7eb' },
+                        '&:hover fieldset': { borderColor: '#d1d5db' },
+                        '&.Mui-focused fieldset': { borderColor: '#b91c1c' },
+                      } 
+                    }}
                   />
                 </Box>
                 <Box>
@@ -439,13 +488,21 @@ const CheckoutPepper: React.FC = () => {
                   </Typography>
                   <TextField
                     fullWidth
-                    placeholder="000.000.000-00"
+                    placeholder="Número do seu CPF ou CNPJ"
                     value={customerData.cpfCnpj}
                     onChange={(e) => setCustomerData({ ...customerData, cpfCnpj: formatCPF(e.target.value) })}
                     InputProps={{
-                      startAdornment: <InputAdornment position="start"><LockIcon sx={{ color: '#999' }} /></InputAdornment>,
+                      startAdornment: <InputAdornment position="start"><LockIcon sx={{ color: '#9ca3af' }} /></InputAdornment>,
                     }}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': { 
+                        borderRadius: 3,
+                        bgcolor: '#f9fafb',
+                        '& fieldset': { borderColor: '#e5e7eb' },
+                        '&:hover fieldset': { borderColor: '#d1d5db' },
+                        '&.Mui-focused fieldset': { borderColor: '#b91c1c' },
+                      } 
+                    }}
                   />
                 </Box>
               </Box>
@@ -469,22 +526,48 @@ const CheckoutPepper: React.FC = () => {
               <Box
                 onClick={() => setPaymentMethod('PIX')}
                 sx={{
-                  border: paymentMethod === 'PIX' ? '2px solid #b91c1c' : '1px solid #ddd',
-                  borderRadius: 2,
+                  border: paymentMethod === 'PIX' ? '3px solid #22c55e' : '2px solid #e5e7eb',
+                  borderRadius: 3,
                   p: 2,
                   cursor: 'pointer',
                   position: 'relative',
-                  bgcolor: paymentMethod === 'PIX' ? '#fef2f2' : 'white',
+                  bgcolor: paymentMethod === 'PIX' ? '#f0fdf4' : '#f9fafb',
                   transition: 'all 0.2s',
-                  '&:hover': { borderColor: '#b91c1c' },
+                  '&:hover': { borderColor: '#22c55e', bgcolor: '#f0fdf4' },
                 }}
               >
-                <Box sx={{ position: 'absolute', top: -8, right: 8, bgcolor: '#22c55e', color: 'white', px: 1, py: 0.25, borderRadius: 1, fontSize: 11, fontWeight: 700 }}>
+                <Box sx={{ 
+                  position: 'absolute', 
+                  top: -10, 
+                  right: 8, 
+                  bgcolor: '#22c55e', 
+                  color: 'white', 
+                  px: 1.5, 
+                  py: 0.5, 
+                  borderRadius: 2, 
+                  fontSize: 11, 
+                  fontWeight: 700,
+                  boxShadow: '0 2px 4px rgba(34,197,94,0.3)',
+                }}>
                   5% OFF
                 </Box>
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: 24, mb: 0.5 }}>◆</Typography>
-                  <Typography variant="body2" fontWeight={600}>PIX</Typography>
+                <Box sx={{ textAlign: 'center', pt: 1 }}>
+                  <Box sx={{ 
+                    width: 40, 
+                    height: 40, 
+                    mx: 'auto', 
+                    mb: 1,
+                    bgcolor: '#22c55e',
+                    borderRadius: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <Typography sx={{ color: 'white', fontWeight: 700, fontSize: 18 }}>◆</Typography>
+                  </Box>
+                  <Typography variant="body2" fontWeight={700} color={paymentMethod === 'PIX' ? '#166534' : '#374151'}>
+                    PIX
+                  </Typography>
                 </Box>
               </Box>
 
@@ -492,22 +575,46 @@ const CheckoutPepper: React.FC = () => {
               <Box
                 onClick={() => setPaymentMethod('CREDIT_CARD')}
                 sx={{
-                  border: paymentMethod === 'CREDIT_CARD' ? '2px solid #b91c1c' : '1px solid #ddd',
-                  borderRadius: 2,
+                  border: paymentMethod === 'CREDIT_CARD' ? '3px solid #b91c1c' : '2px solid #e5e7eb',
+                  borderRadius: 3,
                   p: 2,
                   cursor: 'pointer',
                   position: 'relative',
-                  bgcolor: paymentMethod === 'CREDIT_CARD' ? '#fef2f2' : 'white',
+                  bgcolor: paymentMethod === 'CREDIT_CARD' ? '#fef2f2' : '#f9fafb',
                   transition: 'all 0.2s',
-                  '&:hover': { borderColor: '#b91c1c' },
+                  '&:hover': { borderColor: '#b91c1c', bgcolor: '#fef2f2' },
                 }}
               >
-                <Box sx={{ position: 'absolute', top: -8, right: 8, bgcolor: '#22c55e', color: 'white', px: 1, py: 0.25, borderRadius: 1, fontSize: 11, fontWeight: 700 }}>
+                <Box sx={{ 
+                  position: 'absolute', 
+                  top: -10, 
+                  right: 8, 
+                  bgcolor: '#f59e0b', 
+                  color: 'white', 
+                  px: 1.5, 
+                  py: 0.5, 
+                  borderRadius: 2, 
+                  fontSize: 11, 
+                  fontWeight: 700,
+                  boxShadow: '0 2px 4px rgba(245,158,11,0.3)',
+                }}>
                   2% OFF
                 </Box>
-                <Box sx={{ textAlign: 'center' }}>
-                  <CardIcon sx={{ fontSize: 24, mb: 0.5, color: '#666' }} />
-                  <Typography variant="body2" fontWeight={600} color={paymentMethod === 'CREDIT_CARD' ? '#b91c1c' : 'inherit'}>
+                <Box sx={{ textAlign: 'center', pt: 1 }}>
+                  <Box sx={{ 
+                    width: 40, 
+                    height: 40, 
+                    mx: 'auto', 
+                    mb: 1,
+                    bgcolor: '#6366f1',
+                    borderRadius: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <CardIcon sx={{ color: 'white', fontSize: 22 }} />
+                  </Box>
+                  <Typography variant="body2" fontWeight={700} color={paymentMethod === 'CREDIT_CARD' ? '#b91c1c' : '#374151'}>
                     Cartão de crédito
                   </Typography>
                 </Box>
@@ -517,25 +624,39 @@ const CheckoutPepper: React.FC = () => {
               <Box
                 onClick={() => setPaymentMethod('BOLETO')}
                 sx={{
-                  border: paymentMethod === 'BOLETO' ? '2px solid #b91c1c' : '1px solid #ddd',
-                  borderRadius: 2,
+                  border: paymentMethod === 'BOLETO' ? '3px solid #64748b' : '2px solid #e5e7eb',
+                  borderRadius: 3,
                   p: 2,
                   cursor: 'pointer',
-                  bgcolor: paymentMethod === 'BOLETO' ? '#fef2f2' : 'white',
+                  bgcolor: paymentMethod === 'BOLETO' ? '#f1f5f9' : '#f9fafb',
                   transition: 'all 0.2s',
-                  '&:hover': { borderColor: '#b91c1c' },
+                  '&:hover': { borderColor: '#64748b', bgcolor: '#f1f5f9' },
                 }}
               >
-                <Box sx={{ textAlign: 'center' }}>
-                  <Typography sx={{ fontSize: 24, mb: 0.5 }}>|||</Typography>
-                  <Typography variant="body2" fontWeight={600}>Boleto</Typography>
+                <Box sx={{ textAlign: 'center', pt: 1 }}>
+                  <Box sx={{ 
+                    width: 40, 
+                    height: 40, 
+                    mx: 'auto', 
+                    mb: 1,
+                    bgcolor: '#64748b',
+                    borderRadius: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <Typography sx={{ color: 'white', fontWeight: 700, fontSize: 14, letterSpacing: 1 }}>|||</Typography>
+                  </Box>
+                  <Typography variant="body2" fontWeight={700} color={paymentMethod === 'BOLETO' ? '#334155' : '#374151'}>
+                    Boleto
+                  </Typography>
                 </Box>
               </Box>
             </Box>
 
             {/* Campos do cartão */}
             {paymentMethod === 'CREDIT_CARD' && (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 3 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, mb: 3 }}>
                 <Box>
                   <Typography variant="caption" fontWeight={600} sx={{ mb: 0.5, display: 'block', textTransform: 'uppercase', color: '#666' }}>
                     Nome como consta no cartão
@@ -545,7 +666,15 @@ const CheckoutPepper: React.FC = () => {
                     placeholder="Nome"
                     value={cardData.name}
                     onChange={(e) => setCardData({ ...cardData, name: e.target.value })}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': { 
+                        borderRadius: 3,
+                        bgcolor: '#f9fafb',
+                        '& fieldset': { borderColor: '#e5e7eb' },
+                        '&:hover fieldset': { borderColor: '#d1d5db' },
+                        '&.Mui-focused fieldset': { borderColor: '#b91c1c' },
+                      } 
+                    }}
                   />
                 </Box>
 
@@ -559,9 +688,17 @@ const CheckoutPepper: React.FC = () => {
                     value={cardData.number}
                     onChange={(e) => setCardData({ ...cardData, number: formatCardNumber(e.target.value) })}
                     InputProps={{
-                      startAdornment: <InputAdornment position="start"><CardIcon sx={{ color: '#999' }} /></InputAdornment>,
+                      startAdornment: <InputAdornment position="start"><CardIcon sx={{ color: '#9ca3af' }} /></InputAdornment>,
                     }}
-                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+                    sx={{ 
+                      '& .MuiOutlinedInput-root': { 
+                        borderRadius: 3,
+                        bgcolor: '#f9fafb',
+                        '& fieldset': { borderColor: '#e5e7eb' },
+                        '&:hover fieldset': { borderColor: '#d1d5db' },
+                        '&.Mui-focused fieldset': { borderColor: '#b91c1c' },
+                      } 
+                    }}
                   />
                 </Box>
 
@@ -575,7 +712,15 @@ const CheckoutPepper: React.FC = () => {
                       placeholder="MM/YY"
                       value={cardData.expiry}
                       onChange={(e) => setCardData({ ...cardData, expiry: formatExpiry(e.target.value) })}
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+                      sx={{ 
+                        '& .MuiOutlinedInput-root': { 
+                          borderRadius: 3,
+                          bgcolor: '#f9fafb',
+                          '& fieldset': { borderColor: '#e5e7eb' },
+                          '&:hover fieldset': { borderColor: '#d1d5db' },
+                          '&.Mui-focused fieldset': { borderColor: '#b91c1c' },
+                        } 
+                      }}
                     />
                   </Box>
                   <Box>
@@ -588,9 +733,17 @@ const CheckoutPepper: React.FC = () => {
                       value={cardData.cvv}
                       onChange={(e) => setCardData({ ...cardData, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) })}
                       InputProps={{
-                        startAdornment: <InputAdornment position="start"><LockIcon sx={{ color: '#999' }} /></InputAdornment>,
+                        startAdornment: <InputAdornment position="start"><LockIcon sx={{ color: '#9ca3af' }} /></InputAdornment>,
                       }}
-                      sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+                      sx={{ 
+                        '& .MuiOutlinedInput-root': { 
+                          borderRadius: 3,
+                          bgcolor: '#f9fafb',
+                          '& fieldset': { borderColor: '#e5e7eb' },
+                          '&:hover fieldset': { borderColor: '#d1d5db' },
+                          '&.Mui-focused fieldset': { borderColor: '#b91c1c' },
+                        } 
+                      }}
                     />
                   </Box>
                 </Box>
@@ -603,7 +756,13 @@ const CheckoutPepper: React.FC = () => {
                     <Select
                       value={installments}
                       onChange={(e) => setInstallments(Number(e.target.value))}
-                      sx={{ borderRadius: 1.5 }}
+                      sx={{ 
+                        borderRadius: 3,
+                        bgcolor: '#f9fafb',
+                        '& fieldset': { borderColor: '#e5e7eb' },
+                        '&:hover fieldset': { borderColor: '#d1d5db' },
+                        '&.Mui-focused fieldset': { borderColor: '#b91c1c' },
+                      }}
                     >
                       {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
                         <MenuItem key={num} value={num}>
@@ -617,24 +776,24 @@ const CheckoutPepper: React.FC = () => {
             )}
 
             {/* Resumo de valores */}
-            <Box sx={{ bgcolor: '#f9f9f9', p: 2, borderRadius: 1.5, mb: 3 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+            <Box sx={{ bgcolor: '#f8fafc', p: 3, borderRadius: 3, mb: 3, border: '1px solid #e2e8f0' }}>
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
                 <Typography variant="body2" color="text.secondary">Valor original:</Typography>
-                <Typography variant="body2" sx={{ textDecoration: 'line-through', color: '#999' }}>
+                <Typography variant="body2" sx={{ textDecoration: 'line-through', color: '#94a3b8' }}>
                   R$ {getPrice().toFixed(2)}
                 </Typography>
               </Box>
               {discounts[paymentMethod] > 0 && (
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
                   <Typography variant="body2" color="text.secondary">Desconto (Forma de Pagamento):</Typography>
-                  <Typography variant="body2" color="#22c55e" fontWeight={600}>
+                  <Typography variant="body2" color="#22c55e" fontWeight={700}>
                     -R$ {getDiscount().toFixed(2)}
                   </Typography>
                 </Box>
               )}
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 1, borderTop: '1px solid #eee' }}>
-                <Typography variant="body1" fontWeight={700}>Valor total:</Typography>
-                <Typography variant="body1" fontWeight={700} color="#b91c1c">
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', pt: 2, borderTop: '2px solid #e2e8f0' }}>
+                <Typography variant="body1" fontWeight={700} color="#1e293b">Valor total:</Typography>
+                <Typography variant="h6" fontWeight={700} color="#b91c1c">
                   {paymentMethod === 'CREDIT_CARD' && installments > 1
                     ? `${installments}x de R$ ${getInstallmentValue(installments).toFixed(2)}`
                     : `R$ ${getFinalPrice().toFixed(2)}`}
@@ -644,7 +803,7 @@ const CheckoutPepper: React.FC = () => {
 
             {/* Erro */}
             {error && (
-              <Alert severity="error" sx={{ mb: 2 }}>
+              <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
                 {error}
               </Alert>
             )}
@@ -659,20 +818,26 @@ const CheckoutPepper: React.FC = () => {
               sx={{
                 bgcolor: '#b91c1c',
                 '&:hover': { bgcolor: '#991b1b' },
+                '&:disabled': { bgcolor: '#d1d5db' },
                 py: 2,
-                fontSize: 16,
+                fontSize: 18,
                 fontWeight: 700,
                 textTransform: 'uppercase',
-                borderRadius: 1.5,
+                borderRadius: 3,
+                boxShadow: '0 4px 14px rgba(185, 28, 28, 0.4)',
+                letterSpacing: 1,
               }}
             >
               {processing ? <CircularProgress size={24} sx={{ color: 'white' }} /> : 'COMPRAR AGORA'}
             </Button>
 
             {/* Footer */}
-            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 2 }}>
-              🔒 Ambiente criptografado e 100% seguro
-            </Typography>
+            <Box sx={{ textAlign: 'center', mt: 3, pb: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+                <LockIcon sx={{ fontSize: 16, color: '#22c55e' }} />
+                Ambiente criptografado e 100% seguro
+              </Typography>
+            </Box>
           </Box>
         </Box>
       </Container>
