@@ -3,10 +3,10 @@
 const ASAAS_API_URL = process.env.ASAAS_API_URL || process.env.VITE_ASAAS_API_URL || 'https://api.asaas.com/v3';
 const ASAAS_API_KEY = process.env.ASAAS_API_KEY || process.env.VITE_ASAAS_API_KEY || '';
 
-async function asaasRequest(method: string, endpoint: string, data?: any) {
+async function asaasRequest(method, endpoint, data) {
   const url = `${ASAAS_API_URL}${endpoint}`;
 
-  const options: any = {
+  const options = {
     method,
     headers: {
       'Content-Type': 'application/json',
@@ -20,24 +20,32 @@ async function asaasRequest(method: string, endpoint: string, data?: any) {
   }
 
   const response = await fetch(url, options);
+  const responseText = await response.text();
+  
+  let responseData;
+  try {
+    responseData = JSON.parse(responseText);
+  } catch (e) {
+    responseData = { raw: responseText };
+  }
+
   return {
     code: response.status,
-    data: await response.json(),
+    data: responseData,
     success: response.ok,
   };
 }
 
-async function createOrGetCustomer(customerData: any) {
-  // Buscar cliente existente por CPF
-  const cpf = customerData.cpfCnpj?.replace(/\D/g, '');
+async function createOrGetCustomer(customerData) {
+  const cpf = customerData.cpfCnpj ? customerData.cpfCnpj.replace(/\D/g, '') : '';
+  
   if (cpf) {
     const searchResponse = await asaasRequest('GET', `/customers?cpfCnpj=${encodeURIComponent(cpf)}`);
-    if (searchResponse.code === 200 && searchResponse.data?.data?.length > 0) {
+    if (searchResponse.code === 200 && searchResponse.data && searchResponse.data.data && searchResponse.data.data.length > 0) {
       return searchResponse.data.data[0];
     }
   }
 
-  // Criar novo cliente
   const createResponse = await asaasRequest('POST', '/customers', {
     ...customerData,
     cpfCnpj: cpf
@@ -50,18 +58,16 @@ async function createOrGetCustomer(customerData: any) {
   return null;
 }
 
-export default async function handler(req: any, res: any) {
+module.exports = async function handler(req, res) {
   // Headers CORS
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  // GET para teste
   if (req.method === 'GET') {
     return res.status(200).json({ 
       success: true, 
@@ -94,15 +100,13 @@ export default async function handler(req: any, res: any) {
       creditCardHolderInfo 
     } = req.body || {};
 
-    // Validar dados obrigatórios
     if (!customerName || !customerCpfCnpj || !billingType || !value) {
       return res.status(200).json({
         success: false,
-        message: 'Missing required fields: customerName, customerCpfCnpj, billingType, value',
+        message: 'Campos obrigatórios: customerName, customerCpfCnpj, billingType, value',
       });
     }
 
-    // Criar ou buscar cliente
     const customer = await createOrGetCustomer({
       name: customerName,
       email: customerEmail,
@@ -113,12 +117,11 @@ export default async function handler(req: any, res: any) {
     if (!customer) {
       return res.status(200).json({
         success: false,
-        message: 'Failed to create or find customer',
+        message: 'Falha ao criar/buscar cliente',
       });
     }
 
-    // Criar cobrança
-    const paymentData: any = {
+    const paymentData = {
       customer: customer.id,
       billingType,
       value: parseFloat(value),
@@ -126,7 +129,6 @@ export default async function handler(req: any, res: any) {
       description: description || 'Pagamento ZucroPay',
     };
 
-    // Se for cartão de crédito, adicionar dados do cartão
     if (billingType === 'CREDIT_CARD' && creditCard) {
       paymentData.creditCard = creditCard;
       paymentData.creditCardHolderInfo = creditCardHolderInfo;
@@ -137,14 +139,13 @@ export default async function handler(req: any, res: any) {
     if (!paymentResponse.success) {
       return res.status(200).json({
         success: false,
-        message: 'Failed to create payment',
+        message: 'Falha ao criar pagamento',
         error: paymentResponse.data,
       });
     }
 
     const payment = paymentResponse.data;
 
-    // Se for PIX, buscar QR Code
     let pixData = null;
     if (billingType === 'PIX' && payment.id) {
       const pixResponse = await asaasRequest('GET', `/payments/${payment.id}/pixQrCode`);
@@ -162,16 +163,17 @@ export default async function handler(req: any, res: any) {
         billingType: payment.billingType,
         invoiceUrl: payment.invoiceUrl,
         bankSlipUrl: payment.bankSlipUrl,
-        pixQrCode: pixData?.encodedImage,
-        pixCopyPaste: pixData?.payload,
+        pixQrCode: pixData ? pixData.encodedImage : null,
+        pixCopyPaste: pixData ? pixData.payload : null,
       },
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error processing payment:', error);
     return res.status(200).json({
       success: false,
       error: error.message || 'Internal server error',
     });
   }
-}
+};
+
