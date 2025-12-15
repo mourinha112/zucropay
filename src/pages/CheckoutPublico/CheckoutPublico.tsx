@@ -47,6 +47,8 @@ const CheckoutPublicoHubla: React.FC = () => {
   const [bankSlipUrl, setBankSlipUrl] = useState('');
   const [invoiceUrl, setInvoiceUrl] = useState('');
   const [showCvv, setShowCvv] = useState(false);
+  const [pixConfirmed, setPixConfirmed] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   // Dados do cliente
   const [customerData, setCustomerData] = useState({
@@ -324,30 +326,84 @@ const CheckoutPublicoHubla: React.FC = () => {
     );
   }
 
-  // Tela de sucesso apenas para cartão de crédito (pagamento instantâneo)
+  // Tela de sucesso para cartão de crédito (pagamento instantâneo)
   if (success && paymentMethod === 'CREDIT_CARD') {
     return (
-      <Container maxWidth="sm" sx={{ py: 4 }}>
-        <Paper elevation={0} sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
-          <CheckCircle sx={{ fontSize: 64, color: '#22c55e', mb: 2 }} />
-          <Typography variant="h5" fontWeight={600} gutterBottom>
-            Pagamento Realizado!
-          </Typography>
-          <Typography color="text.secondary" sx={{ mb: 2 }}>
-            Seu pagamento foi processado com sucesso.
-          </Typography>
-          {invoiceUrl && (
-            <Button
-              variant="outlined"
-              href={invoiceUrl}
-              target="_blank"
-              sx={{ mt: 2 }}
-            >
-              Ver Comprovante
-            </Button>
-          )}
-        </Paper>
-      </Container>
+      <Box sx={{ bgcolor: '#f0fdf4', minHeight: '100vh', py: 6 }}>
+        <Container maxWidth="sm">
+          <Paper elevation={0} sx={{ p: 5, textAlign: 'center', borderRadius: 3, border: '1px solid #bbf7d0' }}>
+            <Box sx={{ 
+              width: 100, 
+              height: 100, 
+              borderRadius: '50%', 
+              bgcolor: '#22c55e', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center',
+              mx: 'auto',
+              mb: 3,
+              boxShadow: '0 8px 30px rgba(34, 197, 94, 0.4)'
+            }}>
+              <CheckCircle sx={{ fontSize: 60, color: 'white' }} />
+            </Box>
+            
+            <Typography variant="h4" fontWeight={700} sx={{ mb: 1, color: '#166534' }}>
+              Pagamento Confirmado!
+            </Typography>
+            
+            <Typography variant="body1" sx={{ mb: 4, color: '#15803d' }}>
+              Sua compra foi realizada com sucesso.
+            </Typography>
+
+            <Box sx={{ bgcolor: '#f0fdf4', borderRadius: 2, p: 3, mb: 3, border: '1px solid #bbf7d0' }}>
+              <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                Produto adquirido:
+              </Typography>
+              <Typography variant="h6" fontWeight={600} color="#1e293b">
+                {productData?.productName || productData?.name}
+              </Typography>
+              <Typography variant="h5" fontWeight={700} color="#22c55e" sx={{ mt: 1 }}>
+                R$ {(productData?.amount || productData?.value || 0).toFixed(2)}
+              </Typography>
+            </Box>
+
+            <Alert severity="success" sx={{ textAlign: 'left', bgcolor: '#dcfce7', border: '1px solid #bbf7d0', mb: 3 }}>
+              <Typography variant="body2" fontWeight={600} gutterBottom>
+                🎉 Parabéns pela sua compra!
+              </Typography>
+              <Typography variant="body2">
+                Você receberá um e-mail com os detalhes do seu pedido e instruções de acesso em breve.
+              </Typography>
+            </Alert>
+
+            {invoiceUrl && (
+              <Button
+                fullWidth
+                variant="outlined"
+                href={invoiceUrl}
+                target="_blank"
+                sx={{ 
+                  py: 1.5, 
+                  borderRadius: 2,
+                  borderColor: '#22c55e',
+                  color: '#22c55e',
+                  fontWeight: 600,
+                  '&:hover': {
+                    borderColor: '#16a34a',
+                    bgcolor: '#f0fdf4'
+                  }
+                }}
+              >
+                Ver Comprovante
+              </Button>
+            )}
+
+            <Typography variant="caption" sx={{ display: 'block', mt: 3, color: '#64748b' }}>
+              Compra realizada via ZucroPay - Pagamentos Seguros
+            </Typography>
+          </Paper>
+        </Container>
+      </Box>
     );
   }
 
@@ -862,6 +918,58 @@ const CheckoutPublicoHubla: React.FC = () => {
                   Ao confirmar sua compra, você concorda com os Termos de Uso da Hubla.
                 </Typography>
               </Paper>
+            ) : success && paymentMethod === 'PIX' && pixConfirmed ? (
+              /* Tela de Confirmação de Pagamento PIX */
+              <Paper elevation={0} sx={{ p: 4, borderRadius: 3, border: '1px solid #e5e7eb', textAlign: 'center', bgcolor: '#f0fdf4' }}>
+                <Box sx={{ 
+                  width: 80, 
+                  height: 80, 
+                  borderRadius: '50%', 
+                  bgcolor: '#22c55e', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  mx: 'auto',
+                  mb: 3,
+                  boxShadow: '0 4px 20px rgba(34, 197, 94, 0.4)'
+                }}>
+                  <CheckCircle sx={{ fontSize: 48, color: 'white' }} />
+                </Box>
+                
+                <Typography variant="h5" fontWeight={700} sx={{ mb: 1, color: '#166534' }}>
+                  Pagamento Confirmado!
+                </Typography>
+                
+                <Typography variant="body1" sx={{ mb: 3, color: '#15803d' }}>
+                  Seu pagamento foi processado com sucesso.
+                </Typography>
+
+                <Box sx={{ bgcolor: 'white', borderRadius: 2, p: 3, mb: 3, border: '1px solid #bbf7d0' }}>
+                  <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                    Produto adquirido:
+                  </Typography>
+                  <Typography variant="h6" fontWeight={600} color="#1e293b">
+                    {productData?.productName || productData?.name}
+                  </Typography>
+                  <Typography variant="h5" fontWeight={700} color="#22c55e" sx={{ mt: 1 }}>
+                    R$ {(productData?.amount || productData?.value || 0).toFixed(2)}
+                  </Typography>
+                </Box>
+
+                <Alert severity="success" sx={{ textAlign: 'left', bgcolor: '#dcfce7', border: '1px solid #bbf7d0' }}>
+                  <Typography variant="body2" fontWeight={600} gutterBottom>
+                    🎉 Parabéns pela sua compra!
+                  </Typography>
+                  <Typography variant="body2">
+                    Você receberá um e-mail com os detalhes do seu pedido em breve.
+                    Em caso de dúvidas, entre em contato com o suporte.
+                  </Typography>
+                </Alert>
+
+                <Typography variant="caption" sx={{ display: 'block', mt: 3, color: '#64748b' }}>
+                  Compra realizada via ZucroPay - Pagamentos Seguros
+                </Typography>
+              </Paper>
             ) : success && paymentMethod === 'PIX' && pixQrCode ? (
               /* Tela de QR Code PIX */
               <Paper elevation={0} sx={{ p: 4, borderRadius: 2, border: '1px solid #e5e7eb', textAlign: 'center' }}>
@@ -878,25 +986,43 @@ const CheckoutPublicoHubla: React.FC = () => {
                   />
                 </Box>
 
-                <TextField
+                <Button
                   fullWidth
-                  multiline
-                  rows={3}
-                  value={pixCode}
-                  InputProps={{
-                    readOnly: true,
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton onClick={copyPixCode} color="primary">
-                          <ContentCopy />
-                        </IconButton>
-                      </InputAdornment>
-                    ),
+                  variant="contained"
+                  size="large"
+                  onClick={() => {
+                    navigator.clipboard.writeText(pixCode);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
                   }}
-                  sx={{ mb: 2, bgcolor: 'white' }}
-                />
+                  startIcon={copied ? <CheckCircle /> : <ContentCopy />}
+                  sx={{
+                    py: 1.5,
+                    mb: 2,
+                    bgcolor: copied ? '#22c55e' : '#1e293b',
+                    color: 'white',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    fontSize: 16,
+                    borderRadius: 2,
+                    '&:hover': { bgcolor: copied ? '#16a34a' : '#374151' },
+                  }}
+                >
+                  {copied ? 'Código Copiado!' : 'Copiar Código PIX'}
+                </Button>
 
-                <Alert severity="info" sx={{ textAlign: 'left' }}>
+                <Box sx={{ bgcolor: '#f8fafc', p: 2, borderRadius: 2, mb: 3, border: '1px solid #e2e8f0' }}>
+                  <Typography variant="caption" sx={{ 
+                    wordBreak: 'break-all', 
+                    fontFamily: 'monospace',
+                    fontSize: 11,
+                    color: '#64748b'
+                  }}>
+                    {pixCode}
+                  </Typography>
+                </Box>
+
+                <Alert severity="info" sx={{ textAlign: 'left', mb: 3 }}>
                   <Typography variant="body2" fontWeight={600} gutterBottom>
                     Como pagar:
                   </Typography>
@@ -904,9 +1030,29 @@ const CheckoutPublicoHubla: React.FC = () => {
                     1. Abra o app do seu banco<br />
                     2. Escaneie o QR Code ou copie o código PIX<br />
                     3. Confirme o pagamento<br />
-                    4. Pronto! Você receberá a confirmação em instantes
+                    4. Clique no botão abaixo após pagar
                   </Typography>
                 </Alert>
+
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="large"
+                  onClick={() => setPixConfirmed(true)}
+                  sx={{
+                    py: 2,
+                    bgcolor: '#22c55e',
+                    color: 'white',
+                    fontWeight: 700,
+                    textTransform: 'none',
+                    fontSize: 18,
+                    borderRadius: 2,
+                    boxShadow: '0 4px 14px rgba(34, 197, 94, 0.4)',
+                    '&:hover': { bgcolor: '#16a34a' },
+                  }}
+                >
+                  ✓ JÁ FIZ O PAGAMENTO
+                </Button>
               </Paper>
             ) : success && paymentMethod === 'BOLETO' && bankSlipUrl ? (
               /* Tela de Boleto */
