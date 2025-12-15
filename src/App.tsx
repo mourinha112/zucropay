@@ -11,7 +11,7 @@ import Finances from './pages/Finances/Finances';
 import Support from './pages/Support/Support';
 import Products from './pages/Products/Products';
 import Vendas from './pages/Vendas/Vendas';
-import CheckoutPepper from './pages/CheckoutPublico/CheckoutPepper';
+import CheckoutPublico from './pages/CheckoutPublico/CheckoutPublico';
 import CheckoutCustomization from './pages/CheckoutCustomization/CheckoutCustomization';
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
@@ -31,7 +31,7 @@ const App = () => {
           {/* Rotas públicas */}
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          <Route path="/checkout/:linkId" element={<CheckoutPepper />} />
+          <Route path="/checkout/:linkId" element={<CheckoutPublico />} />
           
           {/* Rotas protegidas */}
           <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
