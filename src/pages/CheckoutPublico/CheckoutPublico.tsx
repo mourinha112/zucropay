@@ -301,10 +301,6 @@ const CheckoutPublicoHubla: React.FC = () => {
     }
   };
 
-  const copyPixCode = () => {
-    navigator.clipboard.writeText(pixCode);
-    alert('Código PIX copiado!');
-  };
 
   const calculateInstallmentValue = (total: number, installmentNumber: number) => {
     return total / installmentNumber;

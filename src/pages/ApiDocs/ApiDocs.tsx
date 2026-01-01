@@ -3,17 +3,12 @@ import {
   Box,
   Typography,
   Paper,
-  Button,
   IconButton,
   Alert,
-  Divider,
   Chip,
-  Stack,
   Accordion,
   AccordionSummary,
   AccordionDetails,
-  TextField,
-  InputAdornment,
   Snackbar,
 } from '@mui/material';
 import {
@@ -21,8 +16,6 @@ import {
   ExpandMore as ExpandMoreIcon,
   Code as CodeIcon,
   Webhook as WebhookIcon,
-  Key as KeyIcon,
-  CheckCircle as CheckIcon,
   PlayArrow as PlayIcon,
   Api as ApiIcon,
   Security as SecurityIcon,
@@ -35,7 +28,6 @@ const ApiDocs: React.FC = () => {
   const [copied, setCopied] = useState(false);
   const [copiedText, setCopiedText] = useState('');
   const [apiKeys, setApiKeys] = useState<any[]>([]);
-  const [webhookUrl, setWebhookUrl] = useState('');
 
   const API_BASE_URL = 'https://dashboard.appzucropay.com/api';
 
@@ -45,8 +37,8 @@ const ApiDocs: React.FC = () => {
 
   const loadApiKeys = async () => {
     try {
-      const keys = await api.getApiKeys();
-      setApiKeys(keys);
+      const response = await api.getApiKeys();
+      setApiKeys(response.apiKeys || []);
     } catch (error) {
       console.error('Error loading API keys:', error);
     }

@@ -42,12 +42,8 @@ import {
   Search as SearchIcon,
   Refresh as RefreshIcon,
   TrendingUp as TrendingUpIcon,
-  AttachMoney as MoneyIcon,
   Warning as WarningIcon,
   Lock as LockIcon,
-  LockOpen as LockOpenIcon,
-  Visibility as VisibilityIcon,
-  MoreVert as MoreVertIcon,
   ArrowUpward as ArrowUpIcon,
   ArrowDownward as ArrowDownIcon,
 } from '@mui/icons-material';
