@@ -16,6 +16,7 @@ import CheckoutCustomization from './pages/CheckoutCustomization/CheckoutCustomi
 import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import Indique from './pages/Indique/Indique';
+import Admin from './pages/Admin/Admin';
 
 // Componente de proteção de rota
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
@@ -46,6 +47,7 @@ const App = () => {
           <Route path="/financas" element={<PrivateRoute><Finances /></PrivateRoute>} />
           <Route path="/suporte" element={<PrivateRoute><Support /></PrivateRoute>} />
           <Route path="/indique" element={<PrivateRoute><Indique /></PrivateRoute>} />
+          <Route path="/admin" element={<PrivateRoute><Admin /></PrivateRoute>} />
         </Routes>
       </Router>
     </ThemeProvider>
