@@ -46,6 +46,7 @@ const CheckoutPublicoHubla: React.FC = () => {
   const [pixQrCode, setPixQrCode] = useState('');
   const [boletoUrl, setBoletoUrl] = useState('');
   const [boletoBarcode, setBoletoBarcode] = useState('');
+  const [invoiceUrl] = useState(''); // Pode ser usado futuramente para links de comprovante
   const [showCvv, setShowCvv] = useState(false);
   const [pixConfirmed, setPixConfirmed] = useState(false);
   const [copied, setCopied] = useState(false);

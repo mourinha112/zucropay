@@ -27,8 +27,6 @@ import {
   Alert,
   InputAdornment,
   Badge,
-  LinearProgress,
-  Divider,
   Skeleton,
 } from '@mui/material';
 import {
@@ -42,13 +40,10 @@ import {
   Cancel as CancelIcon,
   Search as SearchIcon,
   Refresh as RefreshIcon,
-  TrendingUp as TrendingUpIcon,
-  Warning as WarningIcon,
   Lock as LockIcon,
   ArrowUpward as ArrowUpIcon,
   ArrowDownward as ArrowDownIcon,
   ShowChart as ChartIcon,
-  PieChart as PieChartIcon,
   Speed as SpeedIcon,
   Payments as PaymentsIcon,
 } from '@mui/icons-material';
@@ -67,7 +62,6 @@ import {
   CartesianGrid,
   Tooltip as RechartsTooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts';
 import AdminHeader from '../../components/AdminHeader/AdminHeader';
 import * as adminApi from '../../services/admin-api';
@@ -86,9 +80,6 @@ function TabPanel(props: TabPanelProps) {
     </div>
   );
 }
-
-// Cores para gráficos
-const CHART_COLORS = ['#5818C8', '#e94560', '#22c55e', '#f59e0b', '#3b82f6', '#8b5cf6'];
 
 const Admin = () => {
   const [tabValue, setTabValue] = useState(0);

@@ -385,14 +385,14 @@ const Vendas: React.FC = () => {
             Detalhes da Venda
           </DialogTitle>
           <DialogContent>
-            {selectedSale && (
+              {selectedSale && (
               <Stack spacing={2} sx={{ mt: 1 }}>
                 <Box>
                   <Typography variant="caption" color="text.secondary">
                     ID do Pagamento
                   </Typography>
                   <Typography variant="body2" fontFamily="monospace">
-                    {selectedSale.asaas_payment_id}
+                    {selectedSale.efi_txid || selectedSale.efi_charge_id || selectedSale.id}
                   </Typography>
                 </Box>
 

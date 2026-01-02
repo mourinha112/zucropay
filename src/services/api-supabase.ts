@@ -318,7 +318,7 @@ export const getCurrentUser = async (): Promise<User | null> => {
     phone: userData.phone,
     avatar: userData.avatar,
     balance: userData.balance,
-    asaasCustomerId: userData.asaas_customer_id,
+    efiCustomerId: userData.efi_customer_id,
   };
 };
 
@@ -766,69 +766,75 @@ export const createPayment = async (payment: Payment) => {
   const user = await getCurrentUser();
   if (!user) throw new Error('Usuário não autenticado');
 
-  // Buscar customer
+  // Buscar customer com todos os dados necessários
   const { data: customer } = await supabase
     .from('asaas_customers')
-    .select('asaas_customer_id')
+    .select('*')
     .eq('id', payment.customerId)
     .single();
 
   if (!customer) throw new Error('Cliente não encontrado');
 
-  // Criar pagamento no Asaas
-  const asaasResponse = await callAsaasAPI('POST', '/payments', {
-    customer: customer.asaas_customer_id,
-    billingType: payment.billingType,
-    value: payment.value,
-    dueDate: payment.dueDate,
-    description: payment.description,
-  });
+  // Criar pagamento via EfiBank
+  let efiPayment;
+  
+  if (payment.billingType === 'PIX') {
+    // Cobrança PIX
+    const efiResponse = await callEfiAPI('createPixCharge', {
+      value: payment.value,
+      description: payment.description || 'Pagamento',
+      customerName: customer?.name,
+      customerCpf: customer?.cpf_cnpj?.replace(/\D/g, ''),
+      expiration: 3600,
+    });
 
-  if (!asaasResponse.success) {
-    throw new Error('Erro ao criar pagamento no Asaas');
+    if (!efiResponse.success) {
+      throw new Error(efiResponse.message || 'Erro ao criar cobrança PIX');
+    }
+    efiPayment = efiResponse.payment;
+  } else {
+    // Boleto ou Cartão - usar endpoint de cobranças
+    const efiResponse = await callEfiAPI('createCharge', {
+      value: payment.value,
+      description: payment.description || 'Pagamento',
+      customerName: customer?.name,
+      customerCpf: customer?.cpf_cnpj?.replace(/\D/g, ''),
+      billingType: payment.billingType,
+      dueDate: payment.dueDate,
+    });
+
+    if (!efiResponse.success) {
+      throw new Error(efiResponse.message || 'Erro ao criar cobrança');
+    }
+    efiPayment = efiResponse.payment;
   }
 
-  const asaasPayment = asaasResponse.data;
-
   // Salvar no banco
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('payments')
     .insert({
       user_id: user.id,
       customer_id: payment.customerId,
-      asaas_payment_id: asaasPayment.id,
+      efi_txid: efiPayment.txid,
+      efi_charge_id: efiPayment.chargeId,
       billing_type: payment.billingType,
       value: payment.value,
       description: payment.description,
       due_date: payment.dueDate,
-      status: asaasPayment.status,
-      invoice_url: asaasPayment.invoiceUrl,
-      bank_slip_url: asaasPayment.bankSlipUrl,
+      status: efiPayment.status || 'PENDING',
+      pix_qrcode: efiPayment.pixQrCode,
+      pix_copy_paste: efiPayment.pixCopyPaste,
+      bank_slip_url: efiPayment.boletoUrl,
     })
     .select()
     .single();
 
   if (error) throw new Error(error.message);
 
-  // Se for PIX, buscar QR Code
-  if (payment.billingType === 'PIX') {
-    const pixResponse = await callAsaasAPI('GET', `/payments/${asaasPayment.id}/pixQrCode`);
-    if (pixResponse.success) {
-      const pixData = pixResponse.data;
-      await supabase
-        .from('payments')
-        .update({
-          pix_qrcode: pixData.encodedImage,
-          pix_copy_paste: pixData.payload,
-        })
-        .eq('id', data.id);
-    }
-  }
-
   return {
     success: true,
     message: 'Cobrança criada com sucesso',
-    payment: asaasPayment,
+    payment: efiPayment,
   };
 };
 
@@ -1106,30 +1112,13 @@ export const createPaymentLink = async (link: PaymentLink) => {
   const user = await getCurrentUser();
   if (!user) throw new Error('Usuário não autenticado');
 
-  // Criar link no Asaas
-  const asaasResponse = await callAsaasAPI('POST', '/paymentLinks', {
-    name: link.name,
-    billingType: link.billingType || 'UNDEFINED',
-    chargeType: 'DETACHED',
-    value: link.amount,
-    description: link.description,
-    dueDateLimitDays: 30,
-  });
-
-  if (!asaasResponse.success) {
-    throw new Error('Erro ao criar link de pagamento no Asaas');
-  }
-
-  const asaasLink = asaasResponse.data;
-
-  // Salvar no banco
+  // EfiBank não tem links de pagamento diretos como Asaas
+  // Salvamos apenas no banco e usamos nosso próprio checkout
   const { data, error } = await supabase
     .from('payment_links')
     .insert({
       user_id: user.id,
       product_id: link.productId,
-      asaas_payment_link_id: asaasLink.id,
-      asaas_link_url: asaasLink.url,
       name: link.name,
       description: link.description,
       amount: link.amount,
@@ -1148,18 +1137,6 @@ export const createPaymentLink = async (link: PaymentLink) => {
 };
 
 export const deletePaymentLink = async (id: string) => {
-  // Buscar asaas_payment_link_id
-  const { data: link } = await supabase
-    .from('payment_links')
-    .select('asaas_payment_link_id')
-    .eq('id', id)
-    .single();
-
-  if (link) {
-    // Deletar no Asaas
-    await callAsaasAPI('DELETE', `/paymentLinks/${link.asaas_payment_link_id}`);
-  }
-
   // Deletar no banco
   const { error } = await supabase
     .from('payment_links')
