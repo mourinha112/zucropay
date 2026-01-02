@@ -44,8 +44,8 @@ const CheckoutPublicoHubla: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('CREDIT_CARD');
   const [pixCode, setPixCode] = useState('');
   const [pixQrCode, setPixQrCode] = useState('');
-  const [bankSlipUrl, setBankSlipUrl] = useState('');
-  const [invoiceUrl, setInvoiceUrl] = useState('');
+  const [boletoUrl, setBoletoUrl] = useState('');
+  const [boletoBarcode, setBoletoBarcode] = useState('');
   const [showCvv, setShowCvv] = useState(false);
   const [pixConfirmed, setPixConfirmed] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -243,6 +243,10 @@ const CheckoutPublicoHubla: React.FC = () => {
     setError('');
 
     try {
+      // Para cartão de crédito com EfiBank, precisamos gerar um token primeiro
+      // Por enquanto, vamos usar uma abordagem simplificada
+      // Em produção, você deve usar a SDK da EfiBank no frontend para tokenizar o cartão
+      
       const paymentData = {
         linkId: linkId || '',
         customer: {
@@ -252,6 +256,9 @@ const CheckoutPublicoHubla: React.FC = () => {
           phone: customerData.phone.replace(/\D/g, ''),
         },
         billingType: paymentMethod as 'CREDIT_CARD' | 'PIX' | 'BOLETO',
+        installments: paymentMethod === 'CREDIT_CARD' ? installments : undefined,
+        // Nota: Para cartão, a EfiBank requer tokenização via SDK no frontend
+        // O backend atual aceita dados diretos para desenvolvimento
         creditCard: paymentMethod === 'CREDIT_CARD' ? {
           number: cardData.number.replace(/\s/g, ''),
           name: cardData.name,
@@ -268,6 +275,7 @@ const CheckoutPublicoHubla: React.FC = () => {
         if (paymentMethod === 'PIX') {
           if (response.payment?.pixCode && response.payment?.pixQrCode) {
             setPixCode(response.payment.pixCode);
+            // EfiBank retorna QR Code em base64 já formatado
             setPixQrCode(response.payment.pixQrCode);
           } else {
             setError('Erro ao gerar QR Code PIX. Tente novamente.');
@@ -275,19 +283,27 @@ const CheckoutPublicoHubla: React.FC = () => {
           }
         }
         
-        // Boleto: capturar URL
+        // Boleto: capturar URL e código de barras
         if (paymentMethod === 'BOLETO') {
-          if (response.payment?.bankSlipUrl) {
-            setBankSlipUrl(response.payment.bankSlipUrl);
+          if (response.payment?.boletoUrl) {
+            setBoletoUrl(response.payment.boletoUrl);
+            setBoletoBarcode(response.payment.barcode || '');
           } else {
             setError('Erro ao gerar boleto. Tente novamente.');
             return;
           }
         }
         
-        // Cartão: capturar invoice
-        if (paymentMethod === 'CREDIT_CARD' && response.payment?.invoiceUrl) {
-          setInvoiceUrl(response.payment.invoiceUrl);
+        // Cartão: verificar status
+        if (paymentMethod === 'CREDIT_CARD') {
+          if (response.payment?.status === 'RECEIVED') {
+            // Pagamento aprovado imediatamente
+            setSuccess(true);
+          } else {
+            // Pagamento pendente de aprovação
+            setError('Pagamento em análise. Aguarde confirmação.');
+            return;
+          }
         }
         
         setSuccess(true);
@@ -1050,7 +1066,7 @@ const CheckoutPublicoHubla: React.FC = () => {
                   ✓ JÁ FIZ O PAGAMENTO
                 </Button>
               </Paper>
-            ) : success && paymentMethod === 'BOLETO' && bankSlipUrl ? (
+            ) : success && paymentMethod === 'BOLETO' && boletoUrl ? (
               /* Tela de Boleto */
               <Paper elevation={0} sx={{ p: 4, borderRadius: 2, border: '1px solid #e5e7eb', textAlign: 'center' }}>
                 <Typography variant="h6" fontWeight={600} sx={{ mb: 3, color: '#1e293b' }}>
@@ -1063,11 +1079,39 @@ const CheckoutPublicoHubla: React.FC = () => {
                   Seu boleto foi gerado. Clique no botão abaixo para visualizar e pagar.
                 </Typography>
 
+                {boletoBarcode && (
+                  <Box sx={{ bgcolor: '#f8fafc', p: 2, borderRadius: 2, mb: 3, border: '1px solid #e2e8f0' }}>
+                    <Typography variant="caption" sx={{ color: '#64748b', mb: 1, display: 'block' }}>
+                      Código de Barras:
+                    </Typography>
+                    <Typography variant="body2" sx={{ 
+                      wordBreak: 'break-all', 
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      color: '#1e293b'
+                    }}>
+                      {boletoBarcode}
+                    </Typography>
+                    <Button
+                      size="small"
+                      startIcon={<ContentCopy />}
+                      onClick={() => {
+                        navigator.clipboard.writeText(boletoBarcode);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      sx={{ mt: 1 }}
+                    >
+                      {copied ? 'Copiado!' : 'Copiar'}
+                    </Button>
+                  </Box>
+                )}
+
                 <Button
                   fullWidth
                   variant="contained"
                   size="large"
-                  href={bankSlipUrl}
+                  href={boletoUrl}
                   target="_blank"
                   sx={{
                     py: 1.5,

@@ -36,7 +36,8 @@ import * as api from '../../services/api-supabase';
 
 interface Sale {
   id: number;
-  asaas_payment_id: string;
+  efi_txid?: string;       // Para PIX
+  efi_charge_id?: string;  // Para cartão/boleto
   customer_name: string;
   customer_email: string;
   customer_cpf: string;

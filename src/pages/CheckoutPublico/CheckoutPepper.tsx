@@ -38,6 +38,7 @@ const CheckoutPepper: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'PIX' | 'CREDIT_CARD' | 'BOLETO'>('CREDIT_CARD');
   const [pixCode, setPixCode] = useState('');
   const [pixQrCode, setPixQrCode] = useState('');
+  const [boletoUrl, setBoletoUrl] = useState('');
   const [copied, setCopied] = useState(false);
 
   // Dados do cliente
@@ -219,6 +220,9 @@ const CheckoutPepper: React.FC = () => {
           setPixCode(response.payment.pixCode || '');
           setPixQrCode(response.payment.pixQrCode || '');
         }
+        if (paymentMethod === 'BOLETO' && response.payment?.boletoUrl) {
+          setBoletoUrl(response.payment.boletoUrl);
+        }
         setSuccess(true);
       }
     } catch (err: any) {
@@ -295,7 +299,37 @@ const CheckoutPepper: React.FC = () => {
     );
   }
 
-  // Tela de sucesso Cartão/Boleto
+  // Tela de sucesso Boleto
+  if (success && paymentMethod === 'BOLETO' && boletoUrl) {
+    return (
+      <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5', py: 4 }}>
+        <Container maxWidth="sm">
+          <Box sx={{ bgcolor: 'white', borderRadius: 2, p: 4, textAlign: 'center', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+            <CheckIcon sx={{ fontSize: 64, color: '#22c55e', mb: 2 }} />
+            <Typography variant="h5" fontWeight={700} gutterBottom>
+              Boleto Gerado!
+            </Typography>
+            <Typography color="text.secondary" sx={{ mb: 3 }}>
+              Clique no botão abaixo para visualizar e pagar seu boleto.
+            </Typography>
+            <Button
+              variant="contained"
+              href={boletoUrl}
+              target="_blank"
+              sx={{ bgcolor: '#b91c1c', '&:hover': { bgcolor: '#991b1b' }, py: 1.5, mb: 2 }}
+            >
+              Visualizar Boleto
+            </Button>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+              O prazo de compensação do boleto é de até 3 dias úteis.
+            </Typography>
+          </Box>
+        </Container>
+      </Box>
+    );
+  }
+
+  // Tela de sucesso Cartão
   if (success) {
     return (
       <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5', py: 4 }}>
@@ -306,9 +340,7 @@ const CheckoutPepper: React.FC = () => {
               Pagamento Processado!
             </Typography>
             <Typography color="text.secondary">
-              {paymentMethod === 'CREDIT_CARD' 
-                ? 'Seu pagamento foi aprovado com sucesso!' 
-                : 'Seu boleto foi gerado. Verifique seu e-mail.'}
+              Seu pagamento foi aprovado com sucesso!
             </Typography>
           </Box>
         </Container>

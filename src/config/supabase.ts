@@ -63,11 +63,11 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
 });
 
 // ============================================
-// 🌐 CONFIGURAÇÃO DE ASAAS
+// 🌐 CONFIGURAÇÃO DE EFIBANK
 // ============================================
 
-export const ASAAS_API_KEY = import.meta.env.VITE_ASAAS_API_KEY || '';
-export const ASAAS_API_URL = import.meta.env.VITE_ASAAS_API_URL || 'https://api.asaas.com/v3';
+// Configurações são feitas no servidor (Vercel)
+// Variáveis: EFI_CLIENT_ID, EFI_CLIENT_SECRET, EFI_CERTIFICATE, EFI_PIX_KEY, EFI_SANDBOX
 
 // URL das API Functions (Vercel Serverless)
 // Em produção usa /api, em desenvolvimento pode usar Edge Functions do Supabase
@@ -140,59 +140,97 @@ export const callEdgeFunction = async (
 };
 
 /**
- * Chamar API do Asaas via Vercel Serverless Function
+ * Chamar API da EfiBank via Vercel Serverless Function
+ */
+export const callEfiAPI = async (
+  action: string,
+  params?: Record<string, unknown>
+): Promise<any> => {
+  const token = await getAuthToken();
+
+  try {
+    console.log(`[callEfiAPI] ${action}`, params);
+    
+    const response = await fetch(`${API_BASE_URL}/efi-api`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ action, ...params }),
+    });
+
+    const responseText = await response.text();
+    
+    if (!responseText) {
+      throw new Error('API EfiBank retornou resposta vazia. Verifique as variáveis de ambiente na Vercel.');
+    }
+
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      console.error('Invalid JSON response:', responseText);
+      throw new Error('Resposta inválida da API EfiBank. Verifique os logs na Vercel.');
+    }
+
+    console.log('[callEfiAPI] Response:', result);
+
+    if (!result.success) {
+      const errorMessage = result.message || result.error || 'Erro na API da EfiBank';
+      console.error('EfiBank API Error:', result);
+      throw new Error(errorMessage);
+    }
+
+    return result;
+  } catch (error: any) {
+    console.error('callEfiAPI error:', error);
+    throw new Error(error.message || 'Erro ao conectar com a API da EfiBank');
+  }
+};
+
+/**
+ * @deprecated Use callEfiAPI instead - Mantido para compatibilidade
  */
 export const callAsaasAPI = async (
   method: string,
   endpoint: string,
   data?: any
 ): Promise<any> => {
+  console.warn('[DEPRECATED] callAsaasAPI está obsoleto. Use callEfiAPI no lugar.');
+  
   const token = await getAuthToken();
 
   try {
-    console.log(`[callAsaasAPI] ${method} ${endpoint}`, data);
-    
     const response = await fetch(`${API_BASE_URL}/asaas-api`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify({
-        method,
-        endpoint,
-        data,
-      }),
+      body: JSON.stringify({ method, endpoint, data }),
     });
 
-    // Verificar se a resposta é válida
     const responseText = await response.text();
     
     if (!responseText) {
-      throw new Error('API retornou resposta vazia. Verifique as variáveis de ambiente na Vercel.');
+      throw new Error('API retornou resposta vazia.');
     }
 
     let result;
     try {
       result = JSON.parse(responseText);
-    } catch (e) {
-      console.error('Invalid JSON response:', responseText);
-      throw new Error('Resposta inválida da API. Verifique os logs na Vercel.');
+    } catch {
+      throw new Error('Resposta inválida da API.');
     }
 
-    console.log('[callAsaasAPI] Response:', result);
-
-    // Verificar se a API retornou erro
     if (!result.success) {
-      const errorMessage = result.message || result.error || result.data?.errors?.[0]?.description || 'Erro na API do Asaas';
-      console.error('Asaas API Error:', result);
-      throw new Error(errorMessage);
+      throw new Error(result.message || 'Erro na API');
     }
 
     return result;
   } catch (error: any) {
-    console.error('callAsaasAPI error:', error);
-    throw new Error(error.message || 'Erro ao conectar com a API do Asaas');
+    throw new Error(error.message || 'Erro ao conectar com a API');
   }
 };
 
@@ -239,9 +277,11 @@ export const deleteFile = async (
 
 // Debug em desenvolvimento
 if (import.meta.env.DEV) {
-  console.log('🔧 Supabase Config:', {
-    url: SUPABASE_URL,
-    configured: isSupabaseConfigured()
+  console.log('🔧 ZucroPay Config:', {
+    supabaseUrl: SUPABASE_URL,
+    supabaseConfigured: isSupabaseConfigured(),
+    apiBaseUrl: API_BASE_URL,
+    paymentProvider: 'EfiBank'
   });
 }
 

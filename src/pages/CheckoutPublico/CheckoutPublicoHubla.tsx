@@ -42,6 +42,7 @@ const CheckoutPublicoHubla: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('CREDIT_CARD');
   const [pixCode, setPixCode] = useState('');
   const [pixQrCode, setPixQrCode] = useState('');
+  const [bankSlipUrl, setBankSlipUrl] = useState('');
   const [showCvv, setShowCvv] = useState(false);
 
   // Dados do cliente
@@ -154,9 +155,13 @@ const CheckoutPublicoHubla: React.FC = () => {
       const response = await api.createPublicPayment(paymentData);
 
       if (response.success) {
-        if (paymentMethod === 'PIX' && response.pix) {
-          setPixCode(response.pix.payload);
-          setPixQrCode(response.pix.encodedImage);
+        if (paymentMethod === 'PIX' && response.payment) {
+          setPixCode(response.payment.pixCode || '');
+          setPixQrCode(response.payment.pixQrCode || '');
+        }
+        // Boleto
+        if (paymentMethod === 'BOLETO' && response.payment?.boletoUrl) {
+          setBankSlipUrl(response.payment.boletoUrl);
         }
         setSuccess(true);
       } else {
@@ -194,13 +199,40 @@ const CheckoutPublicoHubla: React.FC = () => {
     );
   }
 
-  if (success && paymentMethod !== 'PIX') {
+  if (success && paymentMethod === 'BOLETO' && bankSlipUrl) {
+    return (
+      <Container maxWidth="sm" sx={{ py: 4 }}>
+        <Paper elevation={0} sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
+          <ReceiptIcon sx={{ fontSize: 64, color: '#1e293b', mb: 2 }} />
+          <Typography variant="h5" fontWeight={600} gutterBottom>
+            Boleto Gerado!
+          </Typography>
+          <Typography color="text.secondary" sx={{ mb: 3 }}>
+            Clique no botão abaixo para visualizar e pagar seu boleto.
+          </Typography>
+          <Button
+            variant="contained"
+            href={bankSlipUrl}
+            target="_blank"
+            sx={{ bgcolor: '#1e293b', '&:hover': { bgcolor: '#0f172a' } }}
+          >
+            Visualizar Boleto
+          </Button>
+          <Typography variant="caption" sx={{ display: 'block', mt: 2, color: '#64748b' }}>
+            O prazo de compensação do boleto é de até 3 dias úteis.
+          </Typography>
+        </Paper>
+      </Container>
+    );
+  }
+
+  if (success && paymentMethod === 'CREDIT_CARD') {
     return (
       <Container maxWidth="sm" sx={{ py: 4 }}>
         <Paper elevation={0} sx={{ p: 4, textAlign: 'center', borderRadius: 2 }}>
           <CheckCircle sx={{ fontSize: 64, color: '#22c55e', mb: 2 }} />
           <Typography variant="h5" fontWeight={600} gutterBottom>
-            Pagamento Realizado!
+            Pagamento Confirmado!
           </Typography>
           <Typography color="text.secondary">
             Seu pagamento foi processado com sucesso.

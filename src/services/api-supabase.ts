@@ -1,7 +1,10 @@
 // ZucroPay API Service - Supabase Version
-// Comunicação completa via Supabase + Edge Functions
+// Comunicação completa via Supabase + EfiBank
 
-import { supabase, callAsaasAPI, uploadFile, isSupabaseConfigured } from '../config/supabase';
+import { supabase, callEfiAPI, uploadFile, isSupabaseConfigured } from '../config/supabase';
+
+// Re-exportar para compatibilidade (deprecado)
+export { callEfiAPI as callAsaasAPI } from '../config/supabase';
 
 export { isSupabaseConfigured };
 
@@ -30,8 +33,7 @@ export interface User {
   phone?: string;
   avatar?: string;
   balance: number;
-  asaasCustomerId?: string;
-  asaasApiKey?: string;
+  efiCustomerId?: string;  // ID na EfiBank
 }
 
 export interface AuthResponse {
@@ -53,8 +55,9 @@ export interface Transaction {
   status: string;
   description: string;
   createdAt: string;
-  asaasPaymentId?: string;
-  asaasTransferId?: string;
+  efiTxid?: string;       // PIX txid
+  efiChargeId?: string;   // Cartão/Boleto charge_id
+  efiTransferId?: string; // Transferência
 }
 
 export interface Product {
@@ -75,7 +78,7 @@ export interface Customer {
   cpfCnpj: string;
   email?: string;
   phone?: string;
-  asaasCustomerId?: string;
+  efiCustomerId?: string;  // ID do cliente na EfiBank
 }
 
 export interface Payment {
@@ -98,8 +101,6 @@ export interface PaymentLink {
   clicks?: number;
   paymentsCount?: number;
   totalReceived?: number;
-  asaasPaymentLinkId?: string;
-  asaasLinkUrl?: string;
 }
 
 export interface CheckoutCustomization {
@@ -356,32 +357,20 @@ export const deposit = async (amount: number, description?: string) => {
   const user = await getCurrentUser();
   if (!user) throw new Error('Usuário não autenticado');
 
-  // Criar cobrança PIX via Asaas
-  const customerData = {
-    name: user.name,
-    email: user.email,
-    cpfCnpj: user.cpfCnpj || '00000000000',
-  };
-
-  // Criar ou buscar cliente
-  const customerResponse = await callAsaasAPI('POST', '/customers', customerData);
-  const asaasCustomerId = customerResponse.data.id;
-
-  // Criar pagamento PIX
-  const paymentData = {
-    customer: asaasCustomerId,
-    billingType: 'PIX',
+  // Criar cobrança PIX via EfiBank
+  const response = await callEfiAPI('createPixCharge', {
     value: amount,
-    dueDate: new Date().toISOString().split('T')[0],
-    description: description || 'Depósito de saldo',
-  };
+    description: description || 'Depósito via PIX',
+    customerName: user.name,
+    customerCpf: user.cpfCnpj?.replace(/\D/g, ''),
+    expiration: 3600, // 1 hora
+  });
 
-  const paymentResponse = await callAsaasAPI('POST', '/payments', paymentData);
-  const payment = paymentResponse.data;
+  if (!response.success) {
+    throw new Error(response.message || 'Erro ao gerar cobrança PIX');
+  }
 
-  // Gerar QR Code PIX
-  const pixResponse = await callAsaasAPI('POST', `/payments/${payment.id}/pixQrCode`);
-  const pixData = pixResponse.data;
+  const pixPayment = response.payment;
 
   // Criar transação pendente
   const { data: transaction } = await supabase
@@ -392,7 +381,7 @@ export const deposit = async (amount: number, description?: string) => {
       amount,
       status: 'pending',
       description: description || 'Depósito via PIX',
-      asaas_payment_id: payment.id,
+      efi_txid: pixPayment.txid,
     })
     .select()
     .single();
@@ -401,14 +390,15 @@ export const deposit = async (amount: number, description?: string) => {
     success: true,
     message: 'QR Code PIX gerado com sucesso',
     payment: {
-      id: payment.id,
+      id: pixPayment.txid,
       value: amount,
       status: 'pending',
     },
+    // Formato compatível com o frontend existente
     pix: {
-      payload: pixData.payload,
-      encodedImage: pixData.encodedImage,
-      expirationDate: pixData.expirationDate,
+      payload: pixPayment.pixCopyPaste,
+      encodedImage: pixPayment.pixQrCode,
+      expirationDate: pixPayment.expiration,
     },
     transaction,
   };
@@ -426,31 +416,56 @@ export const withdraw = async (amount: number, bankAccount: any) => {
     throw new Error('Valor mínimo para saque: R$ 10,00');
   }
 
-  // Preparar dados bancários
-  const bankAccountData = {
-    bank: { code: bankAccount.bank },
-    accountName: bankAccount.name,
-    ownerName: bankAccount.name,
-    cpfCnpj: bankAccount.cpfCnpj.replace(/\D/g, ''),
-    agency: bankAccount.agency,
-    account: bankAccount.account,
-    accountDigit: bankAccount.accountDigit,
-    bankAccountType: bankAccount.accountType || 'CONTA_CORRENTE',
-  };
+  // Criar solicitação de saque no banco
+  // A transferência será processada pelo admin via EfiBank
+  const { data: withdrawalRequest, error } = await supabase
+    .from('withdrawal_requests')
+    .insert({
+      user_id: user.id,
+      amount,
+      status: 'pending',
+      bank_code: bankAccount.bank,
+      bank_name: bankAccount.bankName || bankAccount.bank,
+      agency: bankAccount.agency,
+      account: bankAccount.account,
+      account_digit: bankAccount.accountDigit,
+      account_type: bankAccount.accountType || 'CONTA_CORRENTE',
+      holder_name: bankAccount.name,
+      holder_cpf_cnpj: bankAccount.cpfCnpj?.replace(/\D/g, ''),
+      pix_key: bankAccount.pixKey || null,
+    })
+    .select()
+    .single();
 
-  // Criar transferência no Asaas
-  const transferResponse = await callAsaasAPI('POST', '/transfers', {
-    value: amount,
-    bankAccount: bankAccountData,
-  });
+  if (error) {
+    // Se a tabela não existir, criar transação diretamente
+    const { data: transaction } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: user.id,
+        type: 'withdraw',
+        amount,
+        status: 'pending',
+        description: `Saque para ${bankAccount.name}`,
+        metadata: { bankAccount },
+      })
+      .select()
+      .single();
 
-  if (!transferResponse.success) {
-    throw new Error(transferResponse.data.errors?.[0]?.description || 'Erro ao criar transferência');
+    // Subtrair do saldo
+    await supabase
+      .from('users')
+      .update({ balance: user.balance - amount })
+      .eq('id', user.id);
+
+    return {
+      success: true,
+      message: 'Saque solicitado com sucesso! Será processado em até 1 dia útil.',
+      transaction,
+    };
   }
 
-  const transfer = transferResponse.data;
-
-  // Criar transação
+  // Criar transação de saque
   const { data: transaction } = await supabase
     .from('transactions')
     .insert({
@@ -459,7 +474,6 @@ export const withdraw = async (amount: number, bankAccount: any) => {
       amount,
       status: 'pending',
       description: `Saque para ${bankAccount.name}`,
-      asaas_transfer_id: transfer.id,
     })
     .select()
     .single();
@@ -474,7 +488,7 @@ export const withdraw = async (amount: number, bankAccount: any) => {
     success: true,
     message: 'Saque solicitado com sucesso! Será processado em até 1 dia útil.',
     transaction,
-    transfer,
+    withdrawalRequest,
   };
 };
 
@@ -683,26 +697,13 @@ export const createCustomer = async (customer: Customer) => {
   const user = await getCurrentUser();
   if (!user) throw new Error('Usuário não autenticado');
 
-  // Criar cliente no Asaas
-  const asaasResponse = await callAsaasAPI('POST', '/customers', {
-    name: customer.name,
-    cpfCnpj: customer.cpfCnpj.replace(/\D/g, ''),
-    email: customer.email,
-    phone: customer.phone,
-  });
-
-  if (!asaasResponse.success) {
-    throw new Error('Erro ao criar cliente no Asaas');
-  }
-
-  const asaasCustomer = asaasResponse.data;
-
-  // Salvar no banco
+  // EfiBank não requer criar clientes separadamente
+  // Os dados do cliente são enviados junto com a cobrança
+  // Salvamos apenas localmente para referência
   const { data, error } = await supabase
     .from('asaas_customers')
     .insert({
       user_id: user.id,
-      asaas_customer_id: asaasCustomer.id,
       name: customer.name,
       email: customer.email,
       phone: customer.phone,
@@ -721,19 +722,7 @@ export const createCustomer = async (customer: Customer) => {
 };
 
 export const deleteCustomer = async (id: string) => {
-  // Buscar asaas_customer_id
-  const { data: customer } = await supabase
-    .from('asaas_customers')
-    .select('asaas_customer_id')
-    .eq('id', id)
-    .single();
-
-  if (customer) {
-    // Deletar no Asaas
-    await callAsaasAPI('DELETE', `/customers/${customer.asaas_customer_id}`);
-  }
-
-  // Deletar no banco
+  // Deletar no banco local
   const { error } = await supabase
     .from('asaas_customers')
     .delete()
@@ -1228,53 +1217,44 @@ export const createPublicPayment = async (data: {
   };
   billingType: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
   creditCard?: {
+    paymentToken?: string; // Token EfiBank
+    number?: string;
+    name?: string;
+    expiryMonth?: string;
+    expiryYear?: string;
+    ccv?: string;
+  };
+  installments?: number;
+  billingAddress?: {
+    street: string;
     number: string;
-    name: string;
-    expiryMonth: string;
-    expiryYear: string;
-    ccv: string;
+    neighborhood: string;
+    zipcode: string;
+    city: string;
+    state: string;
   };
 }): Promise<{
   success: boolean;
   message?: string;
   payment?: any;
-  pix?: any;
 }> => {
-  // Buscar dados do link para obter o valor
-  const { data: linkData, error: linkError } = await supabase
-    .from('payment_links')
-    .select('amount, name, description')
-    .eq('id', data.linkId)
-    .single();
-
-  if (linkError || !linkData) {
-    throw new Error('Link de pagamento não encontrado');
-  }
-
-  // Chamar API Vercel para processar pagamento público
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
-  // Transformar dados para o formato que a API espera
+  // Usar a nova API EfiBank
   const apiData = {
+    linkId: data.linkId,
+    billingType: data.billingType,
     customerName: data.customer.name,
     customerEmail: data.customer.email,
     customerCpfCnpj: data.customer.cpfCnpj,
     customerPhone: data.customer.phone,
-    billingType: data.billingType,
-    value: linkData.amount,
-    description: linkData.description || linkData.name,
-    creditCard: data.creditCard,
-    creditCardHolderInfo: data.creditCard ? {
-      name: data.creditCard.name,
-      email: data.customer.email,
-      cpfCnpj: data.customer.cpfCnpj,
-      phone: data.customer.phone,
-      postalCode: '00000000',
-      addressNumber: '0',
-    } : undefined,
+    // Para cartão de crédito
+    cardPaymentToken: data.creditCard?.paymentToken,
+    cardInstallments: data.installments || 1,
+    billingAddress: data.billingAddress,
   };
 
-  const response = await fetch(`${API_BASE_URL}/public-payment`, {
+  const response = await fetch(`${API_BASE_URL}/efi-public-payment`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -1293,11 +1273,19 @@ export const createPublicPayment = async (data: {
     success: true,
     payment: {
       id: result.payment?.id,
+      txid: result.payment?.txid,
+      chargeId: result.payment?.chargeId,
       status: result.payment?.status,
-      pixCode: result.payment?.pixCopyPaste,
+      // PIX
+      pixCode: result.payment?.pixCode,
       pixQrCode: result.payment?.pixQrCode,
-      bankSlipUrl: result.payment?.bankSlipUrl,
-      invoiceUrl: result.payment?.invoiceUrl,
+      // Boleto
+      barcode: result.payment?.barcode,
+      boletoUrl: result.payment?.boletoUrl,
+      boletoPdf: result.payment?.boletoPdf,
+      expireAt: result.payment?.expireAt,
+      // Cartão
+      installments: result.payment?.installments,
     },
   };
 };
