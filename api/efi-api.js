@@ -1,10 +1,7 @@
 // Vercel Serverless Function - EfiBank API (Proxy)
 // Integração completa com EfiBank/EfiPay para PIX, Cartão e Boleto
 
-import { createClient } from '@supabase/supabase-js';
 import https from 'https';
-import fs from 'fs';
-import path from 'path';
 
 // ========================================
 // CONFIGURAÇÃO EFIBANK

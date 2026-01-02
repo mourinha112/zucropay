@@ -18,7 +18,15 @@ const getEfiConfig = () => ({
 
 const getSupabase = () => {
   const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_KEY;
+  
+  if (!url) {
+    throw new Error('SUPABASE_URL não configurado. Adicione nas variáveis de ambiente da Vercel.');
+  }
+  if (!key) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY ou SUPABASE_ANON_KEY não configurado. Adicione nas variáveis de ambiente da Vercel.');
+  }
+  
   return createClient(url, key, { auth: { persistSession: false } });
 };
 
@@ -113,12 +121,32 @@ export default async function handler(req, res) {
 
   try {
     const config = getEfiConfig();
-    const supabase = getSupabase();
+    
+    // Verificar configuração do Supabase primeiro
+    let supabase;
+    try {
+      supabase = getSupabase();
+    } catch (supabaseError) {
+      return res.status(200).json({
+        success: false,
+        message: supabaseError.message,
+        configError: 'supabase',
+      });
+    }
 
     if (!config.clientId || !config.clientSecret || !config.certificate) {
       return res.status(200).json({
         success: false,
-        message: 'EfiBank não configurado. Configure as variáveis de ambiente.',
+        message: 'EfiBank não configurado. Configure EFI_CLIENT_ID, EFI_CLIENT_SECRET e EFI_CERTIFICATE nas variáveis de ambiente da Vercel.',
+        configError: 'efibank',
+      });
+    }
+    
+    if (!config.pixKey) {
+      return res.status(200).json({
+        success: false,
+        message: 'Chave PIX não configurada. Configure EFI_PIX_KEY nas variáveis de ambiente da Vercel.',
+        configError: 'efibank_pix',
       });
     }
 
