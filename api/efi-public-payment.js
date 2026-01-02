@@ -31,8 +31,38 @@ const getSupabase = () => {
 };
 
 // URLs da API
-const getPixApiUrl = (sandbox) => sandbox ? 'https://pix-h.api.efipay.com.br' : 'https://pix.api.efipay.com.br';
-const getCobrancaApiUrl = (sandbox) => sandbox ? 'https://cobrancas-h.api.efipay.com.br' : 'https://cobrancas.api.efipay.com.br';
+const getPixApiUrl = (sandbox) => sandbox ? 'pix-h.api.efipay.com.br' : 'pix.api.efipay.com.br';
+const getCobrancaApiUrl = (sandbox) => sandbox ? 'cobrancas-h.api.efipay.com.br' : 'cobrancas.api.efipay.com.br';
+
+// ========================================
+// REQUISIÇÃO HTTPS COM CERTIFICADO (mTLS)
+// ========================================
+
+const httpsRequest = (options, postData = null) => {
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode, data: JSON.parse(data) });
+        } catch {
+          resolve({ status: res.statusCode, data: { raw: data } });
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      console.error('HTTPS Request Error:', error);
+      reject(error);
+    });
+
+    if (postData) {
+      req.write(postData);
+    }
+    req.end();
+  });
+};
 
 // ========================================
 // AUTENTICAÇÃO
@@ -46,57 +76,65 @@ const getAccessToken = async (config) => {
   }
 
   const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
-  const url = `${getPixApiUrl(config.sandbox)}/oauth/token`;
   const certBuffer = Buffer.from(config.certificate, 'base64');
+  const postData = JSON.stringify({ grant_type: 'client_credentials' });
 
-  const agent = new https.Agent({ pfx: certBuffer, passphrase: '' });
-
-  const response = await fetch(url, {
+  const options = {
+    hostname: getPixApiUrl(config.sandbox),
+    port: 443,
+    path: '/oauth/token',
     method: 'POST',
     headers: {
       'Authorization': `Basic ${auth}`,
       'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(postData),
     },
-    body: JSON.stringify({ grant_type: 'client_credentials' }),
-    agent,
-  });
+    pfx: certBuffer,
+    passphrase: '',
+  };
 
-  const data = await response.json();
+  const response = await httpsRequest(options, postData);
 
-  if (data.access_token) {
-    tokenCache.token = data.access_token;
-    tokenCache.expiry = Date.now() + (data.expires_in * 1000) - 60000;
+  if (response.data?.access_token) {
+    tokenCache.token = response.data.access_token;
+    tokenCache.expiry = Date.now() + (response.data.expires_in * 1000) - 60000;
     return tokenCache.token;
   }
 
-  throw new Error('Falha na autenticação EfiBank');
+  console.error('Auth failed:', response);
+  throw new Error(response.data?.error_description || 'Falha na autenticação EfiBank');
 };
 
 const makeRequest = async (config, method, endpoint, data = null, isPix = true) => {
   const token = await getAccessToken(config);
-  const baseUrl = isPix ? getPixApiUrl(config.sandbox) : getCobrancaApiUrl(config.sandbox);
+  const hostname = isPix ? getPixApiUrl(config.sandbox) : getCobrancaApiUrl(config.sandbox);
   const certBuffer = Buffer.from(config.certificate, 'base64');
-  const agent = new https.Agent({ pfx: certBuffer, passphrase: '' });
+  const postData = data ? JSON.stringify(data) : null;
 
   const options = {
+    hostname,
+    port: 443,
+    path: endpoint,
     method,
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    agent,
+    pfx: certBuffer,
+    passphrase: '',
   };
 
-  if (data) options.body = JSON.stringify(data);
-
-  const response = await fetch(`${baseUrl}${endpoint}`, options);
-  const text = await response.text();
-  
-  try {
-    return { success: response.ok, status: response.status, data: JSON.parse(text) };
-  } catch {
-    return { success: response.ok, status: response.status, data: { raw: text } };
+  if (postData) {
+    options.headers['Content-Length'] = Buffer.byteLength(postData);
   }
+
+  const response = await httpsRequest(options, postData);
+  
+  return { 
+    success: response.status >= 200 && response.status < 300, 
+    status: response.status, 
+    data: response.data 
+  };
 };
 
 const generateTxId = () => {

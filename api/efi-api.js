@@ -17,17 +17,47 @@ const getEfiConfig = () => {
   };
 };
 
-// URLs da API EfiBank
+// URLs da API EfiBank (apenas hostname, sem https://)
 const getApiUrl = (sandbox) => {
   return sandbox 
-    ? 'https://pix-h.api.efipay.com.br' // Homologação
-    : 'https://pix.api.efipay.com.br';  // Produção
+    ? 'pix-h.api.efipay.com.br' // Homologação
+    : 'pix.api.efipay.com.br';  // Produção
 };
 
 const getCobrancaUrl = (sandbox) => {
   return sandbox
-    ? 'https://cobrancas-h.api.efipay.com.br' // Homologação
-    : 'https://cobrancas.api.efipay.com.br';  // Produção
+    ? 'cobrancas-h.api.efipay.com.br' // Homologação
+    : 'cobrancas.api.efipay.com.br';  // Produção
+};
+
+// ========================================
+// REQUISIÇÃO HTTPS COM CERTIFICADO (mTLS)
+// ========================================
+
+const httpsRequest = (options, postData = null) => {
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          resolve({ status: res.statusCode, data: JSON.parse(data) });
+        } catch {
+          resolve({ status: res.statusCode, data: { raw: data } });
+        }
+      });
+    });
+
+    req.on('error', (error) => {
+      console.error('HTTPS Request Error:', error);
+      reject(error);
+    });
+
+    if (postData) {
+      req.write(postData);
+    }
+    req.end();
+  });
 };
 
 // ========================================
@@ -37,44 +67,40 @@ const getCobrancaUrl = (sandbox) => {
 let accessToken = null;
 let tokenExpiry = null;
 
-const getAccessToken = async (config, scope = 'cob.write cob.read pix.write pix.read') => {
+const getAccessToken = async (config) => {
   // Verificar se token ainda é válido
   if (accessToken && tokenExpiry && Date.now() < tokenExpiry) {
     return accessToken;
   }
 
   const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
-  const url = config.sandbox 
-    ? 'https://pix-h.api.efipay.com.br/oauth/token'
-    : 'https://pix.api.efipay.com.br/oauth/token';
-
-  // Decodificar certificado Base64
   const certBuffer = Buffer.from(config.certificate, 'base64');
+  const postData = JSON.stringify({ grant_type: 'client_credentials' });
 
-  const agent = new https.Agent({
-    pfx: certBuffer,
-    passphrase: '', // Senha do certificado se houver
-  });
-
-  const response = await fetch(url, {
+  const options = {
+    hostname: getApiUrl(config.sandbox),
+    port: 443,
+    path: '/oauth/token',
     method: 'POST',
     headers: {
       'Authorization': `Basic ${auth}`,
       'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(postData),
     },
-    body: JSON.stringify({ grant_type: 'client_credentials' }),
-    agent,
-  });
+    pfx: certBuffer,
+    passphrase: '',
+  };
 
-  const data = await response.json();
+  const response = await httpsRequest(options, postData);
 
-  if (data.access_token) {
-    accessToken = data.access_token;
-    tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000; // Renovar 1 min antes
+  if (response.data?.access_token) {
+    accessToken = response.data.access_token;
+    tokenExpiry = Date.now() + (response.data.expires_in * 1000) - 60000;
     return accessToken;
   }
 
-  throw new Error('Falha ao obter token de acesso EfiBank');
+  console.error('Auth failed:', response);
+  throw new Error(response.data?.error_description || 'Falha ao obter token de acesso EfiBank');
 };
 
 // ========================================
@@ -83,42 +109,33 @@ const getAccessToken = async (config, scope = 'cob.write cob.read pix.write pix.
 
 const makeEfiRequest = async (config, method, endpoint, data = null, usePixApi = true) => {
   const token = await getAccessToken(config);
-  const baseUrl = usePixApi ? getApiUrl(config.sandbox) : getCobrancaUrl(config.sandbox);
-  const url = `${baseUrl}${endpoint}`;
-
+  const hostname = usePixApi ? getApiUrl(config.sandbox) : getCobrancaUrl(config.sandbox);
   const certBuffer = Buffer.from(config.certificate, 'base64');
-  const agent = new https.Agent({
-    pfx: certBuffer,
-    passphrase: '',
-  });
+  const postData = data ? JSON.stringify(data) : null;
 
   const options = {
+    hostname,
+    port: 443,
+    path: endpoint,
     method,
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    agent,
+    pfx: certBuffer,
+    passphrase: '',
   };
 
-  if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
-    options.body = JSON.stringify(data);
+  if (postData) {
+    options.headers['Content-Length'] = Buffer.byteLength(postData);
   }
 
-  const response = await fetch(url, options);
-  const responseText = await response.text();
-
-  let result;
-  try {
-    result = JSON.parse(responseText);
-  } catch {
-    result = { raw: responseText };
-  }
+  const response = await httpsRequest(options, postData);
 
   return {
-    success: response.ok,
+    success: response.status >= 200 && response.status < 300,
     status: response.status,
-    data: result,
+    data: response.data,
   };
 };
 
