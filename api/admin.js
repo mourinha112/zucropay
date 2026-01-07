@@ -179,6 +179,42 @@ export default async function handler(req, res) {
       case 'getTransactions':
         return await getTransactions(supabase, params, res);
 
+      // ========== PRODUTOS (ADMIN VIEW) ==========
+      case 'getAllProducts':
+        return await getAllProducts(supabase, params, res);
+
+      // ========== LOGS DE WEBHOOK ==========
+      case 'getWebhookLogs':
+        return await getWebhookLogs(supabase, params, res);
+
+      // ========== LOGS DE ADMIN ==========
+      case 'getAdminLogs':
+        return await getAdminLogs(supabase, params, res);
+
+      // ========== DETALHES DO USUÁRIO ==========
+      case 'getUserDetails':
+        return await getUserDetails(supabase, params.userId, res);
+
+      // ========== AJUSTAR SALDO ==========
+      case 'adjustUserBalance':
+        return await adjustUserBalance(supabase, admin.id, params, res);
+
+      // ========== CONFIGURAÇÕES DO GATEWAY ==========
+      case 'getGatewayConfig':
+        return await getGatewayConfig(res);
+
+      // ========== API KEYS DOS USUÁRIOS ==========
+      case 'getAllApiKeys':
+        return await getAllApiKeys(supabase, params, res);
+
+      // ========== LINKS DE PAGAMENTO ==========
+      case 'getAllPaymentLinks':
+        return await getAllPaymentLinks(supabase, params, res);
+
+      // ========== ESTATÍSTICAS AVANÇADAS ==========
+      case 'getAdvancedStats':
+        return await getAdvancedStats(supabase, params, res);
+
       default:
         return res.status(400).json({ success: false, message: 'Ação inválida' });
     }
@@ -664,6 +700,559 @@ async function getTransactions(supabase, params, res) {
     });
   } catch (error) {
     console.error('getTransactions error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ========== FUNÇÕES DE PRODUTOS (ADMIN) ==========
+
+async function getAllProducts(supabase, params, res) {
+  try {
+    let query = supabase
+      .from('products')
+      .select(`
+        *,
+        users (
+          id,
+          name,
+          email
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (params.userId) {
+      query = query.eq('user_id', params.userId);
+    }
+
+    if (params.active !== undefined) {
+      query = query.eq('active', params.active);
+    }
+
+    if (params.search) {
+      query = query.ilike('name', `%${params.search}%`);
+    }
+
+    if (params.limit) {
+      query = query.limit(params.limit);
+    }
+
+    const { data, error, count } = await query;
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      products: data,
+      count
+    });
+  } catch (error) {
+    console.error('getAllProducts error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ========== FUNÇÕES DE WEBHOOK LOGS ==========
+
+async function getWebhookLogs(supabase, params, res) {
+  try {
+    let query = supabase
+      .from('webhooks_log')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (params.eventType) {
+      query = query.eq('event_type', params.eventType);
+    }
+
+    if (params.processed !== undefined) {
+      query = query.eq('processed', params.processed);
+    }
+
+    if (params.limit) {
+      query = query.limit(params.limit);
+    } else {
+      query = query.limit(100);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      logs: data
+    });
+  } catch (error) {
+    console.error('getWebhookLogs error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ========== FUNÇÕES DE ADMIN LOGS ==========
+
+async function getAdminLogs(supabase, params, res) {
+  try {
+    let query = supabase
+      .from('admin_logs')
+      .select(`
+        *,
+        admin:admin_users (
+          user_id,
+          role
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (params.action) {
+      query = query.eq('action', params.action);
+    }
+
+    if (params.targetType) {
+      query = query.eq('target_type', params.targetType);
+    }
+
+    if (params.limit) {
+      query = query.limit(params.limit);
+    } else {
+      query = query.limit(100);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      logs: data
+    });
+  } catch (error) {
+    console.error('getAdminLogs error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ========== FUNÇÕES DE DETALHES DO USUÁRIO ==========
+
+async function getUserDetails(supabase, userId, res) {
+  try {
+    // Buscar usuário
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
+
+    if (userError) throw userError;
+
+    // Buscar verificação
+    const { data: verification } = await supabase
+      .from('user_verifications')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    // Buscar produtos
+    const { data: products } = await supabase
+      .from('products')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    // Buscar pagamentos
+    const { data: payments } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    // Buscar transações
+    const { data: transactions } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    // Buscar saques
+    const { data: withdrawals } = await supabase
+      .from('withdrawal_requests')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    // Buscar configurações de saque
+    const { data: withdrawalSettings } = await supabase
+      .from('withdrawal_settings')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    // Calcular estatísticas
+    const totalSales = payments?.filter(p => ['RECEIVED', 'CONFIRMED'].includes(p.status))
+      .reduce((sum, p) => sum + parseFloat(p.value || 0), 0) || 0;
+    
+    const totalWithdrawn = withdrawals?.filter(w => w.status === 'completed')
+      .reduce((sum, w) => sum + parseFloat(w.amount || 0), 0) || 0;
+
+    return res.status(200).json({
+      success: true,
+      user: {
+        ...user,
+        verification,
+        withdrawalSettings,
+        stats: {
+          totalProducts: products?.length || 0,
+          totalSales,
+          totalWithdrawn,
+          totalPayments: payments?.length || 0,
+          totalTransactions: transactions?.length || 0,
+        }
+      },
+      products,
+      payments,
+      transactions,
+      withdrawals
+    });
+  } catch (error) {
+    console.error('getUserDetails error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ========== FUNÇÕES DE AJUSTE DE SALDO ==========
+
+async function adjustUserBalance(supabase, adminId, params, res) {
+  try {
+    const { userId, amount, type, reason } = params;
+
+    if (!userId || amount === undefined || !type || !reason) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Parâmetros obrigatórios: userId, amount, type, reason' 
+      });
+    }
+
+    // Buscar saldo atual
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('balance')
+      .eq('id', userId)
+      .single();
+
+    if (userError) throw userError;
+
+    const currentBalance = parseFloat(user.balance || 0);
+    const adjustmentAmount = parseFloat(amount);
+    
+    let newBalance;
+    if (type === 'add') {
+      newBalance = currentBalance + adjustmentAmount;
+    } else if (type === 'subtract') {
+      newBalance = currentBalance - adjustmentAmount;
+      if (newBalance < 0) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Saldo insuficiente para esta operação' 
+        });
+      }
+    } else if (type === 'set') {
+      newBalance = adjustmentAmount;
+    } else {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Tipo inválido. Use: add, subtract ou set' 
+      });
+    }
+
+    // Atualizar saldo
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ balance: newBalance })
+      .eq('id', userId);
+
+    if (updateError) throw updateError;
+
+    // Criar transação de ajuste
+    await supabase.from('transactions').insert({
+      user_id: userId,
+      type: type === 'subtract' ? 'fee' : 'deposit',
+      amount: Math.abs(adjustmentAmount),
+      status: 'completed',
+      description: `[ADMIN] ${reason}`,
+      metadata: {
+        admin_adjustment: true,
+        admin_id: adminId,
+        adjustment_type: type,
+        previous_balance: currentBalance,
+        new_balance: newBalance
+      }
+    });
+
+    // Log da ação
+    await supabase.from('admin_logs').insert({
+      admin_id: adminId,
+      action: 'adjust_balance',
+      target_type: 'user',
+      target_id: userId,
+      details: { type, amount: adjustmentAmount, reason, previousBalance: currentBalance, newBalance }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Saldo ajustado com sucesso. Novo saldo: R$ ${newBalance.toFixed(2)}`,
+      previousBalance: currentBalance,
+      newBalance
+    });
+  } catch (error) {
+    console.error('adjustUserBalance error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ========== CONFIGURAÇÕES DO GATEWAY ==========
+
+async function getGatewayConfig(res) {
+  try {
+    const config = {
+      provider: 'EfiBank',
+      sandbox: process.env.EFI_SANDBOX === 'true',
+      configured: !!(process.env.EFI_CLIENT_ID && process.env.EFI_CLIENT_SECRET && process.env.EFI_CERTIFICATE),
+      pixKeyConfigured: !!process.env.EFI_PIX_KEY,
+      webhookUrlConfigured: !!process.env.EFI_WEBHOOK_URL,
+      environment: process.env.NODE_ENV || 'development',
+      features: {
+        pix: true,
+        boleto: true,
+        creditCard: true,
+      },
+      // Não expor dados sensíveis
+      clientIdMasked: process.env.EFI_CLIENT_ID ? `${process.env.EFI_CLIENT_ID.substring(0, 8)}...` : null,
+      pixKeyMasked: process.env.EFI_PIX_KEY ? `${process.env.EFI_PIX_KEY.substring(0, 4)}...` : null,
+    };
+
+    return res.status(200).json({
+      success: true,
+      config
+    });
+  } catch (error) {
+    console.error('getGatewayConfig error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ========== API KEYS DOS USUÁRIOS ==========
+
+async function getAllApiKeys(supabase, params, res) {
+  try {
+    let query = supabase
+      .from('api_keys')
+      .select(`
+        id,
+        name,
+        api_key,
+        status,
+        last_used_at,
+        created_at,
+        users (
+          id,
+          name,
+          email
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (params.userId) {
+      query = query.eq('user_id', params.userId);
+    }
+
+    if (params.status) {
+      query = query.eq('status', params.status);
+    }
+
+    if (params.limit) {
+      query = query.limit(params.limit);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    // Mascarar as API keys
+    const maskedData = data?.map(key => ({
+      ...key,
+      api_key: key.api_key ? `${key.api_key.substring(0, 10)}...${key.api_key.slice(-4)}` : null
+    }));
+
+    return res.status(200).json({
+      success: true,
+      apiKeys: maskedData
+    });
+  } catch (error) {
+    console.error('getAllApiKeys error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ========== LINKS DE PAGAMENTO ==========
+
+async function getAllPaymentLinks(supabase, params, res) {
+  try {
+    let query = supabase
+      .from('payment_links')
+      .select(`
+        *,
+        users (
+          id,
+          name,
+          email
+        ),
+        products (
+          id,
+          name,
+          price
+        )
+      `)
+      .order('created_at', { ascending: false });
+
+    if (params.userId) {
+      query = query.eq('user_id', params.userId);
+    }
+
+    if (params.active !== undefined) {
+      query = query.eq('active', params.active);
+    }
+
+    if (params.limit) {
+      query = query.limit(params.limit);
+    }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      paymentLinks: data
+    });
+  } catch (error) {
+    console.error('getAllPaymentLinks error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ========== ESTATÍSTICAS AVANÇADAS ==========
+
+async function getAdvancedStats(supabase, params, res) {
+  try {
+    const { startDate, endDate } = params;
+    
+    // Vendas por dia (últimos 30 dias se não especificado)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const start = startDate || thirtyDaysAgo.toISOString().split('T')[0];
+    const end = endDate || new Date().toISOString().split('T')[0];
+
+    // Vendas confirmadas no período
+    const { data: salesByDay } = await supabase
+      .from('payments')
+      .select('created_at, value, billing_type, status')
+      .in('status', ['RECEIVED', 'CONFIRMED'])
+      .gte('created_at', start)
+      .lte('created_at', end + 'T23:59:59')
+      .order('created_at', { ascending: true });
+
+    // Novos usuários por dia
+    const { data: usersByDay } = await supabase
+      .from('users')
+      .select('created_at')
+      .gte('created_at', start)
+      .lte('created_at', end + 'T23:59:59')
+      .order('created_at', { ascending: true });
+
+    // Agrupar por dia
+    const salesGrouped = {};
+    const usersGrouped = {};
+    const paymentMethodStats = { PIX: 0, CREDIT_CARD: 0, BOLETO: 0 };
+
+    salesByDay?.forEach(sale => {
+      const day = sale.created_at.split('T')[0];
+      if (!salesGrouped[day]) salesGrouped[day] = { total: 0, count: 0 };
+      salesGrouped[day].total += parseFloat(sale.value || 0);
+      salesGrouped[day].count += 1;
+      
+      if (sale.billing_type) {
+        paymentMethodStats[sale.billing_type] = (paymentMethodStats[sale.billing_type] || 0) + parseFloat(sale.value || 0);
+      }
+    });
+
+    usersByDay?.forEach(user => {
+      const day = user.created_at.split('T')[0];
+      usersGrouped[day] = (usersGrouped[day] || 0) + 1;
+    });
+
+    // Criar array de datas
+    const dailyStats = [];
+    const currentDate = new Date(start);
+    const endDateObj = new Date(end);
+
+    while (currentDate <= endDateObj) {
+      const day = currentDate.toISOString().split('T')[0];
+      dailyStats.push({
+        date: day,
+        sales: salesGrouped[day]?.total || 0,
+        salesCount: salesGrouped[day]?.count || 0,
+        newUsers: usersGrouped[day] || 0,
+      });
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // Top vendedores
+    const { data: topSellers } = await supabase
+      .from('payments')
+      .select(`
+        user_id,
+        value,
+        users (
+          name,
+          email
+        )
+      `)
+      .in('status', ['RECEIVED', 'CONFIRMED'])
+      .gte('created_at', start)
+      .lte('created_at', end + 'T23:59:59');
+
+    const sellerStats = {};
+    topSellers?.forEach(sale => {
+      if (!sellerStats[sale.user_id]) {
+        sellerStats[sale.user_id] = {
+          userId: sale.user_id,
+          name: sale.users?.name || 'N/A',
+          email: sale.users?.email || 'N/A',
+          total: 0,
+          count: 0
+        };
+      }
+      sellerStats[sale.user_id].total += parseFloat(sale.value || 0);
+      sellerStats[sale.user_id].count += 1;
+    });
+
+    const topSellersArray = Object.values(sellerStats)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+
+    return res.status(200).json({
+      success: true,
+      stats: {
+        dailyStats,
+        paymentMethodStats,
+        topSellers: topSellersArray,
+        period: { start, end }
+      }
+    });
+  } catch (error) {
+    console.error('getAdvancedStats error:', error);
     return res.status(500).json({ success: false, message: error.message });
   }
 }

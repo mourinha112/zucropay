@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Box,
   Card,
@@ -28,6 +28,15 @@ import {
   InputAdornment,
   Badge,
   Skeleton,
+  Grid,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemIcon,
 } from '@mui/material';
 import {
   Dashboard as DashboardIcon,
@@ -40,20 +49,25 @@ import {
   Cancel as CancelIcon,
   Search as SearchIcon,
   Refresh as RefreshIcon,
-  Lock as LockIcon,
   ArrowUpward as ArrowUpIcon,
   ArrowDownward as ArrowDownIcon,
-  ShowChart as ChartIcon,
   Speed as SpeedIcon,
   Payments as PaymentsIcon,
+  Inventory as InventoryIcon,
+  History as HistoryIcon,
+  Settings as SettingsIcon,
+  Link as LinkIcon,
+  Visibility as ViewIcon,
+  Person as PersonIcon,
+  AttachMoney as MoneyIcon,
+  TrendingUp as TrendingUpIcon,
+  CloudDone as CloudDoneIcon,
+  CloudOff as CloudOffIcon,
+  Webhook as WebhookIcon,
 } from '@mui/icons-material';
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   Cell,
@@ -95,10 +109,17 @@ const Admin = () => {
   const [verifications, setVerifications] = useState<any[]>([]);
   const [withdrawals, setWithdrawals] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [webhookLogs, setWebhookLogs] = useState<any[]>([]);
+  const [adminLogs, setAdminLogs] = useState<any[]>([]);
+  const [paymentLinks, setPaymentLinks] = useState<any[]>([]);
+  const [gatewayConfig, setGatewayConfig] = useState<any>(null);
+  const [advancedStats, setAdvancedStats] = useState<any>(null);
 
   // Estados de filtro
   const [userSearch, setUserSearch] = useState('');
   const [userStatusFilter, setUserStatusFilter] = useState('');
+  const [productSearch, setProductSearch] = useState('');
 
   // Dialogs
   const [actionDialog, setActionDialog] = useState<{
@@ -108,13 +129,28 @@ const Admin = () => {
     reason: string;
   }>({ open: false, type: '', item: null, reason: '' });
 
+  const [userDetailDialog, setUserDetailDialog] = useState<{
+    open: boolean;
+    user: any;
+    loading: boolean;
+  }>({ open: false, user: null, loading: false });
+
+  const [balanceDialog, setBalanceDialog] = useState<{
+    open: boolean;
+    user: any;
+    amount: string;
+    type: 'add' | 'subtract' | 'set';
+    reason: string;
+  }>({ open: false, user: null, amount: '', type: 'add', reason: '' });
+
   // Dados para gráficos
   const [salesChartData, setSalesChartData] = useState<any[]>([]);
-  const [userChartData, setUserChartData] = useState<any[]>([]);
+  const [paymentMethodData, setPaymentMethodData] = useState<any[]>([]);
 
   useEffect(() => {
     loadStats();
-    loadSalesChartData();
+    loadGatewayConfig();
+    loadAdvancedStats();
   }, []);
 
   useEffect(() => {
@@ -122,43 +158,10 @@ const Admin = () => {
     if (tabValue === 2) loadVerifications();
     if (tabValue === 3) loadWithdrawals();
     if (tabValue === 4) loadSales();
+    if (tabValue === 5) loadProducts();
+    if (tabValue === 6) loadPaymentLinks();
+    if (tabValue === 7) loadLogs();
   }, [tabValue]);
-
-  // Dados para gráficos adicionais
-  const [paymentMethodData, setPaymentMethodData] = useState<any[]>([]);
-  const [monthlyData, setMonthlyData] = useState<any[]>([]);
-
-  const loadSalesChartData = () => {
-    // Dados dos últimos 7 dias
-    const today = new Date();
-    const data = [];
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      data.push({
-        date: date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
-        vendas: Math.floor(Math.random() * 5000) + 1000,
-        usuarios: Math.floor(Math.random() * 20) + 5,
-        saques: Math.floor(Math.random() * 2000) + 500,
-      });
-    }
-    setSalesChartData(data);
-
-    // Dados por método de pagamento
-    setPaymentMethodData([
-      { name: 'PIX', value: Math.floor(Math.random() * 50000) + 20000, color: '#22c55e' },
-      { name: 'Cartão', value: Math.floor(Math.random() * 30000) + 10000, color: '#5818C8' },
-      { name: 'Boleto', value: Math.floor(Math.random() * 10000) + 5000, color: '#f59e0b' },
-    ]);
-
-    // Dados mensais
-    const months = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun'];
-    setMonthlyData(months.map(month => ({
-      month,
-      receita: Math.floor(Math.random() * 100000) + 50000,
-      despesas: Math.floor(Math.random() * 30000) + 10000,
-    })));
-  };
 
   const loadStats = async () => {
     try {
@@ -166,15 +169,6 @@ const Admin = () => {
       setConfigError(null);
       const response = await adminApi.getStats();
       setStats(response.stats);
-      
-      // Gerar dados para gráfico de usuários
-      if (response.stats?.users) {
-        setUserChartData([
-          { name: 'Aprovados', value: response.stats.users.approved || 0, color: '#22c55e' },
-          { name: 'Pendentes', value: response.stats.users.pending || 0, color: '#f59e0b' },
-          { name: 'Outros', value: Math.max(0, (response.stats.users.total || 0) - (response.stats.users.approved || 0) - (response.stats.users.pending || 0)), color: '#94a3b8' },
-        ]);
-      }
     } catch (err: any) {
       if (err.message.includes('não é um administrador')) {
         const match = err.message.match(/userId: ([a-f0-9-]+)/i);
@@ -190,11 +184,47 @@ const Admin = () => {
     }
   };
 
+  const loadGatewayConfig = async () => {
+    try {
+      const response = await adminApi.getGatewayConfig();
+      setGatewayConfig(response.config);
+    } catch (err: any) {
+      console.error('Erro ao carregar config do gateway:', err);
+    }
+  };
+
+  const loadAdvancedStats = async () => {
+    try {
+      const response = await adminApi.getAdvancedStats({});
+      setAdvancedStats(response.stats);
+      
+      // Atualizar gráficos
+      if (response.stats?.dailyStats) {
+        setSalesChartData(response.stats.dailyStats.map((d: any) => ({
+          date: new Date(d.date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
+          vendas: d.sales,
+          usuarios: d.newUsers,
+        })));
+      }
+      
+      if (response.stats?.paymentMethodStats) {
+        const methods = response.stats.paymentMethodStats;
+        setPaymentMethodData([
+          { name: 'PIX', value: methods.PIX || 0, color: '#22c55e' },
+          { name: 'Cartão', value: methods.CREDIT_CARD || 0, color: '#5818C8' },
+          { name: 'Boleto', value: methods.BOLETO || 0, color: '#f59e0b' },
+        ]);
+      }
+    } catch (err: any) {
+      console.error('Erro ao carregar estatísticas avançadas:', err);
+    }
+  };
+
   const loadUsers = async () => {
     try {
       setLoading(true);
       const response = await adminApi.getUsers({ search: userSearch, status: userStatusFilter });
-      setUsers(response.users);
+      setUsers(response.users || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -206,7 +236,7 @@ const Admin = () => {
     try {
       setLoading(true);
       const response = await adminApi.getVerifications({ status: 'pending' });
-      setVerifications(response.verifications);
+      setVerifications(response.verifications || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -218,7 +248,7 @@ const Admin = () => {
     try {
       setLoading(true);
       const response = await adminApi.getWithdrawals({ status: 'pending' });
-      setWithdrawals(response.withdrawals);
+      setWithdrawals(response.withdrawals || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -230,11 +260,62 @@ const Admin = () => {
     try {
       setLoading(true);
       const response = await adminApi.getSales({ limit: 100 });
-      setSales(response.sales);
+      setSales(response.sales || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadProducts = async () => {
+    try {
+      setLoading(true);
+      const response = await adminApi.getAllProducts({ search: productSearch, limit: 100 });
+      setProducts(response.products || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadPaymentLinks = async () => {
+    try {
+      setLoading(true);
+      const response = await adminApi.getAllPaymentLinks({ limit: 100 });
+      setPaymentLinks(response.paymentLinks || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadLogs = async () => {
+    try {
+      setLoading(true);
+      const [webhookResponse, adminResponse] = await Promise.all([
+        adminApi.getWebhookLogs({ limit: 50 }),
+        adminApi.getAdminLogs({ limit: 50 }),
+      ]);
+      setWebhookLogs(webhookResponse.logs || []);
+      setAdminLogs(adminResponse.logs || []);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUserDetails = async (userId: string) => {
+    try {
+      setUserDetailDialog({ open: true, user: null, loading: true });
+      const response = await adminApi.getUserDetails(userId);
+      setUserDetailDialog({ open: true, user: response, loading: false });
+    } catch (err: any) {
+      setError(err.message);
+      setUserDetailDialog({ open: false, user: null, loading: false });
     }
   };
 
@@ -303,6 +384,29 @@ const Admin = () => {
     }
   };
 
+  const handleAdjustBalance = async () => {
+    try {
+      setLoading(true);
+      const { user, amount, type, reason } = balanceDialog;
+      
+      await adminApi.adjustUserBalance({
+        userId: user.id,
+        amount: parseFloat(amount),
+        type,
+        reason,
+      });
+      
+      setSuccess('Saldo ajustado com sucesso!');
+      setBalanceDialog({ open: false, user: null, amount: '', type: 'add', reason: '' });
+      loadUsers();
+      loadStats();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
   };
@@ -318,10 +422,10 @@ const Admin = () => {
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved': case 'RECEIVED': case 'CONFIRMED': case 'completed': return 'success';
-      case 'pending': case 'PENDING': return 'warning';
-      case 'rejected': case 'blocked': case 'suspended': case 'REFUNDED': return 'error';
+    switch (status?.toLowerCase()) {
+      case 'approved': case 'received': case 'confirmed': case 'completed': case 'active': return 'success';
+      case 'pending': return 'warning';
+      case 'rejected': case 'blocked': case 'suspended': case 'refunded': case 'failed': case 'inactive': return 'error';
       default: return 'default';
     }
   };
@@ -330,7 +434,7 @@ const Admin = () => {
     const labels: Record<string, string> = {
       pending: 'Pendente', approved: 'Aprovado', rejected: 'Rejeitado', blocked: 'Bloqueado',
       suspended: 'Suspenso', completed: 'Concluído', PENDING: 'Pendente', RECEIVED: 'Recebido',
-      CONFIRMED: 'Confirmado', REFUNDED: 'Estornado',
+      CONFIRMED: 'Confirmado', REFUNDED: 'Estornado', active: 'Ativo', inactive: 'Inativo',
     };
     return labels[status] || status;
   };
@@ -377,7 +481,7 @@ const Admin = () => {
           >
             {icon}
           </Box>
-          {trend && (
+          {trend !== undefined && (
             <Chip
               size="small"
               icon={trend > 0 ? <ArrowUpIcon sx={{ fontSize: 14 }} /> : <ArrowDownIcon sx={{ fontSize: 14 }} />}
@@ -408,7 +512,7 @@ const Admin = () => {
     <>
       <AdminHeader />
       <Box sx={{ minHeight: '100vh', bgcolor: '#f8fafc' }}>
-        <Box sx={{ maxWidth: '1600px', margin: '0 auto', p: { xs: 2, sm: 3 } }}>
+        <Box sx={{ maxWidth: '1800px', margin: '0 auto', p: { xs: 2, sm: 3 } }}>
           {/* Header */}
           <Box sx={{ mb: 4, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
             <Box>
@@ -423,24 +527,33 @@ const Admin = () => {
                   mb: 0.5,
                 }}
               >
-                Painel Administrativo
+                🛡️ Painel Administrativo ZucroPay
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Gerencie toda a plataforma ZucroPay em um só lugar
+                Controle total do gateway de pagamentos
               </Typography>
             </Box>
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+              {gatewayConfig && (
+                <Chip
+                  icon={gatewayConfig.configured ? <CloudDoneIcon sx={{ fontSize: 16 }} /> : <CloudOffIcon sx={{ fontSize: 16 }} />}
+                  label={gatewayConfig.configured ? 'Gateway Conectado' : 'Gateway Offline'}
+                  color={gatewayConfig.configured ? 'success' : 'error'}
+                  variant="outlined"
+                  size="small"
+                />
+              )}
               <Chip
                 icon={<SpeedIcon sx={{ fontSize: 16 }} />}
-                label="Sistema Online"
-                color="success"
+                label={gatewayConfig?.sandbox ? 'Sandbox' : 'Produção'}
+                color={gatewayConfig?.sandbox ? 'warning' : 'success'}
                 variant="outlined"
                 size="small"
               />
               <Button
                 variant="contained"
                 startIcon={<RefreshIcon />}
-                onClick={() => { loadStats(); loadSalesChartData(); }}
+                onClick={() => { loadStats(); loadAdvancedStats(); loadGatewayConfig(); }}
                 sx={{
                   bgcolor: '#5818C8',
                   '&:hover': { bgcolor: '#4a14a8' },
@@ -479,22 +592,20 @@ const Admin = () => {
 
           {/* Premium Stats Cards */}
           {stats && (
-            <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', mb: 4 }}>
+            <Box sx={{ display: 'grid', gap: 3, gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', mb: 4 }}>
               <PremiumStatCard
                 icon={<PeopleIcon sx={{ color: 'white', fontSize: 28 }} />}
                 title="Total de Usuários"
                 value={stats.users?.total || 0}
                 subtitle={`${stats.users?.pending || 0} aguardando aprovação`}
                 gradient="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
-                trend={12}
               />
               <PremiumStatCard
                 icon={<ShoppingCartIcon sx={{ color: 'white', fontSize: 28 }} />}
                 title="Vendas Totais"
                 value={formatCurrency(stats.sales?.total || 0)}
-                subtitle={`${stats.sales?.transactions || 0} transações realizadas`}
+                subtitle={`${stats.sales?.transactions || 0} transações`}
                 gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
-                trend={8}
               />
               <PremiumStatCard
                 icon={<PaymentsIcon sx={{ color: 'white', fontSize: 28 }} />}
@@ -513,23 +624,19 @@ const Admin = () => {
             </Box>
           )}
 
-          {/* Charts Section - Row 1 */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: 3, mb: 3 }}>
+          {/* Charts Section */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '2fr 1fr' }, gap: 3, mb: 4 }}>
             {/* Sales Chart */}
             <Card sx={{ overflow: 'hidden' }}>
               <CardContent sx={{ p: 3 }}>
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
                   <Box>
                     <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b' }}>
-                      📈 Visão Geral de Vendas
+                      📈 Vendas e Novos Usuários
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Últimos 7 dias
+                      Últimos 30 dias
                     </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 1 }}>
-                    <Chip icon={<ChartIcon sx={{ fontSize: 14 }} />} label="Vendas" size="small" sx={{ bgcolor: 'rgba(88, 24, 200, 0.1)', color: '#5818C8', height: 24 }} />
-                    <Chip icon={<PeopleIcon sx={{ fontSize: 14 }} />} label="Usuários" size="small" sx={{ bgcolor: 'rgba(34, 197, 94, 0.1)', color: '#22c55e', height: 24 }} />
                   </Box>
                 </Box>
                 <Box sx={{ height: 300 }}>
@@ -563,49 +670,6 @@ const Admin = () => {
               </CardContent>
             </Card>
 
-            {/* User Distribution Chart */}
-            <Card>
-              <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b', mb: 1 }}>
-                  👥 Distribuição de Usuários
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Por status de conta
-                </Typography>
-                <Box sx={{ height: 220 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={userChartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {userChartData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <RechartsTooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: 8, color: 'white' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
-                  {userChartData.map((item, index) => (
-                    <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: item.color }} />
-                      <Typography variant="caption" color="text.secondary">{item.name}: {item.value}</Typography>
-                    </Box>
-                  ))}
-                </Box>
-              </CardContent>
-            </Card>
-          </Box>
-
-          {/* Charts Section - Row 2 */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr', lg: '1fr 1fr 1fr' }, gap: 3, mb: 4 }}>
             {/* Payment Methods Chart */}
             <Card>
               <CardContent sx={{ p: 3 }}>
@@ -615,156 +679,101 @@ const Admin = () => {
                 <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
                   Volume por tipo
                 </Typography>
-                <Box sx={{ height: 200 }}>
+                <Box sx={{ height: 220 }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={paymentMethodData} layout="vertical">
-                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e5e7eb" />
-                      <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} tickFormatter={(value) => `R$${(value/1000).toFixed(0)}k`} />
-                      <YAxis type="category" dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} width={60} />
-                      <RechartsTooltip
-                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: 8, color: 'white' }}
-                        formatter={(value: any) => [formatCurrency(value), 'Volume']}
-                      />
-                      <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                    <PieChart>
+                      <Pie
+                        data={paymentMethodData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={5}
+                        dataKey="value"
+                      >
                         {paymentMethodData.map((entry, index) => (
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </Box>
-              </CardContent>
-            </Card>
-
-            {/* Monthly Revenue Chart */}
-            <Card>
-              <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b', mb: 1 }}>
-                  📊 Receita Mensal
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Últimos 6 meses
-                </Typography>
-                <Box sx={{ height: 200 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={monthlyData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 11 }} tickFormatter={(value) => `${(value/1000).toFixed(0)}k`} />
-                      <RechartsTooltip
-                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: 8, color: 'white' }}
-                        formatter={(value: any, name: string) => [formatCurrency(value), name === 'receita' ? 'Receita' : 'Despesas']}
+                      </Pie>
+                      <RechartsTooltip 
+                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: 8, color: 'white' }} 
+                        formatter={(value: any) => [formatCurrency(value), 'Volume']}
                       />
-                      <Bar dataKey="receita" fill="#5818C8" radius={[4, 4, 0, 0]} />
-                      <Bar dataKey="despesas" fill="#e94560" radius={[4, 4, 0, 0]} />
-                    </BarChart>
+                    </PieChart>
                   </ResponsiveContainer>
                 </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mt: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: 1, bgcolor: '#5818C8' }} />
-                    <Typography variant="caption" color="text.secondary">Receita</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: 1, bgcolor: '#e94560' }} />
-                    <Typography variant="caption" color="text.secondary">Despesas</Typography>
-                  </Box>
-                </Box>
-              </CardContent>
-            </Card>
-
-            {/* Activity Line Chart */}
-            <Card>
-              <CardContent sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#1e293b', mb: 1 }}>
-                  📉 Saques vs Vendas
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Comparativo 7 dias
-                </Typography>
-                <Box sx={{ height: 200 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={salesChartData}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                      <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10 }} tickFormatter={(value) => `${(value/1000).toFixed(0)}k`} />
-                      <RechartsTooltip
-                        contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: 8, color: 'white' }}
-                        formatter={(value: any, name: string) => [formatCurrency(value), name === 'vendas' ? 'Vendas' : 'Saques']}
-                      />
-                      <Line type="monotone" dataKey="vendas" stroke="#22c55e" strokeWidth={3} dot={{ fill: '#22c55e', strokeWidth: 2, r: 4 }} />
-                      <Line type="monotone" dataKey="saques" stroke="#f59e0b" strokeWidth={3} dot={{ fill: '#f59e0b', strokeWidth: 2, r: 4 }} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </Box>
-                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 3, mt: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ width: 16, height: 3, borderRadius: 1, bgcolor: '#22c55e' }} />
-                    <Typography variant="caption" color="text.secondary">Vendas</Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Box sx={{ width: 16, height: 3, borderRadius: 1, bgcolor: '#f59e0b' }} />
-                    <Typography variant="caption" color="text.secondary">Saques</Typography>
-                  </Box>
+                <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2, flexWrap: 'wrap' }}>
+                  {paymentMethodData.map((item, index) => (
+                    <Box key={index} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: item.color }} />
+                      <Typography variant="caption" color="text.secondary">{item.name}: {formatCurrency(item.value)}</Typography>
+                    </Box>
+                  ))}
                 </Box>
               </CardContent>
             </Card>
           </Box>
 
-          {/* Quick Actions */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 2, mb: 4 }}>
-            {[
-              { icon: <PeopleIcon />, label: 'Usuários Pendentes', value: stats?.users?.pending || 0, color: '#f59e0b', tab: 1 },
-              { icon: <VerifiedUserIcon />, label: 'Verificações', value: stats?.verifications?.pending || 0, color: '#e94560', tab: 2 },
-              { icon: <AccountBalanceIcon />, label: 'Saques Pendentes', value: stats?.withdrawals?.pending || 0, color: '#3b82f6', tab: 3 },
-              { icon: <ShoppingCartIcon />, label: 'Ver Vendas', value: stats?.sales?.transactions || 0, color: '#22c55e', tab: 4 },
-            ].map((action, index) => (
-              <Card
-                key={index}
-                onClick={() => setTabValue(action.tab)}
-                sx={{
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  border: '2px solid transparent',
-                  '&:hover': {
-                    borderColor: action.color,
-                    transform: 'translateY(-4px)',
-                    boxShadow: `0 10px 30px ${action.color}20`,
-                  },
-                }}
-              >
-                <CardContent sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box
-                    sx={{
-                      width: 44,
-                      height: 44,
-                      borderRadius: 2,
-                      bgcolor: `${action.color}15`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {React.cloneElement(action.icon, { sx: { color: action.color, fontSize: 22 } })}
+          {/* Gateway Config Card */}
+          {gatewayConfig && (
+            <Card sx={{ mb: 4, border: '2px solid', borderColor: gatewayConfig.configured ? '#22c55e' : '#ef4444' }}>
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                  <Box sx={{ 
+                    width: 48, height: 48, borderRadius: 2, 
+                    bgcolor: gatewayConfig.configured ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <SettingsIcon sx={{ color: gatewayConfig.configured ? '#22c55e' : '#ef4444', fontSize: 24 }} />
                   </Box>
                   <Box>
-                    <Typography variant="h5" sx={{ fontWeight: 700, color: action.color }}>
-                      {action.value}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {action.label}
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>Configuração do Gateway</Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {gatewayConfig.provider} • {gatewayConfig.sandbox ? 'Modo Sandbox' : 'Modo Produção'}
                     </Typography>
                   </Box>
-                </CardContent>
-              </Card>
-            ))}
-          </Box>
+                </Box>
+                <Grid container spacing={2}>
+                  <Grid item xs={6} md={3}>
+                    <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 2, textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">Client ID</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: gatewayConfig.clientIdMasked ? '#22c55e' : '#ef4444' }}>
+                        {gatewayConfig.clientIdMasked || 'Não configurado'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 2, textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">Chave PIX</Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 600, color: gatewayConfig.pixKeyMasked ? '#22c55e' : '#ef4444' }}>
+                        {gatewayConfig.pixKeyMasked || 'Não configurado'}
+                      </Typography>
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 2, textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">PIX</Typography>
+                      <Chip label={gatewayConfig.features?.pix ? 'Ativo' : 'Inativo'} size="small" color={gatewayConfig.features?.pix ? 'success' : 'error'} />
+                    </Box>
+                  </Grid>
+                  <Grid item xs={6} md={3}>
+                    <Box sx={{ p: 2, bgcolor: '#f8fafc', borderRadius: 2, textAlign: 'center' }}>
+                      <Typography variant="caption" color="text.secondary">Cartão</Typography>
+                      <Chip label={gatewayConfig.features?.creditCard ? 'Ativo' : 'Inativo'} size="small" color={gatewayConfig.features?.creditCard ? 'success' : 'error'} />
+                    </Box>
+                  </Grid>
+                </Grid>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Tabs */}
           <Card>
             <Tabs
               value={tabValue}
               onChange={(_, newValue) => setTabValue(newValue)}
+              variant="scrollable"
+              scrollButtons="auto"
               sx={{
                 borderBottom: 1,
                 borderColor: 'divider',
@@ -791,6 +800,9 @@ const Admin = () => {
                 iconPosition="start"
               />
               <Tab icon={<ShoppingCartIcon />} label="Vendas" iconPosition="start" />
+              <Tab icon={<InventoryIcon />} label="Produtos" iconPosition="start" />
+              <Tab icon={<LinkIcon />} label="Links" iconPosition="start" />
+              <Tab icon={<HistoryIcon />} label="Logs" iconPosition="start" />
             </Tabs>
 
             {/* Dashboard Tab */}
@@ -807,49 +819,97 @@ const Admin = () => {
                     ))}
                   </Box>
                 ) : (
-                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3 }}>
-                    {/* Financial Summary */}
-                    <Card variant="outlined" sx={{ bgcolor: '#fafafa' }}>
-                      <CardContent>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <PaymentsIcon sx={{ color: '#5818C8' }} />
-                          Resumo Financeiro
-                        </Typography>
-                        {[
-                          { label: 'Total em Vendas', value: formatCurrency(stats?.sales?.total || 0), color: '#22c55e' },
-                          { label: 'Depósitos', value: formatCurrency(stats?.deposits?.total || 0), color: '#3b82f6' },
-                          { label: 'Saques Realizados', value: formatCurrency(stats?.withdrawals?.completed || 0), color: '#f59e0b' },
-                          { label: 'Saques Pendentes', value: formatCurrency(stats?.withdrawals?.pendingAmount || 0), color: '#e94560' },
-                        ].map((item, index) => (
-                          <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1.5, borderBottom: index < 3 ? '1px solid #e5e7eb' : 'none' }}>
-                            <Typography variant="body2" color="text.secondary">{item.label}</Typography>
-                            <Typography variant="body1" sx={{ fontWeight: 700, color: item.color }}>{item.value}</Typography>
-                          </Box>
-                        ))}
-                      </CardContent>
-                    </Card>
+                  <>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 3, mb: 3 }}>
+                      {/* Financial Summary */}
+                      <Card variant="outlined" sx={{ bgcolor: '#fafafa' }}>
+                        <CardContent>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <PaymentsIcon sx={{ color: '#5818C8' }} />
+                            Resumo Financeiro
+                          </Typography>
+                          {[
+                            { label: 'Total em Vendas', value: formatCurrency(stats?.sales?.total || 0), color: '#22c55e' },
+                            { label: 'Depósitos', value: formatCurrency(stats?.deposits?.total || 0), color: '#3b82f6' },
+                            { label: 'Saques Realizados', value: formatCurrency(stats?.withdrawals?.completed || 0), color: '#f59e0b' },
+                            { label: 'Saques Pendentes', value: formatCurrency(stats?.withdrawals?.pendingAmount || 0), color: '#e94560' },
+                          ].map((item, index) => (
+                            <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1.5, borderBottom: index < 3 ? '1px solid #e5e7eb' : 'none' }}>
+                              <Typography variant="body2" color="text.secondary">{item.label}</Typography>
+                              <Typography variant="body1" sx={{ fontWeight: 700, color: item.color }}>{item.value}</Typography>
+                            </Box>
+                          ))}
+                        </CardContent>
+                      </Card>
 
-                    {/* User Summary */}
-                    <Card variant="outlined" sx={{ bgcolor: '#fafafa' }}>
-                      <CardContent>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <PeopleIcon sx={{ color: '#5818C8' }} />
-                          Resumo de Usuários
-                        </Typography>
-                        {[
-                          { label: 'Total Cadastrados', value: stats?.users?.total || 0, color: '#1e293b' },
-                          { label: 'Aprovados', value: stats?.users?.approved || 0, color: '#22c55e' },
-                          { label: 'Pendentes', value: stats?.users?.pending || 0, color: '#f59e0b' },
-                          { label: 'Taxa de Aprovação', value: `${stats?.users?.total ? Math.round((stats.users.approved / stats.users.total) * 100) : 0}%`, color: '#5818C8' },
-                        ].map((item, index) => (
-                          <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1.5, borderBottom: index < 3 ? '1px solid #e5e7eb' : 'none' }}>
-                            <Typography variant="body2" color="text.secondary">{item.label}</Typography>
-                            <Typography variant="body1" sx={{ fontWeight: 700, color: item.color }}>{item.value}</Typography>
-                          </Box>
-                        ))}
-                      </CardContent>
-                    </Card>
-                  </Box>
+                      {/* User Summary */}
+                      <Card variant="outlined" sx={{ bgcolor: '#fafafa' }}>
+                        <CardContent>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <PeopleIcon sx={{ color: '#5818C8' }} />
+                            Resumo de Usuários
+                          </Typography>
+                          {[
+                            { label: 'Total Cadastrados', value: stats?.users?.total || 0, color: '#1e293b' },
+                            { label: 'Aprovados', value: stats?.users?.approved || 0, color: '#22c55e' },
+                            { label: 'Pendentes', value: stats?.users?.pending || 0, color: '#f59e0b' },
+                            { label: 'Taxa de Aprovação', value: `${stats?.users?.total ? Math.round((stats.users.approved / stats.users.total) * 100) : 0}%`, color: '#5818C8' },
+                          ].map((item, index) => (
+                            <Box key={index} sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', py: 1.5, borderBottom: index < 3 ? '1px solid #e5e7eb' : 'none' }}>
+                              <Typography variant="body2" color="text.secondary">{item.label}</Typography>
+                              <Typography variant="body1" sx={{ fontWeight: 700, color: item.color }}>{item.value}</Typography>
+                            </Box>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    </Box>
+
+                    {/* Top Sellers */}
+                    {advancedStats?.topSellers && advancedStats.topSellers.length > 0 && (
+                      <Card variant="outlined">
+                        <CardContent>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <TrendingUpIcon sx={{ color: '#5818C8' }} />
+                            Top Vendedores (30 dias)
+                          </Typography>
+                          <TableContainer>
+                            <Table size="small">
+                              <TableHead>
+                                <TableRow>
+                                  <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                                  <TableCell sx={{ fontWeight: 600 }}>Vendedor</TableCell>
+                                  <TableCell sx={{ fontWeight: 600 }} align="right">Vendas</TableCell>
+                                  <TableCell sx={{ fontWeight: 600 }} align="right">Total</TableCell>
+                                </TableRow>
+                              </TableHead>
+                              <TableBody>
+                                {advancedStats.topSellers.slice(0, 5).map((seller: any, index: number) => (
+                                  <TableRow key={seller.userId}>
+                                    <TableCell>
+                                      <Chip label={index + 1} size="small" sx={{ 
+                                        bgcolor: index === 0 ? '#ffd700' : index === 1 ? '#c0c0c0' : index === 2 ? '#cd7f32' : '#e5e7eb',
+                                        fontWeight: 700
+                                      }} />
+                                    </TableCell>
+                                    <TableCell>
+                                      <Box>
+                                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{seller.name}</Typography>
+                                        <Typography variant="caption" color="text.secondary">{seller.email}</Typography>
+                                      </Box>
+                                    </TableCell>
+                                    <TableCell align="right">{seller.count}</TableCell>
+                                    <TableCell align="right">
+                                      <Typography sx={{ fontWeight: 700, color: '#22c55e' }}>{formatCurrency(seller.total)}</Typography>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </TableContainer>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </>
                 )}
               </Box>
             </TabPanel>
@@ -925,16 +985,14 @@ const Admin = () => {
                             <TableCell><Typography variant="caption">{formatDate(user.created_at)}</Typography></TableCell>
                             <TableCell align="center">
                               <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
+                                <Tooltip title="Ver Detalhes"><IconButton size="small" onClick={() => loadUserDetails(user.id)} sx={{ color: '#3b82f6' }}><ViewIcon fontSize="small" /></IconButton></Tooltip>
+                                <Tooltip title="Ajustar Saldo"><IconButton size="small" onClick={() => setBalanceDialog({ open: true, user, amount: '', type: 'add', reason: '' })} sx={{ color: '#f59e0b' }}><MoneyIcon fontSize="small" /></IconButton></Tooltip>
                                 {user.account_status !== 'approved' && (
                                   <Tooltip title="Aprovar"><IconButton size="small" onClick={() => setActionDialog({ open: true, type: 'approveUser', item: user, reason: '' })} sx={{ color: '#22c55e' }}><CheckCircleIcon fontSize="small" /></IconButton></Tooltip>
-                                )}
-                                {user.account_status !== 'rejected' && (
-                                  <Tooltip title="Rejeitar"><IconButton size="small" onClick={() => setActionDialog({ open: true, type: 'rejectUser', item: user, reason: '' })} sx={{ color: '#f59e0b' }}><CancelIcon fontSize="small" /></IconButton></Tooltip>
                                 )}
                                 {user.account_status !== 'blocked' && (
                                   <Tooltip title="Bloquear"><IconButton size="small" onClick={() => setActionDialog({ open: true, type: 'blockUser', item: user, reason: '' })} sx={{ color: '#ef4444' }}><BlockIcon fontSize="small" /></IconButton></Tooltip>
                                 )}
-                                <Tooltip title="Bloquear Saques"><IconButton size="small" onClick={() => setActionDialog({ open: true, type: 'blockWithdrawals', item: user, reason: '' })} sx={{ color: '#64748b' }}><LockIcon fontSize="small" /></IconButton></Tooltip>
                               </Box>
                             </TableCell>
                           </TableRow>
@@ -1021,7 +1079,11 @@ const Admin = () => {
                               </Box>
                             </TableCell>
                             <TableCell><Typography variant="body2" sx={{ fontWeight: 700, color: '#5818C8' }}>{formatCurrency(w.amount)}</Typography></TableCell>
-                            <TableCell><Typography variant="caption">{w.bank_name} - Ag: {w.agency} Cc: {w.account}-{w.account_digit}</Typography></TableCell>
+                            <TableCell>
+                              <Typography variant="caption">
+                                {w.pix_key ? `PIX: ${w.pix_key}` : `${w.bank_name} - Ag: ${w.agency} Cc: ${w.account}-${w.account_digit}`}
+                              </Typography>
+                            </TableCell>
                             <TableCell><Chip label={getStatusLabel(w.status)} color={getStatusColor(w.status) as any} size="small" /></TableCell>
                             <TableCell><Typography variant="caption">{formatDate(w.created_at)}</Typography></TableCell>
                             <TableCell align="center">
@@ -1059,6 +1121,7 @@ const Admin = () => {
                           <TableCell sx={{ fontWeight: 600 }}>Valor</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>Tipo</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Descrição</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>Data</TableCell>
                         </TableRow>
                       </TableHead>
@@ -1074,6 +1137,7 @@ const Admin = () => {
                             <TableCell><Typography variant="body2" sx={{ fontWeight: 700, color: '#5818C8' }}>{formatCurrency(sale.value)}</Typography></TableCell>
                             <TableCell><Chip label={sale.billing_type} size="small" variant="outlined" sx={{ borderColor: sale.billing_type === 'PIX' ? '#22c55e' : '#5818C8', color: sale.billing_type === 'PIX' ? '#22c55e' : '#5818C8' }} /></TableCell>
                             <TableCell><Chip label={getStatusLabel(sale.status)} color={getStatusColor(sale.status) as any} size="small" /></TableCell>
+                            <TableCell><Typography variant="caption">{sale.description || '-'}</Typography></TableCell>
                             <TableCell><Typography variant="caption">{formatDate(sale.created_at)}</Typography></TableCell>
                           </TableRow>
                         ))}
@@ -1081,6 +1145,198 @@ const Admin = () => {
                     </Table>
                   </TableContainer>
                 )}
+              </Box>
+            </TabPanel>
+
+            {/* Produtos Tab */}
+            <TabPanel value={tabValue} index={5}>
+              <Box sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 700, color: '#5818C8' }}>📦 Produtos do Sistema</Typography>
+                  <TextField
+                    size="small"
+                    placeholder="Buscar produto..."
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && loadProducts()}
+                    InputProps={{
+                      startAdornment: <InputAdornment position="start"><SearchIcon sx={{ color: '#94a3b8' }} /></InputAdornment>,
+                    }}
+                    sx={{ width: 300 }}
+                  />
+                </Box>
+                {loading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress sx={{ color: '#5818C8' }} /></Box>
+                ) : products.length === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 6 }}>
+                    <InventoryIcon sx={{ fontSize: 64, color: '#94a3b8', mb: 2 }} />
+                    <Typography color="text.secondary">Nenhum produto encontrado</Typography>
+                  </Box>
+                ) : (
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table>
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                          <TableCell sx={{ fontWeight: 600 }}>Produto</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Vendedor</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Preço</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Marketplace</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Criado em</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {products.map((product) => (
+                          <TableRow key={product.id} hover>
+                            <TableCell>
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                                {product.image_url && (
+                                  <Box component="img" src={product.image_url} sx={{ width: 40, height: 40, borderRadius: 1, objectFit: 'cover' }} />
+                                )}
+                                <Box>
+                                  <Typography variant="body2" sx={{ fontWeight: 500 }}>{product.name}</Typography>
+                                  <Typography variant="caption" color="text.secondary">{product.description?.substring(0, 50)}...</Typography>
+                                </Box>
+                              </Box>
+                            </TableCell>
+                            <TableCell>
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>{product.users?.name}</Typography>
+                                <Typography variant="caption" color="text.secondary">{product.users?.email}</Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell><Typography variant="body2" sx={{ fontWeight: 700, color: '#5818C8' }}>{formatCurrency(product.price)}</Typography></TableCell>
+                            <TableCell><Chip label={product.active ? 'Ativo' : 'Inativo'} color={product.active ? 'success' : 'default'} size="small" /></TableCell>
+                            <TableCell><Chip label={product.marketplace_enabled ? 'Sim' : 'Não'} color={product.marketplace_enabled ? 'success' : 'default'} size="small" /></TableCell>
+                            <TableCell><Typography variant="caption">{formatDate(product.created_at)}</Typography></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Box>
+            </TabPanel>
+
+            {/* Links Tab */}
+            <TabPanel value={tabValue} index={6}>
+              <Box sx={{ p: 3 }}>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#5818C8', mb: 3 }}>🔗 Links de Pagamento</Typography>
+                {loading ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress sx={{ color: '#5818C8' }} /></Box>
+                ) : paymentLinks.length === 0 ? (
+                  <Box sx={{ textAlign: 'center', py: 6 }}>
+                    <LinkIcon sx={{ fontSize: 64, color: '#94a3b8', mb: 2 }} />
+                    <Typography color="text.secondary">Nenhum link de pagamento encontrado</Typography>
+                  </Box>
+                ) : (
+                  <TableContainer component={Paper} variant="outlined">
+                    <Table>
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                          <TableCell sx={{ fontWeight: 600 }}>Nome</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Vendedor</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Valor</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Clicks</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Vendas</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Total</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {paymentLinks.map((link) => (
+                          <TableRow key={link.id} hover>
+                            <TableCell>
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>{link.name}</Typography>
+                            </TableCell>
+                            <TableCell>
+                              <Box>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>{link.users?.name}</Typography>
+                                <Typography variant="caption" color="text.secondary">{link.users?.email}</Typography>
+                              </Box>
+                            </TableCell>
+                            <TableCell><Typography variant="body2" sx={{ fontWeight: 700, color: '#5818C8' }}>{formatCurrency(link.amount)}</Typography></TableCell>
+                            <TableCell>{link.clicks || 0}</TableCell>
+                            <TableCell>{link.payments_count || 0}</TableCell>
+                            <TableCell><Typography sx={{ fontWeight: 700, color: '#22c55e' }}>{formatCurrency(link.total_received || 0)}</Typography></TableCell>
+                            <TableCell><Chip label={link.active ? 'Ativo' : 'Inativo'} color={link.active ? 'success' : 'default'} size="small" /></TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </Box>
+            </TabPanel>
+
+            {/* Logs Tab */}
+            <TabPanel value={tabValue} index={7}>
+              <Box sx={{ p: 3 }}>
+                <Grid container spacing={3}>
+                  {/* Webhook Logs */}
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#5818C8', mb: 2 }}>🔔 Logs de Webhook</Typography>
+                    <Card variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }}>
+                      {webhookLogs.length === 0 ? (
+                        <Box sx={{ p: 3, textAlign: 'center' }}>
+                          <WebhookIcon sx={{ fontSize: 48, color: '#94a3b8', mb: 1 }} />
+                          <Typography color="text.secondary">Nenhum log de webhook</Typography>
+                        </Box>
+                      ) : (
+                        <List dense>
+                          {webhookLogs.map((log) => (
+                            <ListItem key={log.id} divider>
+                              <ListItemIcon>
+                                <Chip 
+                                  label={log.processed ? 'OK' : 'PEND'} 
+                                  size="small" 
+                                  color={log.processed ? 'success' : 'warning'}
+                                  sx={{ width: 50 }}
+                                />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={log.event_type}
+                                secondary={formatDate(log.created_at)}
+                              />
+                            </ListItem>
+                          ))}
+                        </List>
+                      )}
+                    </Card>
+                  </Grid>
+
+                  {/* Admin Logs */}
+                  <Grid item xs={12} md={6}>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: '#5818C8', mb: 2 }}>📋 Logs de Admin</Typography>
+                    <Card variant="outlined" sx={{ maxHeight: 400, overflow: 'auto' }}>
+                      {adminLogs.length === 0 ? (
+                        <Box sx={{ p: 3, textAlign: 'center' }}>
+                          <HistoryIcon sx={{ fontSize: 48, color: '#94a3b8', mb: 1 }} />
+                          <Typography color="text.secondary">Nenhuma ação registrada</Typography>
+                        </Box>
+                      ) : (
+                        <List dense>
+                          {adminLogs.map((log) => (
+                            <ListItem key={log.id} divider>
+                              <ListItemIcon>
+                                <Chip 
+                                  label={log.action?.split('_')[0]?.toUpperCase()} 
+                                  size="small" 
+                                  color={log.action?.includes('approve') || log.action?.includes('unblock') ? 'success' : log.action?.includes('reject') || log.action?.includes('block') ? 'error' : 'default'}
+                                  sx={{ minWidth: 70 }}
+                                />
+                              </ListItemIcon>
+                              <ListItemText
+                                primary={log.action?.replace(/_/g, ' ')}
+                                secondary={`${log.target_type} • ${formatDate(log.created_at)}`}
+                              />
+                            </ListItem>
+                          ))}
+                        </List>
+                      )}
+                    </Card>
+                  </Grid>
+                </Grid>
               </Box>
             </TabPanel>
           </Card>
@@ -1123,6 +1379,120 @@ const Admin = () => {
             }}
           >
             {loading ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Confirmar'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* User Detail Dialog */}
+      <Dialog open={userDetailDialog.open} onClose={() => setUserDetailDialog({ open: false, user: null, loading: false })} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PersonIcon /> Detalhes do Usuário
+        </DialogTitle>
+        <DialogContent>
+          {userDetailDialog.loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+          ) : userDetailDialog.user && (
+            <Box>
+              <Grid container spacing={2} sx={{ mb: 3 }}>
+                <Grid item xs={12} md={6}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="subtitle2" color="text.secondary">Informações</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 700 }}>{userDetailDialog.user.user?.name}</Typography>
+                      <Typography variant="body2" color="text.secondary">{userDetailDialog.user.user?.email}</Typography>
+                      <Typography variant="body2" color="text.secondary">{userDetailDialog.user.user?.phone || 'Sem telefone'}</Typography>
+                      <Typography variant="body2" color="text.secondary">CPF/CNPJ: {userDetailDialog.user.user?.cpf_cnpj || '-'}</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={12} md={6}>
+                  <Card variant="outlined">
+                    <CardContent>
+                      <Typography variant="subtitle2" color="text.secondary">Estatísticas</Typography>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 1 }}>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Saldo</Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 700, color: '#5818C8' }}>{formatCurrency(userDetailDialog.user.user?.balance || 0)}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Total Vendas</Typography>
+                          <Typography variant="h6" sx={{ fontWeight: 700, color: '#22c55e' }}>{formatCurrency(userDetailDialog.user.user?.stats?.totalSales || 0)}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Produtos</Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 700 }}>{userDetailDialog.user.user?.stats?.totalProducts || 0}</Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">Transações</Typography>
+                          <Typography variant="body1" sx={{ fontWeight: 700 }}>{userDetailDialog.user.user?.stats?.totalTransactions || 0}</Typography>
+                        </Box>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </Grid>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setUserDetailDialog({ open: false, user: null, loading: false })}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Balance Adjustment Dialog */}
+      <Dialog open={balanceDialog.open} onClose={() => setBalanceDialog({ open: false, user: null, amount: '', type: 'add', reason: '' })} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600 }}>💰 Ajustar Saldo</DialogTitle>
+        <DialogContent>
+          {balanceDialog.user && (
+            <Box>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                Usuário: <strong>{balanceDialog.user.name}</strong><br />
+                Saldo atual: <strong>{formatCurrency(balanceDialog.user.balance)}</strong>
+              </Alert>
+              <FormControl fullWidth sx={{ mb: 2 }}>
+                <InputLabel>Tipo de Ajuste</InputLabel>
+                <Select
+                  value={balanceDialog.type}
+                  onChange={(e) => setBalanceDialog({ ...balanceDialog, type: e.target.value as any })}
+                  label="Tipo de Ajuste"
+                >
+                  <MenuItem value="add">➕ Adicionar ao saldo</MenuItem>
+                  <MenuItem value="subtract">➖ Subtrair do saldo</MenuItem>
+                  <MenuItem value="set">🔄 Definir saldo exato</MenuItem>
+                </Select>
+              </FormControl>
+              <TextField
+                fullWidth
+                label="Valor"
+                type="number"
+                value={balanceDialog.amount}
+                onChange={(e) => setBalanceDialog({ ...balanceDialog, amount: e.target.value })}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">R$</InputAdornment>,
+                }}
+                sx={{ mb: 2 }}
+              />
+              <TextField
+                fullWidth
+                multiline
+                rows={2}
+                label="Motivo (obrigatório)"
+                value={balanceDialog.reason}
+                onChange={(e) => setBalanceDialog({ ...balanceDialog, reason: e.target.value })}
+                placeholder="Informe o motivo do ajuste..."
+              />
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button onClick={() => setBalanceDialog({ open: false, user: null, amount: '', type: 'add', reason: '' })} sx={{ color: '#64748b' }}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={handleAdjustBalance}
+            disabled={loading || !balanceDialog.amount || !balanceDialog.reason}
+            sx={{ bgcolor: '#5818C8', '&:hover': { bgcolor: '#4a14a8' } }}
+          >
+            {loading ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Confirmar Ajuste'}
           </Button>
         </DialogActions>
       </Dialog>

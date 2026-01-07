@@ -1,9 +1,14 @@
 // ZucroPay Admin API Service
 // Comunicação com a API de administração
+// Com fallback para serviço local quando a API serverless não está disponível
 
 import { supabase } from '../config/supabase';
+import * as adminLocal from './admin-local';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+
+// Flag para usar serviço local (ativa automaticamente se API não estiver disponível)
+let useLocalService = false;
 
 // Função para obter token de autenticação
 const getAuthToken = async (): Promise<string | null> => {
@@ -11,8 +16,40 @@ const getAuthToken = async (): Promise<string | null> => {
   return session?.access_token || null;
 };
 
-// Função base para chamadas à API Admin
+// Mapeamento de ações para funções locais
+const localActionMap: Record<string, (params: any) => Promise<any>> = {
+  getStats: () => adminLocal.getStats(),
+  getAdvancedStats: () => adminLocal.getAdvancedStats(),
+  getUsers: (p) => adminLocal.getUsers(p),
+  approveUser: (p) => adminLocal.approveUser(p.userId),
+  rejectUser: (p) => adminLocal.rejectUser(p.userId, p.reason),
+  suspendUser: (p) => adminLocal.suspendUser(p.userId, p.reason),
+  blockUser: (p) => adminLocal.blockUser(p.userId, p.reason),
+  getVerifications: (p) => adminLocal.getVerifications(p),
+  approveVerification: (p) => adminLocal.approveVerification(p.verificationId),
+  rejectVerification: (p) => adminLocal.rejectVerification(p.verificationId, p.reason),
+  getWithdrawals: (p) => adminLocal.getWithdrawals(p),
+  approveWithdrawal: (p) => adminLocal.approveWithdrawal(p.withdrawalId),
+  rejectWithdrawal: (p) => adminLocal.rejectWithdrawal(p.withdrawalId, p.reason),
+  getSales: (p) => adminLocal.getSales(p),
+  getTransactions: (p) => adminLocal.getTransactions(p),
+  getAllProducts: (p) => adminLocal.getAllProducts(p),
+  getAllApiKeys: (p) => adminLocal.getAllApiKeys(p),
+  getAllPaymentLinks: (p) => adminLocal.getAllPaymentLinks(p),
+  getWebhookLogs: (p) => adminLocal.getWebhookLogs(p),
+  getAdminLogs: (p) => adminLocal.getAdminLogs(p),
+  getUserDetails: (p) => adminLocal.getUserDetails(p.userId),
+  adjustUserBalance: (p) => adminLocal.adjustUserBalance(p),
+  getGatewayConfig: () => adminLocal.getGatewayConfig(),
+};
+
+// Função base para chamadas à API Admin (com fallback local)
 const callAdminAPI = async (action: string, params: Record<string, any> = {}): Promise<any> => {
+  // Se já sabemos que devemos usar local, pula a API
+  if (useLocalService) {
+    return callLocalService(action, params);
+  }
+
   const token = await getAuthToken();
   
   if (!token) {
@@ -33,7 +70,9 @@ const callAdminAPI = async (action: string, params: Record<string, any> = {}): P
     const responseText = await response.text();
     
     if (!responseText) {
-      throw new Error('API retornou resposta vazia. Verifique se a rota /api/admin está deployada na Vercel.');
+      console.log('[Admin API] API retornou vazia, usando serviço local');
+      useLocalService = true;
+      return callLocalService(action, params);
     }
 
     let result;
@@ -41,7 +80,9 @@ const callAdminAPI = async (action: string, params: Record<string, any> = {}): P
       result = JSON.parse(responseText);
     } catch (e) {
       console.error('Resposta inválida da API:', responseText);
-      throw new Error('Resposta inválida da API Admin. Verifique os logs na Vercel.');
+      console.log('[Admin API] Resposta inválida, usando serviço local');
+      useLocalService = true;
+      return callLocalService(action, params);
     }
 
     if (!result.success) {
@@ -50,9 +91,29 @@ const callAdminAPI = async (action: string, params: Record<string, any> = {}): P
 
     return result;
   } catch (error: any) {
+    // Se é erro de rede ou API não disponível, usar serviço local
+    if (error.message?.includes('API retornou resposta vazia') || 
+        error.message?.includes('Failed to fetch') ||
+        error.message?.includes('NetworkError')) {
+      console.log('[Admin API] API não disponível, usando serviço local');
+      useLocalService = true;
+      return callLocalService(action, params);
+    }
     console.error('[Admin API] Erro:', error);
     throw error;
   }
+};
+
+// Chamar serviço local
+const callLocalService = async (action: string, params: Record<string, any>): Promise<any> => {
+  const handler = localActionMap[action];
+  
+  if (!handler) {
+    throw new Error(`Ação não suportada no serviço local: ${action}`);
+  }
+
+  console.log(`[Admin API] Executando ${action} localmente`);
+  return handler(params);
 };
 
 // ========================================
@@ -172,6 +233,121 @@ export const getTransactions = async (params: GetTransactionsParams = {}) => {
 };
 
 // ========================================
+// PRODUTOS (ADMIN)
+// ========================================
+
+export interface GetAllProductsParams {
+  userId?: string;
+  active?: boolean;
+  search?: string;
+  limit?: number;
+}
+
+export const getAllProducts = async (params: GetAllProductsParams = {}) => {
+  return callAdminAPI('getAllProducts', params);
+};
+
+// ========================================
+// WEBHOOK LOGS
+// ========================================
+
+export interface GetWebhookLogsParams {
+  eventType?: string;
+  processed?: boolean;
+  limit?: number;
+}
+
+export const getWebhookLogs = async (params: GetWebhookLogsParams = {}) => {
+  return callAdminAPI('getWebhookLogs', params);
+};
+
+// ========================================
+// ADMIN LOGS
+// ========================================
+
+export interface GetAdminLogsParams {
+  action?: string;
+  targetType?: string;
+  limit?: number;
+}
+
+export const getAdminLogs = async (params: GetAdminLogsParams = {}) => {
+  return callAdminAPI('getAdminLogs', params);
+};
+
+// ========================================
+// DETALHES DO USUÁRIO
+// ========================================
+
+export const getUserDetails = async (userId: string) => {
+  return callAdminAPI('getUserDetails', { userId });
+};
+
+// ========================================
+// AJUSTAR SALDO
+// ========================================
+
+export interface AdjustBalanceParams {
+  userId: string;
+  amount: number;
+  type: 'add' | 'subtract' | 'set';
+  reason: string;
+}
+
+export const adjustUserBalance = async (params: AdjustBalanceParams) => {
+  return callAdminAPI('adjustUserBalance', params);
+};
+
+// ========================================
+// CONFIGURAÇÕES DO GATEWAY
+// ========================================
+
+export const getGatewayConfig = async () => {
+  return callAdminAPI('getGatewayConfig');
+};
+
+// ========================================
+// API KEYS DOS USUÁRIOS
+// ========================================
+
+export interface GetAllApiKeysParams {
+  userId?: string;
+  status?: string;
+  limit?: number;
+}
+
+export const getAllApiKeys = async (params: GetAllApiKeysParams = {}) => {
+  return callAdminAPI('getAllApiKeys', params);
+};
+
+// ========================================
+// LINKS DE PAGAMENTO
+// ========================================
+
+export interface GetAllPaymentLinksParams {
+  userId?: string;
+  active?: boolean;
+  limit?: number;
+}
+
+export const getAllPaymentLinks = async (params: GetAllPaymentLinksParams = {}) => {
+  return callAdminAPI('getAllPaymentLinks', params);
+};
+
+// ========================================
+// ESTATÍSTICAS AVANÇADAS
+// ========================================
+
+export interface GetAdvancedStatsParams {
+  startDate?: string;
+  endDate?: string;
+}
+
+export const getAdvancedStats = async (params: GetAdvancedStatsParams = {}) => {
+  return callAdminAPI('getAdvancedStats', params);
+};
+
+// ========================================
 // VERIFICAR SE É ADMIN
 // ========================================
 
@@ -210,6 +386,15 @@ export default {
   unblockUserWithdrawals,
   getSales,
   getTransactions,
+  getAllProducts,
+  getWebhookLogs,
+  getAdminLogs,
+  getUserDetails,
+  adjustUserBalance,
+  getGatewayConfig,
+  getAllApiKeys,
+  getAllPaymentLinks,
+  getAdvancedStats,
   checkIsAdmin,
 };
 

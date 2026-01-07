@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true, // escuta em todas as interfaces
+    port: 5173,
     allowedHosts: [
       'localhost',
       '127.0.0.1',
@@ -16,6 +17,12 @@ export default defineConfig({
       // Proxy para uploads/imagens
       '/uploads': {
         target: 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      // Proxy para API serverless (vercel dev roda na porta 3000)
+      '/api': {
+        target: 'http://localhost:3000',
         changeOrigin: true,
         secure: false,
       },

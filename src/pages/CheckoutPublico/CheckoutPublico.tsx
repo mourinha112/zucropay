@@ -86,8 +86,25 @@ const CheckoutPublicoHubla: React.FC = () => {
         // @ts-ignore - SDK carregada externamente
         const $gn = window.$gn;
         
-        if (!$gn || !$gn.checkout) {
-          console.error('[Tokenização] SDK não disponível');
+        console.log('[Tokenização] Verificando SDK...', { 
+          gnExists: !!$gn, 
+          gnCheckout: !!$gn?.checkout,
+          gnMethods: $gn ? Object.keys($gn) : []
+        });
+        
+        if (!$gn) {
+          console.error('[Tokenização] SDK $gn não carregada');
+          setError('SDK de pagamento não carregada. Recarregue a página.');
+          resolve(null);
+          return;
+        }
+        
+        if (!$gn.checkout || typeof $gn.checkout.getPaymentToken !== 'function') {
+          console.error('[Tokenização] Método getPaymentToken não disponível');
+          // Tentar método alternativo
+          if ($gn.ready && typeof $gn.ready === 'function') {
+            console.log('[Tokenização] Tentando via $gn.ready...');
+          }
           resolve(null);
           return;
         }
@@ -101,9 +118,17 @@ const CheckoutPublicoHubla: React.FC = () => {
         // Account ID da EfiBank (identificador da conta)
         const accountId = import.meta.env.VITE_EFI_ACCOUNT_ID || '820266';
 
-        console.log('[Tokenização] Iniciando...', { accountId, brand });
+        console.log('[Tokenização] Dados:', { 
+          accountId, 
+          brand,
+          cardLength: cardNumber.length,
+          cvvLength: cvv.length,
+          expMonth,
+          expYear,
+          customerName: cardData.name
+        });
 
-        $gn.checkout.getPaymentToken({
+        const tokenData = {
           account_id: accountId,
           environment: 'production',
           credit_card: {
@@ -114,18 +139,31 @@ const CheckoutPublicoHubla: React.FC = () => {
             expiration_month: expMonth,
             expiration_year: expYear,
           }
-        }, (error: any, response: any) => {
+        };
+
+        console.log('[Tokenização] Chamando getPaymentToken...');
+
+        $gn.checkout.getPaymentToken(tokenData, (error: any, response: any) => {
+          console.log('[Tokenização] Callback:', { error, response });
+          
           if (error) {
-            console.error('[Tokenização] Erro:', error);
+            console.error('[Tokenização] Erro retornado:', JSON.stringify(error));
+            // Não mostrar erro ao usuário, apenas usar fallback
             resolve(null);
           } else if (response?.data?.payment_token) {
-            console.log('[Tokenização] Sucesso!');
+            console.log('[Tokenização] Token obtido com sucesso!');
             resolve(response.data.payment_token);
           } else {
-            console.error('[Tokenização] Resposta inválida:', response);
+            console.error('[Tokenização] Resposta sem token:', JSON.stringify(response));
             resolve(null);
           }
         });
+
+        // Timeout de 10 segundos
+        setTimeout(() => {
+          console.warn('[Tokenização] Timeout - usando fallback');
+          resolve(null);
+        }, 10000);
 
       } catch (error) {
         console.error('[Tokenização] Exceção:', error);
@@ -426,16 +464,9 @@ const CheckoutPublicoHubla: React.FC = () => {
             paymentToken: token,
           };
         } else {
-          // Sem token - enviar dados para gerar link de pagamento
-          console.log('[Checkout] Sem token, usando link de pagamento...');
-          paymentData.creditCard = {
-            number: cardData.number.replace(/\s/g, ''),
-            name: cardData.name,
-            expiryMonth: cardData.expiryMonth,
-            expiryYear: cardData.expiryYear,
-            cvv: cardData.ccv,
-            brand: detectCardBrand(cardData.number.replace(/\s/g, '')),
-          };
+          // Sem token - gerar link e exibir em iframe
+          console.log('[Checkout] Sem token, gerando link para iframe...');
+          paymentData.creditCard = {};
         }
       }
 
