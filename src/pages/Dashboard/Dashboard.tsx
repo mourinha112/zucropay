@@ -29,7 +29,9 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import Header from '../../components/Header/Header';
-import * as api from '../../services/api-supabase';
+
+// API URL
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 const Dashboard = () => {
   const [timeRange, setTimeRange] = useState(1);
@@ -38,92 +40,58 @@ const Dashboard = () => {
   const [balance, setBalance] = useState(0);
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<any[]>([]);
+  const [fullChartData, setFullChartData] = useState<any[]>([]);
 
   useEffect(() => {
     loadDashboardData();
   }, []);
 
+  // Filtrar dados do gráfico baseado no timeRange (sem nova requisição!)
   useEffect(() => {
-    loadChartData();
-  }, [timeRange]);
-
-  const loadChartData = async () => {
-    try {
-      const paymentsResponse = await api.getPayments();
-      const payments = paymentsResponse.payments || [];
-      
-      const today = new Date();
+    if (fullChartData.length > 0) {
       let days = 7;
-      
       if (timeRange === 0) days = 1;
       else if (timeRange === 1) days = 7;
       else if (timeRange === 2) days = 14;
       else if (timeRange === 3) days = 30;
       
-      const chartDataArray = [];
-      
-      for (let i = days - 1; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        date.setHours(0, 0, 0, 0);
-        
-        const nextDate = new Date(date);
-        nextDate.setDate(nextDate.getDate() + 1);
-        
-        const daySales = payments.filter((p: any) => {
-          const paymentDate = new Date(p.created_at);
-          return paymentDate >= date && paymentDate < nextDate && (p.status === 'RECEIVED' || p.status === 'CONFIRMED');
-        });
-        
-        const dayTotal = daySales.reduce((sum: number, p: any) => sum + parseFloat(String(p.value || 0)), 0);
-        
-        chartDataArray.push({
-          date: date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }),
-          value: dayTotal,
-        });
-      }
-      
-      setChartData(chartDataArray);
-    } catch (error) {
-      console.error('Erro ao carregar dados do gráfico:', error);
-      setChartData([]);
+      // Pegar os últimos N dias dos dados completos
+      setChartData(fullChartData.slice(-days).map(d => ({
+        date: d.label,
+        value: d.value,
+      })));
     }
-  };
+  }, [timeRange, fullChartData]);
 
   const loadDashboardData = async () => {
     try {
-      // Buscar pagamentos
-      const paymentsResponse = await api.getPayments();
-      const payments = paymentsResponse.payments || [];
+      const token = localStorage.getItem('zucropay_token');
       
-      // Calcular totais
-      const today = new Date();
-      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      
-      const todaySales = payments.filter((p: any) => {
-        const paymentDate = new Date(p.created_at);
-        return paymentDate >= todayStart && (p.status === 'RECEIVED' || p.status === 'CONFIRMED');
+      // Uma única requisição para a API otimizada
+      const response = await fetch(`${API_URL}/api/dashboard-data`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
       });
+
+      const result = await response.json();
       
-      const monthSales = payments.filter((p: any) => {
-        const paymentDate = new Date(p.created_at);
-        return paymentDate >= monthStart && (p.status === 'RECEIVED' || p.status === 'CONFIRMED');
-      });
-      
-      const todaySum = todaySales.reduce((sum: number, p: any) => sum + parseFloat(String(p.value || 0)), 0);
-      const monthSum = monthSales.reduce((sum: number, p: any) => sum + parseFloat(String(p.value || 0)), 0);
-      
-      setTodayTotal(todaySum);
-      setMonthTotal(monthSum);
-      
-      // Buscar saldo
-      try {
-        const balanceResponse = await api.getBalance();
-        setBalance(parseFloat(String(balanceResponse.balance || 0)));
-      } catch (error) {
-        console.error('Erro ao buscar saldo:', error);
-        setBalance(0);
+      if (result.success && result.data) {
+        const { stats, chartData: apiChartData, user } = result.data;
+        
+        setTodayTotal(stats.todayTotal || 0);
+        setMonthTotal(stats.monthTotal || 0);
+        setBalance(user.balance || 0);
+        setFullChartData(apiChartData || []);
+        
+        // Inicializar gráfico com 7 dias
+        const last7Days = (apiChartData || []).slice(-7).map((d: any) => ({
+          date: d.label,
+          value: d.value,
+        }));
+        setChartData(last7Days);
       }
       
     } catch (error) {
