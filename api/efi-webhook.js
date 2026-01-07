@@ -112,6 +112,8 @@ async function processPixPayment(supabase, pixData) {
       return;
     }
 
+    const paidValue = parseFloat(valor);
+    
     // Creditar saldo do vendedor
     if (payment.user_id) {
       const { data: user } = await supabase
@@ -121,7 +123,9 @@ async function processPixPayment(supabase, pixData) {
         .single();
 
       if (user) {
-        const newBalance = parseFloat(user.balance || 0) + parseFloat(valor);
+        const newBalance = parseFloat(user.balance || 0) + paidValue;
+        console.log(`[EfiBank Webhook] Atualizando saldo: ${user.balance} -> ${newBalance}`);
+        
         await supabase
           .from('users')
           .update({ balance: newBalance })
@@ -131,11 +135,33 @@ async function processPixPayment(supabase, pixData) {
         await supabase.from('transactions').insert({
           user_id: payment.user_id,
           type: 'payment_received',
-          amount: parseFloat(valor),
+          amount: paidValue,
           status: 'completed',
           description: `PIX recebido - ${payment.description || 'Venda'}`,
           metadata: { payment_id: payment.id, txid },
         });
+        
+        console.log(`[EfiBank Webhook] Saldo e transação atualizados`);
+      }
+    }
+
+    // Atualizar payment_link se existir
+    const linkId = payment.payment_link_id || payment.metadata?.link_id;
+    if (linkId) {
+      const { data: link } = await supabase
+        .from('payment_links')
+        .select('total_received')
+        .eq('id', linkId)
+        .single();
+
+      if (link) {
+        const newTotal = parseFloat(link.total_received || 0) + paidValue;
+        await supabase
+          .from('payment_links')
+          .update({ total_received: newTotal })
+          .eq('id', linkId);
+        
+        console.log(`[EfiBank Webhook] Link atualizado: total_received=${newTotal}`);
       }
     }
 
@@ -145,7 +171,7 @@ async function processPixPayment(supabase, pixData) {
       .update({ processed: true })
       .eq('payload->pix->0->txid', txid);
 
-    console.log(`[EfiBank Webhook] PIX processado com sucesso: txid=${txid}`);
+    console.log(`[EfiBank Webhook] ✅ PIX processado com sucesso: txid=${txid}`);
 
   } catch (error) {
     console.error('[EfiBank Webhook] Erro ao processar PIX:', error);

@@ -235,11 +235,12 @@ export default async function handler(req, res) {
       }
 
       // Atualizar payment_link se existir
-      if (dbPayment.metadata?.link_id) {
+      const linkId = dbPayment.payment_link_id || dbPayment.metadata?.link_id;
+      if (linkId) {
         const { data: link } = await supabase
           .from('payment_links')
           .select('total_received')
-          .eq('id', dbPayment.metadata.link_id)
+          .eq('id', linkId)
           .single();
 
         if (link) {
@@ -248,7 +249,7 @@ export default async function handler(req, res) {
             .update({ 
               total_received: (link.total_received || 0) + paidValue 
             })
-            .eq('id', dbPayment.metadata.link_id);
+            .eq('id', linkId);
         }
       }
 

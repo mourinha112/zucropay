@@ -107,10 +107,10 @@ export default async function handler(req, res) {
     const config = getEfiConfig();
     const supabase = getSupabase();
 
-    // Se temos paymentId, buscar txid do banco
     let actualTxid = txid;
     let dbPayment = null;
 
+    // Se temos paymentId, buscar pelo id
     if (paymentId) {
       const { data: payment, error } = await supabase
         .from('payments')
@@ -118,31 +118,46 @@ export default async function handler(req, res) {
         .eq('id', paymentId)
         .single();
 
-      if (error || !payment) {
-        return res.status(404).json({ success: false, message: 'Pagamento não encontrado' });
+      if (!error && payment) {
+        dbPayment = payment;
+        actualTxid = payment.efi_txid || txid;
       }
+    }
+    
+    // Se não encontrou por paymentId mas temos txid, buscar pelo txid
+    if (!dbPayment && txid) {
+      const { data: payment, error } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('efi_txid', txid)
+        .single();
 
-      dbPayment = payment;
-      actualTxid = payment.efi_txid;
-
-      // Se já está confirmado no banco, retornar direto
-      if (payment.status === 'RECEIVED' || payment.status === 'CONFIRMED') {
-        return res.status(200).json({
-          success: true,
-          status: 'CONFIRMED',
-          payment: {
-            id: payment.id,
-            status: payment.status,
-            value: payment.value,
-            paymentDate: payment.payment_date,
-          },
-        });
+      if (!error && payment) {
+        dbPayment = payment;
+        actualTxid = txid;
       }
+    }
+
+    // Se já está confirmado no banco, retornar direto
+    if (dbPayment && (dbPayment.status === 'RECEIVED' || dbPayment.status === 'CONFIRMED')) {
+      console.log('[Check PIX] Pagamento já confirmado no banco:', dbPayment.id);
+      return res.status(200).json({
+        success: true,
+        status: 'CONFIRMED',
+        payment: {
+          id: dbPayment.id,
+          status: dbPayment.status,
+          value: dbPayment.value,
+          paymentDate: dbPayment.payment_date,
+        },
+      });
     }
 
     if (!actualTxid) {
       return res.status(400).json({ success: false, message: 'txid não encontrado' });
     }
+    
+    console.log('[Check PIX] Verificando txid:', actualTxid, 'dbPayment:', dbPayment?.id);
 
     // Buscar status na EfiBank
     const token = await getAccessToken(config);
@@ -189,11 +204,19 @@ export default async function handler(req, res) {
 
     // Se foi pago e temos o payment no banco, atualizar
     if (isPaid && dbPayment && dbPayment.status !== 'RECEIVED') {
-      const paidValue = pixData.pix?.[0]?.valor ? parseFloat(pixData.pix[0].valor) : dbPayment.value;
+      const paidValue = pixData.pix?.[0]?.valor ? parseFloat(pixData.pix[0].valor) : parseFloat(dbPayment.value);
       const paymentDate = pixData.pix?.[0]?.horario || new Date().toISOString();
 
+      console.log(`[Check PIX] Processando pagamento confirmado:`, {
+        paymentId: dbPayment.id,
+        txid: actualTxid,
+        paidValue,
+        userId: dbPayment.user_id,
+        linkId: dbPayment.metadata?.link_id
+      });
+
       // Atualizar pagamento
-      await supabase
+      const { error: updateError } = await supabase
         .from('payments')
         .update({
           status: 'RECEIVED',
@@ -202,23 +225,41 @@ export default async function handler(req, res) {
         })
         .eq('id', dbPayment.id);
 
+      if (updateError) {
+        console.error('[Check PIX] Erro ao atualizar payment:', updateError);
+      } else {
+        console.log('[Check PIX] Payment atualizado com sucesso');
+      }
+
       // Creditar saldo do vendedor
       if (dbPayment.user_id) {
-        const { data: user } = await supabase
+        const { data: user, error: userError } = await supabase
           .from('users')
           .select('balance')
           .eq('id', dbPayment.user_id)
           .single();
 
-        if (user) {
-          const newBalance = parseFloat(user.balance || 0) + paidValue;
-          await supabase
+        if (userError) {
+          console.error('[Check PIX] Erro ao buscar usuário:', userError);
+        } else if (user) {
+          const currentBalance = parseFloat(user.balance || 0);
+          const newBalance = currentBalance + paidValue;
+          
+          console.log(`[Check PIX] Atualizando saldo: ${currentBalance} + ${paidValue} = ${newBalance}`);
+          
+          const { error: balanceError } = await supabase
             .from('users')
             .update({ balance: newBalance })
             .eq('id', dbPayment.user_id);
 
+          if (balanceError) {
+            console.error('[Check PIX] Erro ao atualizar saldo:', balanceError);
+          } else {
+            console.log('[Check PIX] Saldo atualizado com sucesso');
+          }
+
           // Criar transação
-          await supabase.from('transactions').insert({
+          const { error: txError } = await supabase.from('transactions').insert({
             user_id: dbPayment.user_id,
             type: 'payment_received',
             amount: paidValue,
@@ -226,28 +267,44 @@ export default async function handler(req, res) {
             description: `PIX recebido - ${dbPayment.description || 'Venda'}`,
             metadata: { payment_id: dbPayment.id, txid: actualTxid },
           });
+
+          if (txError) {
+            console.error('[Check PIX] Erro ao criar transação:', txError);
+          } else {
+            console.log('[Check PIX] Transação criada com sucesso');
+          }
         }
       }
 
       // Atualizar payment_link se existir
-      if (dbPayment.metadata?.link_id) {
-        const { data: link } = await supabase
+      const linkId = dbPayment.payment_link_id || dbPayment.metadata?.link_id;
+      if (linkId) {
+        const { data: link, error: linkError } = await supabase
           .from('payment_links')
           .select('total_received')
-          .eq('id', dbPayment.metadata.link_id)
+          .eq('id', linkId)
           .single();
 
-        if (link) {
-          await supabase
+        if (linkError) {
+          console.error('[Check PIX] Erro ao buscar link:', linkError);
+        } else if (link) {
+          const newTotal = parseFloat(link.total_received || 0) + paidValue;
+          console.log(`[Check PIX] Atualizando link total_received: ${newTotal}`);
+          
+          const { error: linkUpdateError } = await supabase
             .from('payment_links')
-            .update({ 
-              total_received: (link.total_received || 0) + paidValue 
-            })
-            .eq('id', dbPayment.metadata.link_id);
+            .update({ total_received: newTotal })
+            .eq('id', linkId);
+
+          if (linkUpdateError) {
+            console.error('[Check PIX] Erro ao atualizar link:', linkUpdateError);
+          }
         }
       }
 
-      console.log(`[Check PIX] Pagamento confirmado e processado: ${actualTxid}`);
+      console.log(`[Check PIX] ✅ Pagamento processado com sucesso: ${actualTxid}`);
+    } else if (isPaid && !dbPayment) {
+      console.log(`[Check PIX] ⚠️ PIX pago mas sem registro no banco: ${actualTxid}`);
     }
 
     return res.status(200).json({

@@ -383,29 +383,40 @@ export default async function handler(req, res) {
       const pixQrCodeBase64 = qrCode?.imagemQrcode || '';
 
       // Salvar no banco
+      const paymentData = {
+        user_id: link.user_id,
+        billing_type: 'PIX',
+        value: value,
+        status: 'PENDING',
+        description: description,
+        due_date: new Date().toISOString().split('T')[0],
+        efi_txid: txid,
+        pix_qrcode: pixQrCodeBase64,
+        pix_copy_paste: pixCopyPaste,
+        payment_link_id: linkId,
+        asaas_payment_id: txid, // Usar para compatibilidade
+      };
+
       const { data: savedPayment, error: saveError } = await supabase
         .from('payments')
-        .insert({
-          user_id: link.user_id,
-          billing_type: 'PIX',
-          value: value,
-          status: 'PENDING',
-          description: description,
-          due_date: new Date().toISOString().split('T')[0],
-          efi_txid: txid,
-          pix_qrcode: pixQrCodeBase64,
-          pix_copy_paste: pixCopyPaste,
-          metadata: {
-            link_id: linkId,
-            customer: { name: customerName, email: customerEmail, cpf: customerCpfCnpj, phone: customerPhone },
-            efi_location_id: result.data.loc?.id,
-          },
-        })
+        .insert(paymentData)
         .select()
         .single();
 
       if (saveError) {
         console.error('[PIX] Erro ao salvar pagamento:', saveError);
+        // Tentar salvar sem payment_link_id se a coluna não existir
+        if (saveError.message?.includes('payment_link_id')) {
+          delete paymentData.payment_link_id;
+          const { data: retryPayment, error: retryError } = await supabase
+            .from('payments')
+            .insert(paymentData)
+            .select()
+            .single();
+          if (retryError) {
+            console.error('[PIX] Erro ao salvar (retry):', retryError);
+          }
+        }
       }
 
       // Incrementar contador do link
@@ -509,11 +520,8 @@ export default async function handler(req, res) {
             due_date: new Date().toISOString().split('T')[0],
             payment_date: status === 'RECEIVED' ? new Date().toISOString() : null,
             efi_charge_id: chargeId.toString(),
-            metadata: {
-              link_id: linkId,
-              customer: { name: customerName, email: customerEmail, cpf: customerCpfCnpj, phone: customerPhone },
-              installments: cardInstallments || 1,
-            },
+            payment_link_id: linkId,
+            asaas_payment_id: chargeId.toString(),
           })
           .select()
           .single();
@@ -585,12 +593,8 @@ export default async function handler(req, res) {
             due_date: new Date().toISOString().split('T')[0],
             efi_charge_id: chargeId.toString(),
             invoice_url: paymentUrl,
-            metadata: {
-              link_id: linkId,
-              customer: { name: customerName, email: customerEmail, cpf: customerCpfCnpj, phone: customerPhone },
-              installments: cardInstallments || 1,
-              payment_url: paymentUrl,
-            },
+            payment_link_id: linkId,
+            asaas_payment_id: chargeId.toString(),
           })
           .select()
           .single();
@@ -684,12 +688,8 @@ export default async function handler(req, res) {
           due_date: expireAt,
           efi_charge_id: chargeId.toString(),
           bank_slip_url: boletoInfo?.link,
-          metadata: {
-            link_id: linkId,
-            customer: { name: customerName, email: customerEmail, cpf: customerCpfCnpj, phone: customerPhone },
-            barcode: boletoInfo?.barcode,
-            boleto_pdf: boletoInfo?.pdf?.charge,
-          },
+          payment_link_id: linkId,
+          asaas_payment_id: chargeId.toString(),
         })
         .select()
         .single();
