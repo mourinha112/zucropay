@@ -561,15 +561,58 @@ export default async function handler(req, res) {
           .eq('id', linkId);
 
         if (status === 'RECEIVED') {
-          const { data: user } = await supabase.from('users').select('balance').eq('id', link.user_id).single();
+          const { data: user } = await supabase.from('users').select('balance, reserved_balance').eq('id', link.user_id).single();
           if (user) {
-            await supabase.from('users').update({ balance: (user.balance || 0) + value }).eq('id', link.user_id);
+            // ===== TAXAS DA PLATAFORMA =====
+            const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
+            const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
+            const RESERVE_PERCENT = 0.05;        // 5% reserva
+            const RESERVE_DAYS = 30;
+            
+            const platformFee = (value * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FIXED;
+            const valueAfterFees = value - platformFee;
+            const reserveAmount = valueAfterFees * RESERVE_PERCENT;
+            const netAmount = valueAfterFees - reserveAmount;
+            
+            const releaseDate = new Date();
+            releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
+            
+            console.log(`[CARTAO] Valor bruto: R$${value.toFixed(2)}, Taxa: R$${platformFee.toFixed(2)}, Reserva: R$${reserveAmount.toFixed(2)}, Líquido: R$${netAmount.toFixed(2)}`);
+            
+            await supabase.from('users').update({ 
+              balance: (user.balance || 0) + netAmount,
+              reserved_balance: (user.reserved_balance || 0) + reserveAmount
+            }).eq('id', link.user_id);
+            
+            // Criar registro de reserva
+            await supabase.from('balance_reserves').insert({
+              user_id: link.user_id,
+              payment_id: savedPayment?.id,
+              original_amount: value,
+              reserve_amount: reserveAmount,
+              status: 'held',
+              release_date: releaseDate.toISOString(),
+              description: `Reserva 5% - ${description}`,
+              metadata: { gross_value: value, platform_fee: platformFee, value_after_fees: valueAfterFees }
+            });
+            
             await supabase.from('transactions').insert({
               user_id: link.user_id,
               type: 'payment_received',
               amount: value,
               status: 'completed',
-              description: `Venda com cartão - ${description}`,
+              description: `Venda com cartão - ${description} (Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)})`,
+              metadata: { gross_value: value, platform_fee: platformFee, net_amount: netAmount, reserve_amount: reserveAmount }
+            });
+            
+            // Registrar taxa da plataforma
+            await supabase.from('transactions').insert({
+              user_id: link.user_id,
+              type: 'platform_fee',
+              amount: -platformFee,
+              status: 'completed',
+              description: `Taxa da plataforma (5.99% + R$2.50) - ${description}`,
+              metadata: { gross_value: value, fee_percent: PLATFORM_FEE_PERCENT, fee_fixed: PLATFORM_FEE_FIXED }
             });
           }
         }
@@ -679,15 +722,58 @@ export default async function handler(req, res) {
           .eq('id', linkId);
 
         if (status === 'RECEIVED') {
-          const { data: user } = await supabase.from('users').select('balance').eq('id', link.user_id).single();
+          const { data: user } = await supabase.from('users').select('balance, reserved_balance').eq('id', link.user_id).single();
           if (user) {
-            await supabase.from('users').update({ balance: (user.balance || 0) + value }).eq('id', link.user_id);
+            // ===== TAXAS DA PLATAFORMA =====
+            const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
+            const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
+            const RESERVE_PERCENT = 0.05;        // 5% reserva
+            const RESERVE_DAYS = 30;
+            
+            const platformFee = (value * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FIXED;
+            const valueAfterFees = value - platformFee;
+            const reserveAmount = valueAfterFees * RESERVE_PERCENT;
+            const netAmount = valueAfterFees - reserveAmount;
+            
+            const releaseDate = new Date();
+            releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
+            
+            console.log(`[CARTAO] Valor bruto: R$${value.toFixed(2)}, Taxa: R$${platformFee.toFixed(2)}, Reserva: R$${reserveAmount.toFixed(2)}, Líquido: R$${netAmount.toFixed(2)}`);
+            
+            await supabase.from('users').update({ 
+              balance: (user.balance || 0) + netAmount,
+              reserved_balance: (user.reserved_balance || 0) + reserveAmount
+            }).eq('id', link.user_id);
+            
+            // Criar registro de reserva
+            await supabase.from('balance_reserves').insert({
+              user_id: link.user_id,
+              payment_id: savedPayment?.id,
+              original_amount: value,
+              reserve_amount: reserveAmount,
+              status: 'held',
+              release_date: releaseDate.toISOString(),
+              description: `Reserva 5% - ${description}`,
+              metadata: { gross_value: value, platform_fee: platformFee, value_after_fees: valueAfterFees }
+            });
+            
             await supabase.from('transactions').insert({
               user_id: link.user_id,
               type: 'payment_received',
               amount: value,
               status: 'completed',
-              description: `Venda com cartão - ${description}`,
+              description: `Venda com cartão - ${description} (Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)})`,
+              metadata: { gross_value: value, platform_fee: platformFee, net_amount: netAmount, reserve_amount: reserveAmount }
+            });
+            
+            // Registrar taxa da plataforma
+            await supabase.from('transactions').insert({
+              user_id: link.user_id,
+              type: 'platform_fee',
+              amount: -platformFee,
+              status: 'completed',
+              description: `Taxa da plataforma (5.99% + R$2.50) - ${description}`,
+              metadata: { gross_value: value, fee_percent: PLATFORM_FEE_PERCENT, fee_fixed: PLATFORM_FEE_FIXED }
             });
           }
         }

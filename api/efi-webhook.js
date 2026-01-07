@@ -114,17 +114,32 @@ async function processPixPayment(supabase, pixData) {
 
     const paidValue = parseFloat(valor);
     
-    // ===== RESERVA DE 5% POR 30 DIAS =====
+    // ===== TAXAS DA PLATAFORMA =====
+    const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
+    const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
+    
+    // ===== RESERVA DE 5% POR 30 DIAS (sobre valor líquido) =====
     const RESERVE_PERCENT = 0.05;
     const RESERVE_DAYS = 30;
     
-    const reserveAmount = paidValue * RESERVE_PERCENT;
-    const netAmount = paidValue - reserveAmount;
+    // Calcular taxa da plataforma
+    const platformFee = (paidValue * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FIXED;
+    const valueAfterFees = paidValue - platformFee;
+    
+    // Calcular reserva sobre o valor líquido (após taxas)
+    const reserveAmount = valueAfterFees * RESERVE_PERCENT;
+    const netAmount = valueAfterFees - reserveAmount;
     
     const releaseDate = new Date();
     releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
     
-    // Creditar saldo do vendedor (95%) e reservar (5%)
+    console.log(`[EfiBank Webhook] Valor bruto: R$${paidValue.toFixed(2)}`);
+    console.log(`[EfiBank Webhook] Taxa plataforma (5.99% + R$2.50): R$${platformFee.toFixed(2)}`);
+    console.log(`[EfiBank Webhook] Valor após taxas: R$${valueAfterFees.toFixed(2)}`);
+    console.log(`[EfiBank Webhook] Reserva 5%: R$${reserveAmount.toFixed(2)}`);
+    console.log(`[EfiBank Webhook] Valor líquido para usuário: R$${netAmount.toFixed(2)}`);
+    
+    // Creditar saldo do vendedor (líquido) e reservar (5% do líquido)
     if (payment.user_id) {
       const { data: user } = await supabase
         .from('users')
@@ -138,8 +153,8 @@ async function processPixPayment(supabase, pixData) {
         const newBalance = currentBalance + netAmount;
         const newReserved = currentReserved + reserveAmount;
         
-        console.log(`[EfiBank Webhook] Saldo: ${currentBalance} + ${netAmount} (95%) = ${newBalance}`);
-        console.log(`[EfiBank Webhook] Reserva: ${currentReserved} + ${reserveAmount} (5%) = ${newReserved}`);
+        console.log(`[EfiBank Webhook] Saldo: ${currentBalance} + ${netAmount} = ${newBalance}`);
+        console.log(`[EfiBank Webhook] Reserva: ${currentReserved} + ${reserveAmount} = ${newReserved}`);
         
         await supabase
           .from('users')
@@ -160,6 +175,11 @@ async function processPixPayment(supabase, pixData) {
             status: 'held',
             release_date: releaseDate.toISOString(),
             description: `Reserva 5% - ${payment.description || 'PIX recebido'}`,
+            metadata: {
+              gross_value: paidValue,
+              platform_fee: platformFee,
+              value_after_fees: valueAfterFees,
+            }
           });
 
         // Criar transação de crédito
@@ -168,13 +188,34 @@ async function processPixPayment(supabase, pixData) {
           type: 'payment_received',
           amount: paidValue,
           status: 'completed',
-          description: `PIX recebido - ${payment.description || 'Venda'} (5% em reserva)`,
+          description: `PIX recebido - ${payment.description || 'Venda'} (Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)})`,
           metadata: { 
             payment_id: payment.id, 
             txid,
+            gross_value: paidValue,
+            platform_fee: platformFee,
+            platform_fee_percent: PLATFORM_FEE_PERCENT,
+            platform_fee_fixed: PLATFORM_FEE_FIXED,
+            value_after_fees: valueAfterFees,
             net_amount: netAmount,
             reserve_amount: reserveAmount,
             reserve_release_date: releaseDate.toISOString()
+          },
+        });
+        
+        // Registrar taxa da plataforma como transação separada
+        await supabase.from('transactions').insert({
+          user_id: payment.user_id,
+          type: 'platform_fee',
+          amount: -platformFee,
+          status: 'completed',
+          description: `Taxa da plataforma (5.99% + R$2.50) - ${payment.description || 'Venda'}`,
+          metadata: { 
+            payment_id: payment.id,
+            txid,
+            gross_value: paidValue,
+            fee_percent: PLATFORM_FEE_PERCENT,
+            fee_fixed: PLATFORM_FEE_FIXED,
           },
         });
         
@@ -267,30 +308,107 @@ async function processChargeNotification(supabase, chargeData) {
       return;
     }
 
-    // Se foi pago, creditar saldo
+    // Se foi pago, creditar saldo (com taxas e reserva)
     if (mappedStatus === 'RECEIVED' && dbPayment.user_id) {
       const { data: user } = await supabase
         .from('users')
-        .select('balance')
+        .select('balance, reserved_balance')
         .eq('id', dbPayment.user_id)
         .single();
 
       if (user) {
-        const valueToCredit = total ? total / 100 : dbPayment.value;
-        const newBalance = parseFloat(user.balance || 0) + valueToCredit;
+        const paidValue = total ? total / 100 : dbPayment.value;
+        
+        // ===== TAXAS DA PLATAFORMA =====
+        const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
+        const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
+        
+        // ===== RESERVA DE 5% POR 30 DIAS (sobre valor líquido) =====
+        const RESERVE_PERCENT = 0.05;
+        const RESERVE_DAYS = 30;
+        
+        // Calcular taxa da plataforma
+        const platformFee = (paidValue * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FIXED;
+        const valueAfterFees = paidValue - platformFee;
+        
+        // Calcular reserva sobre o valor líquido (após taxas)
+        const reserveAmount = valueAfterFees * RESERVE_PERCENT;
+        const netAmount = valueAfterFees - reserveAmount;
+        
+        const releaseDate = new Date();
+        releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
+        
+        console.log(`[EfiBank Webhook] Cobrança - Valor bruto: R$${paidValue.toFixed(2)}`);
+        console.log(`[EfiBank Webhook] Cobrança - Taxa plataforma: R$${platformFee.toFixed(2)}`);
+        console.log(`[EfiBank Webhook] Cobrança - Reserva 5%: R$${reserveAmount.toFixed(2)}`);
+        console.log(`[EfiBank Webhook] Cobrança - Valor líquido: R$${netAmount.toFixed(2)}`);
+        
+        const currentBalance = parseFloat(user.balance || 0);
+        const currentReserved = parseFloat(user.reserved_balance || 0);
+        const newBalance = currentBalance + netAmount;
+        const newReserved = currentReserved + reserveAmount;
         
         await supabase
           .from('users')
-          .update({ balance: newBalance })
+          .update({ 
+            balance: newBalance,
+            reserved_balance: newReserved
+          })
           .eq('id', dbPayment.user_id);
 
+        // Criar registro de reserva
+        await supabase
+          .from('balance_reserves')
+          .insert({
+            user_id: dbPayment.user_id,
+            payment_id: dbPayment.id,
+            original_amount: paidValue,
+            reserve_amount: reserveAmount,
+            status: 'held',
+            release_date: releaseDate.toISOString(),
+            description: `Reserva 5% - ${dbPayment.description || 'Cobrança recebida'}`,
+            metadata: {
+              gross_value: paidValue,
+              platform_fee: platformFee,
+              value_after_fees: valueAfterFees,
+            }
+          });
+
+        // Criar transação de crédito
         await supabase.from('transactions').insert({
           user_id: dbPayment.user_id,
           type: 'payment_received',
-          amount: valueToCredit,
+          amount: paidValue,
           status: 'completed',
-          description: `Pagamento recebido - ${dbPayment.description || 'Venda'}`,
-          metadata: { payment_id: dbPayment.id, charge_id },
+          description: `Pagamento recebido - ${dbPayment.description || 'Venda'} (Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)})`,
+          metadata: { 
+            payment_id: dbPayment.id, 
+            charge_id,
+            gross_value: paidValue,
+            platform_fee: platformFee,
+            platform_fee_percent: PLATFORM_FEE_PERCENT,
+            platform_fee_fixed: PLATFORM_FEE_FIXED,
+            value_after_fees: valueAfterFees,
+            net_amount: netAmount,
+            reserve_amount: reserveAmount,
+            reserve_release_date: releaseDate.toISOString()
+          },
+        });
+        
+        // Registrar taxa da plataforma como transação separada
+        await supabase.from('transactions').insert({
+          user_id: dbPayment.user_id,
+          type: 'platform_fee',
+          amount: -platformFee,
+          status: 'completed',
+          description: `Taxa da plataforma (5.99% + R$2.50) - ${dbPayment.description || 'Venda'}`,
+          metadata: { 
+            payment_id: dbPayment.id,
+            charge_id,
+            gross_value: paidValue,
+            fee_percent: PLATFORM_FEE_PERCENT,
+            fee_fixed: PLATFORM_FEE_FIXED,
+          },
         });
       }
     }

@@ -206,20 +206,53 @@ export default async function handler(req, res) {
         })
         .eq('id', dbPayment.id);
 
-      // Creditar saldo do vendedor
+      // Creditar saldo do vendedor (com taxas e reserva)
       if (dbPayment.user_id) {
         const { data: user } = await supabase
           .from('users')
-          .select('balance')
+          .select('balance, reserved_balance')
           .eq('id', dbPayment.user_id)
           .single();
 
         if (user) {
-          const newBalance = parseFloat(user.balance || 0) + paidValue;
+          // ===== TAXAS DA PLATAFORMA =====
+          const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
+          const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
+          const RESERVE_PERCENT = 0.05;        // 5% reserva
+          const RESERVE_DAYS = 30;
+          
+          const platformFee = (paidValue * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FIXED;
+          const valueAfterFees = paidValue - platformFee;
+          const reserveAmount = valueAfterFees * RESERVE_PERCENT;
+          const netAmount = valueAfterFees - reserveAmount;
+          
+          const releaseDate = new Date();
+          releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
+          
+          console.log(`[Check Charge] Valor bruto: R$${paidValue.toFixed(2)}, Taxa: R$${platformFee.toFixed(2)}, Reserva: R$${reserveAmount.toFixed(2)}, Líquido: R$${netAmount.toFixed(2)}`);
+          
+          const newBalance = parseFloat(user.balance || 0) + netAmount;
+          const newReserved = parseFloat(user.reserved_balance || 0) + reserveAmount;
+          
           await supabase
             .from('users')
-            .update({ balance: newBalance })
+            .update({ 
+              balance: newBalance,
+              reserved_balance: newReserved
+            })
             .eq('id', dbPayment.user_id);
+
+          // Criar registro de reserva
+          await supabase.from('balance_reserves').insert({
+            user_id: dbPayment.user_id,
+            payment_id: dbPayment.id,
+            original_amount: paidValue,
+            reserve_amount: reserveAmount,
+            status: 'held',
+            release_date: releaseDate.toISOString(),
+            description: `Reserva 5% - ${dbPayment.description || 'Venda'}`,
+            metadata: { gross_value: paidValue, platform_fee: platformFee, value_after_fees: valueAfterFees }
+          });
 
           // Criar transação
           const transactionType = dbPayment.billing_type === 'BOLETO' ? 'Boleto' : 'Cartão';
@@ -228,8 +261,32 @@ export default async function handler(req, res) {
             type: 'payment_received',
             amount: paidValue,
             status: 'completed',
-            description: `${transactionType} recebido - ${dbPayment.description || 'Venda'}`,
-            metadata: { payment_id: dbPayment.id, charge_id: actualChargeId },
+            description: `${transactionType} recebido - ${dbPayment.description || 'Venda'} (Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)})`,
+            metadata: { 
+              payment_id: dbPayment.id, 
+              charge_id: actualChargeId,
+              gross_value: paidValue,
+              platform_fee: platformFee,
+              net_amount: netAmount,
+              reserve_amount: reserveAmount,
+              reserve_release_date: releaseDate.toISOString()
+            },
+          });
+          
+          // Registrar taxa da plataforma
+          await supabase.from('transactions').insert({
+            user_id: dbPayment.user_id,
+            type: 'platform_fee',
+            amount: -platformFee,
+            status: 'completed',
+            description: `Taxa da plataforma (5.99% + R$2.50) - ${dbPayment.description || 'Venda'}`,
+            metadata: { 
+              payment_id: dbPayment.id,
+              charge_id: actualChargeId,
+              gross_value: paidValue,
+              fee_percent: PLATFORM_FEE_PERCENT,
+              fee_fixed: PLATFORM_FEE_FIXED
+            },
           });
         }
       }
