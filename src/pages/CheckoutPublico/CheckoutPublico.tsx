@@ -77,6 +77,79 @@ const CheckoutPublicoHubla: React.FC = () => {
   // Parcelamento
   const [installments, setInstallments] = useState(1);
   const [isNotBrazilian, setIsNotBrazilian] = useState(false);
+  const [tokenizingCard, setTokenizingCard] = useState(false);
+
+  // Função para tokenizar cartão usando SDK da EfiBank
+  const tokenizeCard = async (): Promise<string | null> => {
+    return new Promise((resolve) => {
+      try {
+        // @ts-ignore - SDK carregada via script
+        if (typeof window.EfiJs === 'undefined') {
+          console.error('SDK EfiBank não carregada');
+          resolve(null);
+          return;
+        }
+
+        // Account ID da EfiBank (conta de produção)
+        const accountId = import.meta.env.VITE_EFI_ACCOUNT_ID || '820266';
+        const isSandbox = import.meta.env.VITE_EFI_SANDBOX === 'true';
+
+        // Preparar dados do cartão
+        const cardNumber = cardData.number.replace(/\s/g, '');
+        const cvv = cardData.ccv;
+        const expirationMonth = cardData.expiryMonth.padStart(2, '0');
+        const expirationYear = `20${cardData.expiryYear}`;
+
+        console.log('[Tokenização] Iniciando...', { 
+          accountId, 
+          isSandbox,
+          cardNumberLength: cardNumber.length 
+        });
+
+        // @ts-ignore
+        window.EfiJs.CreditCard
+          .setAccount(accountId)
+          .setEnvironment(isSandbox ? 'sandbox' : 'production')
+          .setCreditCardData({
+            brand: detectCardBrand(cardNumber),
+            number: cardNumber,
+            cvv: cvv,
+            expirationMonth: expirationMonth,
+            expirationYear: expirationYear,
+            reuse: false,
+          })
+          .getPaymentToken()
+          .then((result: { payment_token: string }) => {
+            console.log('[Tokenização] Sucesso:', result.payment_token?.substring(0, 20) + '...');
+            resolve(result.payment_token);
+          })
+          .catch((error: any) => {
+            console.error('[Tokenização] Erro:', error);
+            resolve(null);
+          });
+
+      } catch (error) {
+        console.error('[Tokenização] Erro:', error);
+        resolve(null);
+      }
+    });
+  };
+
+  // Detectar bandeira do cartão
+  const detectCardBrand = (number: string): string => {
+    const cleanNumber = number.replace(/\D/g, '');
+    
+    if (/^4/.test(cleanNumber)) return 'visa';
+    if (/^5[1-5]/.test(cleanNumber)) return 'mastercard';
+    if (/^3[47]/.test(cleanNumber)) return 'amex';
+    if (/^6(?:011|5)/.test(cleanNumber)) return 'discover';
+    if (/^(?:2131|1800|35)/.test(cleanNumber)) return 'jcb';
+    if (/^3(?:0[0-5]|[68])/.test(cleanNumber)) return 'diners';
+    if (/^(636368|438935|504175|451416|636297|5067|4576|4011|506699)/.test(cleanNumber)) return 'elo';
+    if (/^(606282|3841)/.test(cleanNumber)) return 'hipercard';
+    
+    return 'visa'; // Default
+  };
 
   useEffect(() => {
     loadProductData();
@@ -327,9 +400,22 @@ const CheckoutPublicoHubla: React.FC = () => {
     setError('');
 
     try {
-      // Para cartão de crédito com EfiBank, precisamos gerar um token primeiro
-      // Por enquanto, vamos usar uma abordagem simplificada
-      // Em produção, você deve usar a SDK da EfiBank no frontend para tokenizar o cartão
+      let cardPaymentToken: string | undefined;
+
+      // Para cartão, tokenizar primeiro
+      if (paymentMethod === 'CREDIT_CARD') {
+        setTokenizingCard(true);
+        const token = await tokenizeCard();
+        setTokenizingCard(false);
+
+        if (!token) {
+          setError('Erro ao processar dados do cartão. Verifique os dados e tente novamente.');
+          setProcessing(false);
+          return;
+        }
+        cardPaymentToken = token;
+        console.log('[Checkout] Token obtido com sucesso');
+      }
       
       const paymentData = {
         linkId: linkId || '',
@@ -341,14 +427,9 @@ const CheckoutPublicoHubla: React.FC = () => {
         },
         billingType: paymentMethod as 'CREDIT_CARD' | 'PIX' | 'BOLETO',
         installments: paymentMethod === 'CREDIT_CARD' ? installments : undefined,
-        // Nota: Para cartão, a EfiBank requer tokenização via SDK no frontend
-        // O backend atual aceita dados diretos para desenvolvimento
-        creditCard: paymentMethod === 'CREDIT_CARD' ? {
-          number: cardData.number.replace(/\s/g, ''),
-          name: cardData.name,
-          expiryMonth: cardData.expiryMonth,
-          expiryYear: cardData.expiryYear,
-          ccv: cardData.ccv,
+        // Token do cartão (gerado pela SDK EfiBank)
+        creditCard: cardPaymentToken ? {
+          paymentToken: cardPaymentToken,
         } : undefined,
       };
 
@@ -418,18 +499,30 @@ const CheckoutPublicoHubla: React.FC = () => {
           if (response.payment?.id) {
             setPaymentId(response.payment.id);
           }
-          if (response.payment?.paymentUrl) {
-            setCardPaymentUrl(response.payment.paymentUrl);
-          }
           
-          if (response.payment?.status === 'RECEIVED') {
-            // Pagamento aprovado imediatamente
+          // Se pagamento aprovado (com token)
+          if (response.payment?.status === 'RECEIVED' || response.payment?.status === 'approved') {
+            console.log('[Checkout] Cartão aprovado!');
             setSuccess(true);
-          } else {
-            // Pagamento pendente de aprovação
-            setError('Pagamento em análise. Aguarde confirmação.');
             return;
           }
+          
+          // Se tem link de pagamento (fallback sem token)
+          if (response.payment?.paymentUrl) {
+            setCardPaymentUrl(response.payment.paymentUrl);
+            setSuccess(true);
+            return;
+          }
+          
+          // Pagamento pendente ou recusado
+          if (response.payment?.status === 'PENDING' || response.payment?.status === 'waiting') {
+            setError('Pagamento em análise. Aguarde a confirmação.');
+            return;
+          }
+          
+          // Erro genérico
+          setError(response.message || 'Erro ao processar pagamento com cartão.');
+          return;
         }
         
         setSuccess(true);
@@ -1097,7 +1190,10 @@ const CheckoutPublicoHubla: React.FC = () => {
                   }}
                 >
                   {processing ? (
-                    <CircularProgress size={24} sx={{ color: customization?.buttonTextColor || 'white' }} />
+                    <>
+                      <CircularProgress size={24} sx={{ color: customization?.buttonTextColor || 'white', mr: 1 }} />
+                      {tokenizingCard ? 'Processando cartão...' : 'Processando...'}
+                    </>
                   ) : (
                     customization?.buttonText || 'Pagar'
                   )}
