@@ -49,10 +49,13 @@ const CheckoutPublicoHubla: React.FC = () => {
   const [invoiceUrl] = useState(''); // Pode ser usado futuramente para links de comprovante
   const [showCvv, setShowCvv] = useState(false);
   const [pixConfirmed, setPixConfirmed] = useState(false);
+  const [boletoConfirmed, setBoletoConfirmed] = useState(false);
   const [copied, setCopied] = useState(false);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [pixTxid, setPixTxid] = useState<string | null>(null);
+  const [chargeId, setChargeId] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
+  const [cardPaymentUrl, setCardPaymentUrl] = useState<string | null>(null);
 
   // Dados do cliente
   const [customerData, setCustomerData] = useState({
@@ -120,6 +123,41 @@ const CheckoutPublicoHubla: React.FC = () => {
       clearTimeout(timeout);
     };
   }, [success, paymentMethod, pixConfirmed, pixTxid, paymentId]);
+
+  // Polling para verificar status do Boleto
+  useEffect(() => {
+    if (!success || paymentMethod !== 'BOLETO' || boletoConfirmed || !chargeId) {
+      return;
+    }
+
+    const checkBoletoStatus = async () => {
+      try {
+        setCheckingStatus(true);
+        const response = await fetch(`/api/check-charge-status?chargeId=${chargeId}${paymentId ? `&paymentId=${paymentId}` : ''}`);
+        const data = await response.json();
+        
+        console.log('[Polling Boleto] Status:', data);
+
+        if (data.success && data.status === 'CONFIRMED') {
+          setBoletoConfirmed(true);
+        }
+      } catch (error) {
+        console.error('[Polling Boleto] Erro:', error);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+
+    // Para boleto, verificar a cada 30 segundos (pagamento pode demorar)
+    checkBoletoStatus();
+    const interval = setInterval(checkBoletoStatus, 30000);
+    const timeout = setTimeout(() => clearInterval(interval), 30 * 60 * 1000); // 30 min
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [success, paymentMethod, boletoConfirmed, chargeId, paymentId]);
 
   // Carregar customizações do produto
   useEffect(() => {
@@ -346,9 +384,25 @@ const CheckoutPublicoHubla: React.FC = () => {
         
         // Boleto: capturar URL e código de barras
         if (paymentMethod === 'BOLETO') {
-          if (response.payment?.boletoUrl) {
-            setBoletoUrl(response.payment.boletoUrl);
-            setBoletoBarcode(response.payment.barcode || '');
+          if (response.payment?.boletoUrl || response.payment?.chargeId) {
+            if (response.payment?.boletoUrl) {
+              setBoletoUrl(response.payment.boletoUrl);
+            }
+            if (response.payment?.barcode) {
+              setBoletoBarcode(response.payment.barcode);
+            }
+            if (response.payment?.chargeId) {
+              setChargeId(response.payment.chargeId.toString());
+            }
+            if (response.payment?.id) {
+              setPaymentId(response.payment.id);
+            }
+            console.log('Boleto gerado:', {
+              boletoUrl: response.payment?.boletoUrl,
+              barcode: response.payment?.barcode,
+              chargeId: response.payment?.chargeId,
+              paymentId: response.payment?.id
+            });
           } else {
             setError('Erro ao gerar boleto. Tente novamente.');
             return;
@@ -357,6 +411,17 @@ const CheckoutPublicoHubla: React.FC = () => {
         
         // Cartão: verificar status
         if (paymentMethod === 'CREDIT_CARD') {
+          // Capturar chargeId e paymentUrl se existir
+          if (response.payment?.chargeId) {
+            setChargeId(response.payment.chargeId.toString());
+          }
+          if (response.payment?.id) {
+            setPaymentId(response.payment.id);
+          }
+          if (response.payment?.paymentUrl) {
+            setCardPaymentUrl(response.payment.paymentUrl);
+          }
+          
           if (response.payment?.status === 'RECEIVED') {
             // Pagamento aprovado imediatamente
             setSuccess(true);
@@ -399,8 +464,55 @@ const CheckoutPublicoHubla: React.FC = () => {
     );
   }
 
-  // Tela de sucesso para cartão de crédito (pagamento instantâneo)
+  // Tela de sucesso para cartão de crédito (pagamento instantâneo ou link de pagamento)
   if (success && paymentMethod === 'CREDIT_CARD') {
+    // Se tem link de pagamento (tokenização não disponível), redirecionar
+    if (cardPaymentUrl) {
+      return (
+        <Box sx={{ bgcolor: '#f8fafc', minHeight: '100vh', py: 6 }}>
+          <Container maxWidth="sm">
+            <Paper elevation={0} sx={{ p: 5, textAlign: 'center', borderRadius: 3, border: '1px solid #e2e8f0' }}>
+              <CreditCardIcon sx={{ fontSize: 60, color: '#3b82f6', mb: 3 }} />
+              
+              <Typography variant="h5" fontWeight={700} sx={{ mb: 2, color: '#1e293b' }}>
+                Complete seu Pagamento
+              </Typography>
+              
+              <Typography variant="body1" sx={{ mb: 4, color: '#64748b' }}>
+                Clique no botão abaixo para finalizar o pagamento com cartão de crédito de forma segura.
+              </Typography>
+
+              <Button
+                fullWidth
+                variant="contained"
+                size="large"
+                href={cardPaymentUrl}
+                target="_blank"
+                sx={{
+                  py: 2,
+                  bgcolor: '#3b82f6',
+                  color: 'white',
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  fontSize: 18,
+                  borderRadius: 2,
+                  mb: 2,
+                  '&:hover': { bgcolor: '#2563eb' },
+                }}
+              >
+                Pagar com Cartão
+              </Button>
+
+              <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                Você será redirecionado para a página de pagamento segura da EfiBank
+              </Typography>
+            </Paper>
+          </Container>
+        </Box>
+      );
+    }
+
+    // Pagamento aprovado instantaneamente
     return (
       <Box sx={{ bgcolor: '#f0fdf4', minHeight: '100vh', py: 6 }}>
         <Container maxWidth="sm">
@@ -1159,7 +1271,7 @@ const CheckoutPublicoHubla: React.FC = () => {
                   A página será atualizada automaticamente quando o pagamento for confirmado
                 </Typography>
               </Paper>
-            ) : success && paymentMethod === 'BOLETO' && boletoUrl ? (
+            ) : success && paymentMethod === 'BOLETO' && (boletoUrl || chargeId) ? (
               /* Tela de Boleto */
               <Paper elevation={0} sx={{ p: 4, borderRadius: 2, border: '1px solid #e5e7eb', textAlign: 'center' }}>
                 <Typography variant="h6" fontWeight={600} sx={{ mb: 3, color: '#1e293b' }}>
@@ -1200,31 +1312,68 @@ const CheckoutPublicoHubla: React.FC = () => {
                   </Box>
                 )}
 
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="large"
-                  href={boletoUrl}
-                  target="_blank"
-                  sx={{
-                    py: 1.5,
-                    bgcolor: '#000',
-                    color: 'white',
-                    fontWeight: 600,
-                    textTransform: 'none',
-                    fontSize: 16,
-                    '&:hover': { bgcolor: '#1e293b' },
-                    mb: 2
-                  }}
-                >
-                  Visualizar Boleto
-                </Button>
+                {boletoUrl && (
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    size="large"
+                    href={boletoUrl}
+                    target="_blank"
+                    sx={{
+                      py: 1.5,
+                      bgcolor: '#000',
+                      color: 'white',
+                      fontWeight: 600,
+                      textTransform: 'none',
+                      fontSize: 16,
+                      '&:hover': { bgcolor: '#1e293b' },
+                      mb: 2
+                    }}
+                  >
+                    Visualizar Boleto
+                  </Button>
+                )}
 
-                <Alert severity="warning" sx={{ textAlign: 'left' }}>
-                  <Typography variant="body2">
-                    <strong>Importante:</strong> O prazo de compensação do boleto é de até 3 dias úteis após o pagamento.
-                  </Typography>
-                </Alert>
+                {/* Indicador de verificação automática */}
+                {!boletoConfirmed && (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    gap: 1, 
+                    mb: 2,
+                    p: 2,
+                    bgcolor: '#f0f9ff',
+                    borderRadius: 2,
+                    border: '1px solid #bae6fd'
+                  }}>
+                    {checkingStatus ? (
+                      <CircularProgress size={20} sx={{ color: '#0284c7' }} />
+                    ) : (
+                      <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#22c55e' }} />
+                    )}
+                    <Typography variant="body2" sx={{ color: '#0369a1' }}>
+                      Verificando pagamento a cada 30 segundos...
+                    </Typography>
+                  </Box>
+                )}
+
+                {boletoConfirmed ? (
+                  <Alert severity="success" sx={{ textAlign: 'left' }}>
+                    <Typography variant="body2" fontWeight={600}>
+                      🎉 Pagamento Confirmado!
+                    </Typography>
+                    <Typography variant="body2">
+                      Seu boleto foi pago e processado com sucesso.
+                    </Typography>
+                  </Alert>
+                ) : (
+                  <Alert severity="warning" sx={{ textAlign: 'left' }}>
+                    <Typography variant="body2">
+                      <strong>Importante:</strong> O prazo de compensação do boleto é de até 3 dias úteis após o pagamento.
+                    </Typography>
+                  </Alert>
+                )}
               </Paper>
             ) : null}
           </Box>
