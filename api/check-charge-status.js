@@ -55,16 +55,18 @@ const getAccessToken = async (config) => {
   }
 
   const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
-  const postData = JSON.stringify({ grant_type: 'client_credentials' });
+  
+  // API de Cobranças usa POST com form-urlencoded e endpoint /v1/authorize
+  const postData = 'grant_type=client_credentials';
 
   const options = {
     hostname: getCobrancaApiUrl(config.sandbox),
     port: 443,
-    path: '/oauth/token',
+    path: '/v1/authorize',  // Endpoint correto para API de Cobranças
     method: 'POST',
     headers: {
       'Authorization': `Basic ${auth}`,
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
       'Content-Length': Buffer.byteLength(postData),
     },
   };

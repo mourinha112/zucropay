@@ -143,6 +143,7 @@ const getPixAccessToken = async (config) => {
 
 // ========================================
 // AUTENTICAÇÃO - Cobranças (SEM certificado)
+// API de Cobranças usa endpoint /v1/authorize (diferente do PIX)
 // ========================================
 
 let cobrancaTokenCache = { token: null, expiry: null };
@@ -154,21 +155,23 @@ const getCobrancaAccessToken = async (config) => {
 
   console.log('[EFI Cobranca] Obtendo novo token...');
   const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
-  const postData = JSON.stringify({ grant_type: 'client_credentials' });
+  
+  // API de Cobranças usa POST com form-urlencoded
+  const postData = 'grant_type=client_credentials';
 
   const options = {
     hostname: getCobrancaApiUrl(config.sandbox),
     port: 443,
-    path: '/oauth/token',
+    path: '/v1/authorize',  // Endpoint correto para API de Cobranças
     method: 'POST',
     headers: {
       'Authorization': `Basic ${auth}`,
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
       'Content-Length': Buffer.byteLength(postData),
     },
-    // SEM certificado para API de Cobranças
   };
 
+  console.log('[EFI Cobranca] Auth URL:', `https://${options.hostname}${options.path}`);
   const response = await httpsRequestNoCert(options, postData);
 
   if (response.data?.access_token) {

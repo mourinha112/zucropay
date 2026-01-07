@@ -1114,6 +1114,10 @@ export const createPaymentLink = async (link: PaymentLink) => {
 
   // EfiBank não tem links de pagamento diretos como Asaas
   // Salvamos apenas no banco e usamos nosso próprio checkout
+  // Geramos um ID local único para compatibilidade com o schema
+  const localLinkId = `efi_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+  const checkoutUrl = `${window.location.origin}/checkout/`;
+
   const { data, error } = await supabase
     .from('payment_links')
     .insert({
@@ -1123,16 +1127,25 @@ export const createPaymentLink = async (link: PaymentLink) => {
       description: link.description,
       amount: link.amount,
       billing_type: link.billingType || 'UNDEFINED',
+      asaas_payment_link_id: localLinkId, // ID local para EfiBank
+      asaas_link_url: checkoutUrl, // Será atualizado com o ID real após insert
     })
     .select()
     .single();
 
   if (error) throw new Error(error.message);
 
+  // Atualizar a URL com o ID real do payment link
+  const finalCheckoutUrl = `${window.location.origin}/checkout/${data.id}`;
+  await supabase
+    .from('payment_links')
+    .update({ asaas_link_url: finalCheckoutUrl })
+    .eq('id', data.id);
+
   return {
     success: true,
     message: 'Link de pagamento criado com sucesso',
-    paymentLink: data,
+    paymentLink: { ...data, asaas_link_url: finalCheckoutUrl },
   };
 };
 
