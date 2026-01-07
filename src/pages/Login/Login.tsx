@@ -24,18 +24,8 @@ import {
 import { useNavigate } from 'react-router-dom';
 import * as api from '../../services/api-supabase';
 
-import { supabase } from '../../config/supabase'; // Importar supabase para debug
-
 const Login: React.FC = () => {
   const navigate = useNavigate();
-  // ... (resto do código)
-
-  // DEBUG: Verificar config atual
-  const debugConfig = {
-    url: (supabase as any).supabaseUrl,
-    keyConfigured: !!(supabase as any).supabaseKey && (supabase as any).supabaseKey.length > 10,
-    keyPrefix: (supabase as any).supabaseKey ? (supabase as any).supabaseKey.substring(0, 5) + '...' : 'N/A'
-  };
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -67,10 +57,6 @@ const Login: React.FC = () => {
     }
   };
 
-  const handleQuickLogin = (testEmail: string, testPassword: string) => {
-    setEmail(testEmail);
-    setPassword(testPassword);
-  };
 
   return (
     <Box
@@ -561,68 +547,11 @@ const Login: React.FC = () => {
                 </Button>
               </Box>
 
-              {/* Contas de Teste */}
-              <Box sx={{ mt: 4, p: 3, bgcolor: '#f8fafc', borderRadius: 2, border: '1px solid #e5e7eb' }}>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    display: 'block',
-                    mb: 2,
-                    fontWeight: 700,
-                    color: '#475569',
-                    textTransform: 'uppercase',
-                    letterSpacing: 1,
-                  }}
-                >
-                  🧪 Contas de Teste
-                </Typography>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                  <Button
-                    size="small"
-                    variant="text"
-                    onClick={() => handleQuickLogin('zucro@zucro.com', 'zucro2025')}
-                    sx={{
-                      justifyContent: 'flex-start',
-                      textTransform: 'none',
-                      color: '#64748b',
-                      p: 1.5,
-                      borderRadius: 1.5,
-                      backgroundColor: 'white',
-                      border: '1px solid #e5e7eb',
-                      '&:hover': {
-                        backgroundColor: '#ffffff',
-                        borderColor: '#667eea',
-                        color: '#667eea',
-                      },
-                    }}
-                  >
-                    <Box sx={{ textAlign: 'left', width: '100%' }}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        zucro@zucro.com
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: '#94a3b8' }}>
-                        Senha: zucro2025
-                      </Typography>
-                    </Box>
-                  </Button>
-                </Box>
-              </Box>
             </CardContent>
           </Card>
 
           {/* Footer */}
           <Box sx={{ mt: 5, textAlign: 'center' }}>
-            {/* DEBUG INFO - REMOVER EM PRODUÇÃO FINAL */}
-            <Box sx={{ mb: 3, p: 2, bgcolor: '#000', color: '#0f0', borderRadius: 1, fontSize: '10px', fontFamily: 'monospace', textAlign: 'left' }}>
-              <Typography variant="caption" sx={{ display: 'block', fontWeight: 'bold', mb: 1, color: '#fff' }}>
-                🛠️ DIAGNÓSTICO DE CONFIGURAÇÃO
-              </Typography>
-              <div>URL: {debugConfig.url}</div>
-              <div>Key Status: {debugConfig.keyConfigured ? 'OK' : 'MISSING/SHORT'}</div>
-              <div>Key Start: {debugConfig.keyPrefix}</div>
-              <div>Is Configured: {api.isSupabaseConfigured() ? 'YES' : 'NO'}</div>
-            </Box>
-
             <Typography
               variant="caption"
               sx={{

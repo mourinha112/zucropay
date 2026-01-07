@@ -32,7 +32,8 @@ import {
   Receipt as ReceiptIcon,
 } from '@mui/icons-material';
 import Header from '../../components/Header/Header';
-import * as api from '../../services/api-supabase';
+
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 interface Sale {
   id: number;
@@ -51,8 +52,17 @@ interface Sale {
   created_at: string;
 }
 
+interface Stats {
+  total: number;
+  confirmed: number;
+  pending: number;
+  totalValue: number;
+  totalNetValue: number;
+}
+
 const Vendas: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
+  const [stats, setStats] = useState<Stats>({ total: 0, confirmed: 0, pending: 0, totalValue: 0, totalNetValue: 0 });
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('ALL');
@@ -61,13 +71,28 @@ const Vendas: React.FC = () => {
 
   useEffect(() => {
     loadSales();
-  }, []);
+  }, [filterStatus]);
 
   const loadSales = async () => {
     setLoading(true);
     try {
-      const response = await api.getPayments();
-      setSales(response.payments || []);
+      const token = localStorage.getItem('zucropay_token');
+      const params = new URLSearchParams();
+      if (filterStatus !== 'ALL') params.append('filter', filterStatus);
+      
+      const response = await fetch(`${API_URL}/api/vendas-data?${params}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setSales(result.payments || []);
+        setStats(result.stats || { total: 0, confirmed: 0, pending: 0, totalValue: 0, totalNetValue: 0 });
+      }
     } catch (error) {
       console.error('Erro ao carregar vendas:', error);
     } finally {

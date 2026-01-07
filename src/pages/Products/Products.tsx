@@ -33,6 +33,8 @@ import { useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import * as api from '../../services/api-supabase';
 
+const API_URL = import.meta.env.VITE_API_URL || '';
+
 interface Product {
   id?: string;
   name: string;
@@ -41,6 +43,9 @@ interface Product {
   imageUrl?: string;
   stock?: number;
   active?: boolean;
+  totalSales?: number;
+  totalReceived?: number;
+  links?: PaymentLink[];
 }
 
 interface PaymentLink {
@@ -59,6 +64,7 @@ const Products: React.FC = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [paymentLinks, setPaymentLinks] = useState<PaymentLink[]>([]);
+  const [loading, setLoading] = useState(true);
   const [openProductDialog, setOpenProductDialog] = useState(false);
   const [openLinkDialog, setOpenLinkDialog] = useState(false);
   const [openLinkCreatedDialog, setOpenLinkCreatedDialog] = useState(false);
@@ -83,31 +89,37 @@ const Products: React.FC = () => {
   });
 
   useEffect(() => {
-    loadProducts();
-    loadPaymentLinks();
+    loadData();
   }, []);
 
-  const loadProducts = async () => {
+  // Carregar tudo de uma vez via API otimizada
+  const loadData = async () => {
+    setLoading(true);
     try {
-      const response = await api.getProducts();
-      if (response.success) {
-        setProducts(response.products);
+      const token = localStorage.getItem('zucropay_token');
+      const response = await fetch(`${API_URL}/api/produtos-data`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setProducts(result.products || []);
+        setPaymentLinks(result.links || []);
       }
     } catch (error: any) {
-      showSnackbar(error.message || 'Erro ao carregar produtos', 'error');
+      showSnackbar(error.message || 'Erro ao carregar dados', 'error');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const loadPaymentLinks = async () => {
-    try {
-      const response = await api.getPaymentLinks();
-      if (response.success) {
-        setPaymentLinks(response.paymentLinks);
-      }
-    } catch (error: any) {
-      showSnackbar(error.message || 'Erro ao carregar links', 'error');
-    }
-  };
+  // Manter funções antigas para ações específicas
+  const loadProducts = () => loadData();
+  const loadPaymentLinks = () => loadData();
 
   const showSnackbar = (message: string, severity: 'success' | 'error') => {
     setSnackbar({ open: true, message, severity });
