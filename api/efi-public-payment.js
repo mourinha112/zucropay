@@ -561,12 +561,10 @@ export default async function handler(req, res) {
         // Sem token, gerar link de pagamento
         console.log('[CARTAO] Gerando link de pagamento...');
         const linkData = {
-          billet_discount: 0,
-          card_discount: 0,
-          message: description,
+          message: description || 'Pagamento via cartão',
           expire_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
           request_delivery_address: false,
-          payment_method: 'credit_card',
+          payment_method: 'all', // Aceitar todos os métodos no link
         };
 
         const linkResult = await makeCobrancaRequest(config, 'POST', `/v1/charge/${chargeId}/link`, linkData);
