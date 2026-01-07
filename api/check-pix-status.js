@@ -231,11 +231,21 @@ export default async function handler(req, res) {
         console.log('[Check PIX] Payment atualizado com sucesso');
       }
 
-      // Creditar saldo do vendedor
+      // ===== RESERVA DE 5% POR 30 DIAS =====
+      const RESERVE_PERCENT = 0.05; // 5%
+      const RESERVE_DAYS = 30; // dias para liberar
+      
+      const reserveAmount = paidValue * RESERVE_PERCENT;
+      const netAmount = paidValue - reserveAmount; // 95% vai pro saldo disponível
+      
+      const releaseDate = new Date();
+      releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
+
+      // Creditar saldo do vendedor (95%) e reservar (5%)
       if (dbPayment.user_id) {
         const { data: user, error: userError } = await supabase
           .from('users')
-          .select('balance')
+          .select('balance, reserved_balance')
           .eq('id', dbPayment.user_id)
           .single();
 
@@ -243,13 +253,19 @@ export default async function handler(req, res) {
           console.error('[Check PIX] Erro ao buscar usuário:', userError);
         } else if (user) {
           const currentBalance = parseFloat(user.balance || 0);
-          const newBalance = currentBalance + paidValue;
+          const currentReserved = parseFloat(user.reserved_balance || 0);
+          const newBalance = currentBalance + netAmount;
+          const newReserved = currentReserved + reserveAmount;
           
-          console.log(`[Check PIX] Atualizando saldo: ${currentBalance} + ${paidValue} = ${newBalance}`);
+          console.log(`[Check PIX] Saldo: ${currentBalance} + ${netAmount} (95%) = ${newBalance}`);
+          console.log(`[Check PIX] Reserva: ${currentReserved} + ${reserveAmount} (5%) = ${newReserved}`);
           
           const { error: balanceError } = await supabase
             .from('users')
-            .update({ balance: newBalance })
+            .update({ 
+              balance: newBalance,
+              reserved_balance: newReserved
+            })
             .eq('id', dbPayment.user_id);
 
           if (balanceError) {
@@ -258,14 +274,39 @@ export default async function handler(req, res) {
             console.log('[Check PIX] Saldo atualizado com sucesso');
           }
 
-          // Criar transação
+          // Criar registro de reserva
+          const { error: reserveError } = await supabase
+            .from('balance_reserves')
+            .insert({
+              user_id: dbPayment.user_id,
+              payment_id: dbPayment.id,
+              original_amount: paidValue,
+              reserve_amount: reserveAmount,
+              status: 'held',
+              release_date: releaseDate.toISOString(),
+              description: `Reserva 5% - ${dbPayment.description || 'PIX recebido'}`,
+            });
+
+          if (reserveError) {
+            console.error('[Check PIX] Erro ao criar reserva:', reserveError);
+          } else {
+            console.log(`[Check PIX] Reserva criada: R$ ${reserveAmount.toFixed(2)} até ${releaseDate.toLocaleDateString()}`);
+          }
+
+          // Criar transação (valor cheio para histórico)
           const { error: txError } = await supabase.from('transactions').insert({
             user_id: dbPayment.user_id,
             type: 'payment_received',
             amount: paidValue,
             status: 'completed',
-            description: `PIX recebido - ${dbPayment.description || 'Venda'}`,
-            metadata: { payment_id: dbPayment.id, txid: actualTxid },
+            description: `PIX recebido - ${dbPayment.description || 'Venda'} (5% em reserva)`,
+            metadata: { 
+              payment_id: dbPayment.id, 
+              txid: actualTxid,
+              net_amount: netAmount,
+              reserve_amount: reserveAmount,
+              reserve_release_date: releaseDate.toISOString()
+            },
           });
 
           if (txError) {

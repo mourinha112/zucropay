@@ -114,22 +114,53 @@ async function processPixPayment(supabase, pixData) {
 
     const paidValue = parseFloat(valor);
     
-    // Creditar saldo do vendedor
+    // ===== RESERVA DE 5% POR 30 DIAS =====
+    const RESERVE_PERCENT = 0.05;
+    const RESERVE_DAYS = 30;
+    
+    const reserveAmount = paidValue * RESERVE_PERCENT;
+    const netAmount = paidValue - reserveAmount;
+    
+    const releaseDate = new Date();
+    releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
+    
+    // Creditar saldo do vendedor (95%) e reservar (5%)
     if (payment.user_id) {
       const { data: user } = await supabase
         .from('users')
-        .select('balance')
+        .select('balance, reserved_balance')
         .eq('id', payment.user_id)
         .single();
 
       if (user) {
-        const newBalance = parseFloat(user.balance || 0) + paidValue;
-        console.log(`[EfiBank Webhook] Atualizando saldo: ${user.balance} -> ${newBalance}`);
+        const currentBalance = parseFloat(user.balance || 0);
+        const currentReserved = parseFloat(user.reserved_balance || 0);
+        const newBalance = currentBalance + netAmount;
+        const newReserved = currentReserved + reserveAmount;
+        
+        console.log(`[EfiBank Webhook] Saldo: ${currentBalance} + ${netAmount} (95%) = ${newBalance}`);
+        console.log(`[EfiBank Webhook] Reserva: ${currentReserved} + ${reserveAmount} (5%) = ${newReserved}`);
         
         await supabase
           .from('users')
-          .update({ balance: newBalance })
+          .update({ 
+            balance: newBalance,
+            reserved_balance: newReserved
+          })
           .eq('id', payment.user_id);
+
+        // Criar registro de reserva
+        await supabase
+          .from('balance_reserves')
+          .insert({
+            user_id: payment.user_id,
+            payment_id: payment.id,
+            original_amount: paidValue,
+            reserve_amount: reserveAmount,
+            status: 'held',
+            release_date: releaseDate.toISOString(),
+            description: `Reserva 5% - ${payment.description || 'PIX recebido'}`,
+          });
 
         // Criar transação de crédito
         await supabase.from('transactions').insert({
@@ -137,11 +168,17 @@ async function processPixPayment(supabase, pixData) {
           type: 'payment_received',
           amount: paidValue,
           status: 'completed',
-          description: `PIX recebido - ${payment.description || 'Venda'}`,
-          metadata: { payment_id: payment.id, txid },
+          description: `PIX recebido - ${payment.description || 'Venda'} (5% em reserva)`,
+          metadata: { 
+            payment_id: payment.id, 
+            txid,
+            net_amount: netAmount,
+            reserve_amount: reserveAmount,
+            reserve_release_date: releaseDate.toISOString()
+          },
         });
         
-        console.log(`[EfiBank Webhook] Saldo e transação atualizados`);
+        console.log(`[EfiBank Webhook] Saldo e reserva atualizados`);
       }
     }
 

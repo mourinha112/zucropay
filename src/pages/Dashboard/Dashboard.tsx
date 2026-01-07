@@ -19,6 +19,8 @@ import {
   Share as ShareIcon,
   LocalOffer as OfferIcon,
   Event as EventIcon,
+  Lock as LockIcon,
+  Schedule as ScheduleIcon,
 } from '@mui/icons-material';
 import {
   LineChart,
@@ -33,11 +35,22 @@ import Header from '../../components/Header/Header';
 // API URL
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+interface ReserveData {
+  totalReserved: number;
+  reservesCount: number;
+  nextRelease: {
+    amount: number;
+    releaseDate: string;
+    description: string;
+  } | null;
+}
+
 const Dashboard = () => {
   const [timeRange, setTimeRange] = useState(1);
   const [todayTotal, setTodayTotal] = useState(0);
   const [monthTotal, setMonthTotal] = useState(0);
   const [balance, setBalance] = useState(0);
+  const [reserveData, setReserveData] = useState<ReserveData>({ totalReserved: 0, reservesCount: 0, nextRelease: null });
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<any[]>([]);
   const [fullChartData, setFullChartData] = useState<any[]>([]);
@@ -79,12 +92,21 @@ const Dashboard = () => {
       const result = await response.json();
       
       if (result.success && result.data) {
-        const { stats, chartData: apiChartData, user } = result.data;
+        const { stats, chartData: apiChartData, user, reserves } = result.data;
         
         setTodayTotal(stats.todayTotal || 0);
         setMonthTotal(stats.monthTotal || 0);
         setBalance(user.balance || 0);
         setFullChartData(apiChartData || []);
+        
+        // Dados de reserva
+        if (reserves) {
+          setReserveData({
+            totalReserved: reserves.totalReserved || 0,
+            reservesCount: reserves.reservesCount || 0,
+            nextRelease: reserves.nextRelease || null,
+          });
+        }
         
         // Inicializar gráfico com 7 dias
         const last7Days = (apiChartData || []).slice(-7).map((d: any) => ({
@@ -466,6 +488,79 @@ const Dashboard = () => {
                       </Box>
                     </Box>
                   ))}
+                </Box>
+              </CardContent>
+            </Card>
+
+            {/* Card de Reserva de Saldo */}
+            <Card
+              sx={{
+                height: 'fit-content',
+                mt: 3,
+                transition: 'transform 0.2s',
+                background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
+                border: '1px solid #f59e0b',
+                '&:hover': {
+                  transform: 'translateY(-4px)',
+                  boxShadow: 3,
+                },
+              }}
+            >
+              <CardContent>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+                  <LockIcon sx={{ color: '#d97706', fontSize: 24 }} />
+                  <Typography variant="h6" sx={{ color: '#92400e' }}>
+                    Reserva de Saldo
+                  </Typography>
+                </Box>
+                
+                <Typography variant="body2" sx={{ color: '#78350f', mb: 2 }}>
+                  Retenção de 5% por 30 dias para cobrir reembolsos e chargebacks
+                </Typography>
+
+                <Box sx={{ 
+                  backgroundColor: 'rgba(255,255,255,0.7)', 
+                  borderRadius: 2, 
+                  p: 2, 
+                  mb: 2 
+                }}>
+                  <Typography variant="body2" color="textSecondary">
+                    Total em Reserva
+                  </Typography>
+                  <Typography variant="h5" sx={{ color: '#d97706', fontWeight: 700 }}>
+                    {loading ? 'Carregando...' : formatCurrency(reserveData.totalReserved)}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    {reserveData.reservesCount} reserva{reserveData.reservesCount !== 1 ? 's' : ''} ativa{reserveData.reservesCount !== 1 ? 's' : ''}
+                  </Typography>
+                </Box>
+
+                {reserveData.nextRelease && (
+                  <Box sx={{ 
+                    backgroundColor: 'rgba(255,255,255,0.5)', 
+                    borderRadius: 2, 
+                    p: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 2
+                  }}>
+                    <ScheduleIcon sx={{ color: '#92400e', fontSize: 20 }} />
+                    <Box>
+                      <Typography variant="body2" sx={{ color: '#78350f', fontWeight: 500 }}>
+                        Próxima liberação
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: '#92400e', fontWeight: 700 }}>
+                        {formatCurrency(reserveData.nextRelease.amount)} em{' '}
+                        {new Date(reserveData.nextRelease.releaseDate).toLocaleDateString('pt-BR')}
+                      </Typography>
+                    </Box>
+                  </Box>
+                )}
+
+                <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(146, 64, 14, 0.2)' }}>
+                  <Typography variant="caption" sx={{ color: '#78350f' }}>
+                    💡 As reservas são liberadas automaticamente após 30 dias da venda.
+                  </Typography>
                 </Box>
               </CardContent>
             </Card>

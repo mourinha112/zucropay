@@ -57,11 +57,11 @@ export default async function handler(req, res) {
     const supabase = getSupabase();
     
     // Buscar dados em paralelo (muito mais rápido!)
-    const [userResult, paymentsResult, linksResult] = await Promise.all([
+    const [userResult, paymentsResult, linksResult, reservesResult] = await Promise.all([
       // Saldo do usuário
       supabase
         .from('users')
-        .select('balance, name, email')
+        .select('balance, reserved_balance, name, email')
         .eq('id', userId)
         .single(),
       
@@ -79,12 +79,25 @@ export default async function handler(req, res) {
         .select('id, name, amount, total_received, payments_count, active')
         .eq('user_id', userId)
         .eq('active', true)
-        .limit(10)
+        .limit(10),
+      
+      // Reservas pendentes
+      supabase
+        .from('balance_reserves')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('status', 'held')
+        .order('release_date', { ascending: true })
     ]);
 
     const user = userResult.data;
     const payments = paymentsResult.data || [];
     const links = linksResult.data || [];
+    const reserves = reservesResult.data || [];
+
+    // Calcular dados de reserva
+    const totalReserved = reserves.reduce((sum, r) => sum + parseFloat(r.reserve_amount || 0), 0);
+    const nextRelease = reserves.length > 0 ? reserves[0] : null;
 
     // Calcular estatísticas
     const today = new Date();
@@ -148,6 +161,7 @@ export default async function handler(req, res) {
           name: user?.name || 'Usuário',
           email: user?.email,
           balance: parseFloat(user?.balance || 0),
+          reservedBalance: parseFloat(user?.reserved_balance || 0),
         },
         stats: {
           todayTotal: todaySales.reduce((sum, p) => sum + parseFloat(p.value || 0), 0),
@@ -156,6 +170,22 @@ export default async function handler(req, res) {
           monthCount: monthSales.length,
           totalConfirmed: confirmedPayments.length,
           totalPending: payments.filter(p => p.status === 'PENDING').length,
+        },
+        reserves: {
+          totalReserved: totalReserved,
+          reservesCount: reserves.length,
+          nextRelease: nextRelease ? {
+            amount: parseFloat(nextRelease.reserve_amount),
+            releaseDate: nextRelease.release_date,
+            description: nextRelease.description,
+          } : null,
+          reserves: reserves.slice(0, 5).map(r => ({
+            id: r.id,
+            amount: parseFloat(r.reserve_amount),
+            originalAmount: parseFloat(r.original_amount),
+            releaseDate: r.release_date,
+            createdAt: r.created_at,
+          })),
         },
         paymentMethods,
         chartData,
