@@ -62,7 +62,7 @@ interface Stats {
 
 const Vendas: React.FC = () => {
   const [sales, setSales] = useState<Sale[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, confirmed: 0, pending: 0, totalValue: 0, totalNetValue: 0 });
+  const [_stats, setStats] = useState<Stats>({ total: 0, confirmed: 0, pending: 0, totalValue: 0, totalNetValue: 0 });
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterPaymentMethod, setFilterPaymentMethod] = useState('ALL');

@@ -64,7 +64,7 @@ const Products: React.FC = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [paymentLinks, setPaymentLinks] = useState<PaymentLink[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
   const [openProductDialog, setOpenProductDialog] = useState(false);
   const [openLinkDialog, setOpenLinkDialog] = useState(false);
   const [openLinkCreatedDialog, setOpenLinkCreatedDialog] = useState(false);
