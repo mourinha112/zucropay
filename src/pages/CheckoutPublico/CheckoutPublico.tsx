@@ -948,15 +948,33 @@ const CheckoutPublicoHubla: React.FC = () => {
                     <Box sx={{ display: 'flex', gap: 2 }}>
                       <TextField
                         fullWidth
-                        placeholder="MM/AA"
-                        value={cardData.expiryMonth && cardData.expiryYear ? `${cardData.expiryMonth}/${cardData.expiryYear}` : ''}
+                        placeholder="MM"
+                        value={cardData.expiryMonth}
                         onChange={(e) => {
-                          const value = e.target.value.replace(/\D/g, '');
-                          const month = value.substring(0, 2);
-                          const year = value.substring(2, 4);
-                          setCardData({ ...cardData, expiryMonth: month, expiryYear: year });
+                          const value = e.target.value.replace(/\D/g, '').substring(0, 2);
+                          // Validar mês (01-12)
+                          if (value === '' || (parseInt(value) >= 0 && parseInt(value) <= 12)) {
+                            setCardData({ ...cardData, expiryMonth: value });
+                          }
                         }}
-                        inputProps={{ maxLength: 5 }}
+                        inputProps={{ maxLength: 2, inputMode: 'numeric' }}
+                        sx={{
+                          '& .MuiOutlinedInput-root': {
+                            bgcolor: 'white',
+                            '& fieldset': { borderColor: '#e5e7eb' },
+                          },
+                        }}
+                      />
+                      
+                      <TextField
+                        fullWidth
+                        placeholder="AA"
+                        value={cardData.expiryYear}
+                        onChange={(e) => {
+                          const value = e.target.value.replace(/\D/g, '').substring(0, 2);
+                          setCardData({ ...cardData, expiryYear: value });
+                        }}
+                        inputProps={{ maxLength: 2, inputMode: 'numeric' }}
                         sx={{
                           '& .MuiOutlinedInput-root': {
                             bgcolor: 'white',
@@ -971,6 +989,7 @@ const CheckoutPublicoHubla: React.FC = () => {
                         type={showCvv ? 'text' : 'password'}
                         value={cardData.ccv}
                         onChange={(e) => setCardData({ ...cardData, ccv: e.target.value.replace(/\D/g, '').substring(0, 4) })}
+                        inputProps={{ inputMode: 'numeric' }}
                         InputProps={{
                           endAdornment: (
                             <InputAdornment position="end">
