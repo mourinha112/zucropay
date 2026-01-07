@@ -18,18 +18,18 @@ const getEfiConfig = () => {
 };
 
 // URLs da API EfiBank (apenas hostname, sem https://)
-// PIX usa mTLS (com certificado)
+// PIX usa mTLS (com certificado) - novos domínios EfiPay
 const getPixApiUrl = (sandbox) => {
   return sandbox 
     ? 'pix-h.api.efipay.com.br' // Homologação
     : 'pix.api.efipay.com.br';  // Produção
 };
 
-// Cobranças (cartão/boleto) NÃO usa certificado - apenas Basic Auth
+// Cobranças (cartão/boleto) - usar domínios antigos Gerencianet (mais estáveis)
 const getCobrancaApiUrl = (sandbox) => {
   return sandbox
-    ? 'cobrancas-h.api.efipay.com.br' // Homologação
-    : 'cobrancas.api.efipay.com.br';  // Produção
+    ? 'sandbox.gerencianet.com.br' // Homologação
+    : 'api.gerencianet.com.br';    // Produção
 };
 
 // ========================================
@@ -140,7 +140,7 @@ const getPixAccessToken = async (config) => {
 
 // ========================================
 // AUTENTICAÇÃO - Cobranças (SEM certificado)
-// API de Cobranças usa endpoint /v1/authorize (diferente do PIX)
+// API de Cobranças usa OAuth2 padrão via Gerencianet
 // ========================================
 
 let cobrancaAccessToken = null;
@@ -154,17 +154,17 @@ const getCobrancaAccessToken = async (config) => {
   console.log('[EFI Cobranca] Obtendo novo token...');
   const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
   
-  // API de Cobranças usa POST com form-urlencoded
-  const postData = 'grant_type=client_credentials';
+  // Gerencianet usa JSON para autenticação
+  const postData = JSON.stringify({ grant_type: 'client_credentials' });
 
   const options = {
     hostname: getCobrancaApiUrl(config.sandbox),
     port: 443,
-    path: '/v1/authorize',  // Endpoint correto para API de Cobranças
+    path: '/v1/authorize',
     method: 'POST',
     headers: {
       'Authorization': `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(postData),
     },
   };
@@ -180,7 +180,7 @@ const getCobrancaAccessToken = async (config) => {
   }
 
   console.error('[EFI Cobranca] Auth failed:', response);
-  throw new Error(response.data?.error_description || 'Falha ao obter token de acesso EfiBank Cobranças');
+  throw new Error(response.data?.error_description || response.data?.message || 'Falha ao obter token de acesso EfiBank Cobranças');
 };
 
 // ========================================

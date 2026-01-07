@@ -22,8 +22,8 @@ const getSupabase = () => {
   return createClient(url, key, { auth: { persistSession: false } });
 };
 
-// API de Cobranças NÃO usa certificado
-const getCobrancaApiUrl = (sandbox) => sandbox ? 'cobrancas-h.api.efipay.com.br' : 'cobrancas.api.efipay.com.br';
+// API de Cobranças - usar domínios antigos Gerencianet (mais estáveis)
+const getCobrancaApiUrl = (sandbox) => sandbox ? 'sandbox.gerencianet.com.br' : 'api.gerencianet.com.br';
 
 // Requisição HTTPS sem certificado
 const httpsRequest = (options, postData = null) => {
@@ -56,17 +56,17 @@ const getAccessToken = async (config) => {
 
   const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
   
-  // API de Cobranças usa POST com form-urlencoded e endpoint /v1/authorize
-  const postData = 'grant_type=client_credentials';
+  // Gerencianet usa JSON para autenticação
+  const postData = JSON.stringify({ grant_type: 'client_credentials' });
 
   const options = {
     hostname: getCobrancaApiUrl(config.sandbox),
     port: 443,
-    path: '/v1/authorize',  // Endpoint correto para API de Cobranças
+    path: '/v1/authorize',
     method: 'POST',
     headers: {
       'Authorization': `Basic ${auth}`,
-      'Content-Type': 'application/x-www-form-urlencoded',
+      'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(postData),
     },
   };
@@ -79,7 +79,7 @@ const getAccessToken = async (config) => {
     return tokenCache.token;
   }
 
-  throw new Error('Falha na autenticação EfiBank');
+  throw new Error(response.data?.error_description || 'Falha na autenticação EfiBank');
 };
 
 export default async function handler(req, res) {
