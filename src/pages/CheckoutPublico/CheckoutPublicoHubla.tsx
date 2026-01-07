@@ -44,6 +44,10 @@ const CheckoutPublicoHubla: React.FC = () => {
   const [pixQrCode, setPixQrCode] = useState('');
   const [bankSlipUrl, setBankSlipUrl] = useState('');
   const [showCvv, setShowCvv] = useState(false);
+  const [pixTxid, setPixTxid] = useState<string | null>(null);
+  const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const [pixConfirmed, setPixConfirmed] = useState(false);
 
   // Dados do cliente
   const [customerData, setCustomerData] = useState({
@@ -69,6 +73,38 @@ const CheckoutPublicoHubla: React.FC = () => {
   useEffect(() => {
     loadProductData();
   }, [linkId]);
+
+  // Polling para verificar status do PIX
+  useEffect(() => {
+    if (!success || paymentMethod !== 'PIX' || pixConfirmed || !pixTxid) {
+      return;
+    }
+
+    const checkPixStatus = async () => {
+      try {
+        setCheckingStatus(true);
+        const response = await fetch(`/api/check-pix-status?txid=${pixTxid}${paymentId ? `&paymentId=${paymentId}` : ''}`);
+        const data = await response.json();
+        
+        if (data.success && data.status === 'CONFIRMED') {
+          setPixConfirmed(true);
+        }
+      } catch (error) {
+        console.error('[Polling PIX] Erro:', error);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+
+    checkPixStatus();
+    const interval = setInterval(checkPixStatus, 5000);
+    const timeout = setTimeout(() => clearInterval(interval), 10 * 60 * 1000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [success, paymentMethod, pixConfirmed, pixTxid, paymentId]);
 
   const loadProductData = async () => {
     if (!linkId) {
@@ -158,6 +194,8 @@ const CheckoutPublicoHubla: React.FC = () => {
         if (paymentMethod === 'PIX' && response.payment) {
           setPixCode(response.payment.pixCode || '');
           setPixQrCode(response.payment.pixQrCode || '');
+          if (response.payment.txid) setPixTxid(response.payment.txid);
+          if (response.payment.id) setPaymentId(response.payment.id);
         }
         // Boleto
         if (paymentMethod === 'BOLETO' && response.payment?.boletoUrl) {
@@ -653,9 +691,41 @@ const CheckoutPublicoHubla: React.FC = () => {
                   sx={{ mb: 2 }}
                 />
 
-                <Alert severity="info">
+                <Alert severity="info" sx={{ mb: 2 }}>
                   Escaneie o QR Code ou copie o código PIX para realizar o pagamento
                 </Alert>
+
+                {/* Indicador de verificação automática */}
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: 1, 
+                  p: 2,
+                  bgcolor: '#f0f9ff',
+                  borderRadius: 2,
+                  border: '1px solid #bae6fd'
+                }}>
+                  {checkingStatus ? (
+                    <CircularProgress size={20} sx={{ color: '#0284c7' }} />
+                  ) : (
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#22c55e', animation: 'pulse 2s infinite' }} />
+                  )}
+                  <Typography variant="body2" sx={{ color: '#0369a1' }}>
+                    Aguardando confirmação...
+                  </Typography>
+                </Box>
+
+                {pixConfirmed && (
+                  <Alert severity="success" sx={{ mt: 2 }}>
+                    <Typography variant="body2" fontWeight={600}>
+                      🎉 Pagamento Confirmado!
+                    </Typography>
+                    <Typography variant="body2">
+                      Seu pagamento foi processado com sucesso.
+                    </Typography>
+                  </Alert>
+                )}
               </Paper>
             )}
           </Box>

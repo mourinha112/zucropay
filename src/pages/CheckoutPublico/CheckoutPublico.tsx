@@ -50,6 +50,9 @@ const CheckoutPublicoHubla: React.FC = () => {
   const [showCvv, setShowCvv] = useState(false);
   const [pixConfirmed, setPixConfirmed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [pixTxid, setPixTxid] = useState<string | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
 
   // Dados do cliente
   const [customerData, setCustomerData] = useState({
@@ -75,6 +78,48 @@ const CheckoutPublicoHubla: React.FC = () => {
   useEffect(() => {
     loadProductData();
   }, [linkId]);
+
+  // Polling para verificar status do PIX
+  useEffect(() => {
+    if (!success || paymentMethod !== 'PIX' || pixConfirmed || !pixTxid) {
+      return;
+    }
+
+    const checkPixStatus = async () => {
+      try {
+        setCheckingStatus(true);
+        const response = await fetch(`/api/check-pix-status?txid=${pixTxid}${paymentId ? `&paymentId=${paymentId}` : ''}`);
+        const data = await response.json();
+        
+        console.log('[Polling PIX] Status:', data);
+
+        if (data.success && data.status === 'CONFIRMED') {
+          setPixConfirmed(true);
+          // Limpar o intervalo será feito automaticamente pelo cleanup
+        }
+      } catch (error) {
+        console.error('[Polling PIX] Erro:', error);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+
+    // Verificar imediatamente
+    checkPixStatus();
+
+    // Verificar a cada 5 segundos
+    const interval = setInterval(checkPixStatus, 5000);
+
+    // Timeout de 10 minutos (parar de verificar depois de muito tempo)
+    const timeout = setTimeout(() => {
+      clearInterval(interval);
+    }, 10 * 60 * 1000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
+  }, [success, paymentMethod, pixConfirmed, pixTxid, paymentId]);
 
   // Carregar customizações do produto
   useEffect(() => {
@@ -276,13 +321,22 @@ const CheckoutPublicoHubla: React.FC = () => {
         if (paymentMethod === 'PIX') {
           if (response.payment?.pixCode) {
             setPixCode(response.payment.pixCode);
+            // Guardar txid e paymentId para polling
+            if (response.payment?.txid) {
+              setPixTxid(response.payment.txid);
+            }
+            if (response.payment?.id) {
+              setPaymentId(response.payment.id);
+            }
             // EfiBank retorna QR Code em base64 (pode ser com ou sem prefixo data:)
             if (response.payment?.pixQrCode) {
               setPixQrCode(response.payment.pixQrCode);
             }
             console.log('PIX gerado:', { 
               pixCode: response.payment.pixCode?.substring(0, 50) + '...', 
-              hasQrCode: !!response.payment?.pixQrCode 
+              hasQrCode: !!response.payment?.pixQrCode,
+              txid: response.payment?.txid,
+              paymentId: response.payment?.id
             });
           } else {
             setError('Erro ao gerar código PIX. Tente novamente.');
@@ -1059,6 +1113,28 @@ const CheckoutPublicoHubla: React.FC = () => {
                   </Typography>
                 </Alert>
 
+                {/* Indicador de verificação automática */}
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  gap: 1, 
+                  mb: 2,
+                  p: 2,
+                  bgcolor: '#f0f9ff',
+                  borderRadius: 2,
+                  border: '1px solid #bae6fd'
+                }}>
+                  {checkingStatus ? (
+                    <CircularProgress size={20} sx={{ color: '#0284c7' }} />
+                  ) : (
+                    <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#22c55e', animation: 'pulse 2s infinite' }} />
+                  )}
+                  <Typography variant="body2" sx={{ color: '#0369a1' }}>
+                    Aguardando confirmação do pagamento...
+                  </Typography>
+                </Box>
+
                 <Button
                   fullWidth
                   variant="contained"
@@ -1078,6 +1154,10 @@ const CheckoutPublicoHubla: React.FC = () => {
                 >
                   ✓ JÁ FIZ O PAGAMENTO
                 </Button>
+
+                <Typography variant="caption" sx={{ display: 'block', mt: 2, color: '#64748b', textAlign: 'center' }}>
+                  A página será atualizada automaticamente quando o pagamento for confirmado
+                </Typography>
               </Paper>
             ) : success && paymentMethod === 'BOLETO' && boletoUrl ? (
               /* Tela de Boleto */

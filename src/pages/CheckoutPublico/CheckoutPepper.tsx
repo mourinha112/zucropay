@@ -40,6 +40,10 @@ const CheckoutPepper: React.FC = () => {
   const [pixQrCode, setPixQrCode] = useState('');
   const [boletoUrl, setBoletoUrl] = useState('');
   const [copied, setCopied] = useState(false);
+  const [pixTxid, setPixTxid] = useState<string | null>(null);
+  const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [checkingStatus, setCheckingStatus] = useState(false);
+  const [pixConfirmed, setPixConfirmed] = useState(false);
 
   // Dados do cliente
   const [customerData, setCustomerData] = useState({
@@ -78,6 +82,38 @@ const CheckoutPepper: React.FC = () => {
       setTimeLeft(prev => prev > 0 ? prev - 1 : 0);
     }, 1000);
     return () => clearInterval(timer);
+  }, [timeLeft]);
+
+  // Polling para verificar status do PIX
+  useEffect(() => {
+    if (!success || paymentMethod !== 'PIX' || pixConfirmed || !pixTxid) {
+      return;
+    }
+
+    const checkPixStatus = async () => {
+      try {
+        setCheckingStatus(true);
+        const response = await fetch(`/api/check-pix-status?txid=${pixTxid}${paymentId ? `&paymentId=${paymentId}` : ''}`);
+        const data = await response.json();
+        
+        if (data.success && data.status === 'CONFIRMED') {
+          setPixConfirmed(true);
+        }
+      } catch (error) {
+        console.error('[Polling PIX] Erro:', error);
+      } finally {
+        setCheckingStatus(false);
+      }
+    };
+
+    checkPixStatus();
+    const interval = setInterval(checkPixStatus, 5000);
+    const timeout = setTimeout(() => clearInterval(interval), 10 * 60 * 1000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timeout);
+    };
   }, [timeLeft]);
 
   const formatTime = (seconds: number) => {
@@ -219,6 +255,8 @@ const CheckoutPepper: React.FC = () => {
         if (paymentMethod === 'PIX' && response.payment) {
           setPixCode(response.payment.pixCode || '');
           setPixQrCode(response.payment.pixQrCode || '');
+          if (response.payment.txid) setPixTxid(response.payment.txid);
+          if (response.payment.id) setPaymentId(response.payment.id);
         }
         if (paymentMethod === 'BOLETO' && response.payment?.boletoUrl) {
           setBoletoUrl(response.payment.boletoUrl);
@@ -297,10 +335,46 @@ const CheckoutPepper: React.FC = () => {
                 bgcolor: copied ? '#22c55e' : '#b91c1c',
                 '&:hover': { bgcolor: copied ? '#16a34a' : '#991b1b' },
                 py: 1.5,
+                mb: 2,
               }}
             >
               {copied ? 'Copiado!' : 'Copiar Código PIX'}
             </Button>
+
+            {/* Indicador de verificação automática */}
+            {!pixConfirmed && (
+              <Box sx={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: 1, 
+                p: 2,
+                bgcolor: '#f0f9ff',
+                borderRadius: 1,
+                border: '1px solid #bae6fd',
+                mb: 2
+              }}>
+                {checkingStatus ? (
+                  <CircularProgress size={16} sx={{ color: '#0284c7' }} />
+                ) : (
+                  <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#22c55e' }} />
+                )}
+                <Typography variant="body2" sx={{ color: '#0369a1' }}>
+                  Aguardando confirmação...
+                </Typography>
+              </Box>
+            )}
+
+            {pixConfirmed && (
+              <Alert severity="success" sx={{ textAlign: 'left' }}>
+                <Typography variant="body2" fontWeight={600}>
+                  🎉 Pagamento Confirmado!
+                </Typography>
+                <Typography variant="body2">
+                  Seu pagamento foi processado com sucesso.
+                </Typography>
+              </Alert>
+            )}
           </Box>
         </Container>
       </Box>
