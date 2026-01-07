@@ -231,17 +231,32 @@ export default async function handler(req, res) {
         console.log('[Check PIX] Payment atualizado com sucesso');
       }
 
-      // ===== RESERVA DE 5% POR 30 DIAS =====
+      // ===== TAXAS DA PLATAFORMA =====
+      const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
+      const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
+      
+      // ===== RESERVA DE 5% POR 30 DIAS (sobre valor líquido) =====
       const RESERVE_PERCENT = 0.05; // 5%
       const RESERVE_DAYS = 30; // dias para liberar
       
-      const reserveAmount = paidValue * RESERVE_PERCENT;
-      const netAmount = paidValue - reserveAmount; // 95% vai pro saldo disponível
+      // Calcular taxa da plataforma
+      const platformFee = (paidValue * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FIXED;
+      const valueAfterFees = paidValue - platformFee;
+      
+      // Calcular reserva sobre o valor líquido (após taxas)
+      const reserveAmount = valueAfterFees * RESERVE_PERCENT;
+      const netAmount = valueAfterFees - reserveAmount;
       
       const releaseDate = new Date();
       releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
+      
+      console.log(`[Check PIX] Valor bruto: R$${paidValue.toFixed(2)}`);
+      console.log(`[Check PIX] Taxa plataforma (5.99% + R$2.50): R$${platformFee.toFixed(2)}`);
+      console.log(`[Check PIX] Valor após taxas: R$${valueAfterFees.toFixed(2)}`);
+      console.log(`[Check PIX] Reserva 5%: R$${reserveAmount.toFixed(2)}`);
+      console.log(`[Check PIX] Valor líquido para usuário: R$${netAmount.toFixed(2)}`);
 
-      // Creditar saldo do vendedor (95%) e reservar (5%)
+      // Creditar saldo do vendedor (líquido) e reservar (5% do líquido)
       if (dbPayment.user_id) {
         const { data: user, error: userError } = await supabase
           .from('users')
@@ -257,8 +272,8 @@ export default async function handler(req, res) {
           const newBalance = currentBalance + netAmount;
           const newReserved = currentReserved + reserveAmount;
           
-          console.log(`[Check PIX] Saldo: ${currentBalance} + ${netAmount} (95%) = ${newBalance}`);
-          console.log(`[Check PIX] Reserva: ${currentReserved} + ${reserveAmount} (5%) = ${newReserved}`);
+          console.log(`[Check PIX] Saldo: ${currentBalance} + ${netAmount} = ${newBalance}`);
+          console.log(`[Check PIX] Reserva: ${currentReserved} + ${reserveAmount} = ${newReserved}`);
           
           const { error: balanceError } = await supabase
             .from('users')
@@ -285,6 +300,11 @@ export default async function handler(req, res) {
               status: 'held',
               release_date: releaseDate.toISOString(),
               description: `Reserva 5% - ${dbPayment.description || 'PIX recebido'}`,
+              metadata: {
+                gross_value: paidValue,
+                platform_fee: platformFee,
+                value_after_fees: valueAfterFees,
+              }
             });
 
           if (reserveError) {
@@ -299,10 +319,15 @@ export default async function handler(req, res) {
             type: 'payment_received',
             amount: paidValue,
             status: 'completed',
-            description: `PIX recebido - ${dbPayment.description || 'Venda'} (5% em reserva)`,
+            description: `PIX recebido - ${dbPayment.description || 'Venda'} (Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)})`,
             metadata: { 
               payment_id: dbPayment.id, 
               txid: actualTxid,
+              gross_value: paidValue,
+              platform_fee: platformFee,
+              platform_fee_percent: PLATFORM_FEE_PERCENT,
+              platform_fee_fixed: PLATFORM_FEE_FIXED,
+              value_after_fees: valueAfterFees,
               net_amount: netAmount,
               reserve_amount: reserveAmount,
               reserve_release_date: releaseDate.toISOString()
@@ -313,6 +338,26 @@ export default async function handler(req, res) {
             console.error('[Check PIX] Erro ao criar transação:', txError);
           } else {
             console.log('[Check PIX] Transação criada com sucesso');
+          }
+          
+          // Registrar taxa da plataforma como transação separada
+          const { error: feeError } = await supabase.from('transactions').insert({
+            user_id: dbPayment.user_id,
+            type: 'platform_fee',
+            amount: -platformFee,
+            status: 'completed',
+            description: `Taxa da plataforma (5.99% + R$2.50) - ${dbPayment.description || 'Venda'}`,
+            metadata: { 
+              payment_id: dbPayment.id,
+              txid: actualTxid,
+              gross_value: paidValue,
+              fee_percent: PLATFORM_FEE_PERCENT,
+              fee_fixed: PLATFORM_FEE_FIXED,
+            },
+          });
+          
+          if (feeError) {
+            console.error('[Check PIX] Erro ao registrar taxa:', feeError);
           }
         }
       }
