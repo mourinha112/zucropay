@@ -566,174 +566,22 @@ export default async function handler(req, res) {
             // ===== TAXAS DA PLATAFORMA =====
             const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
             const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
+            const MIN_VALUE_FOR_FEES = 5.00;     // Valor mínimo para taxa fixa
             const RESERVE_PERCENT = 0.05;        // 5% reserva
             const RESERVE_DAYS = 30;
             
-            const platformFee = (value * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FIXED;
-            const valueAfterFees = value - platformFee;
-            const reserveAmount = valueAfterFees * RESERVE_PERCENT;
-            const netAmount = valueAfterFees - reserveAmount;
-            
-            const releaseDate = new Date();
-            releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
-            
-            console.log(`[CARTAO] Valor bruto: R$${value.toFixed(2)}, Taxa: R$${platformFee.toFixed(2)}, Reserva: R$${reserveAmount.toFixed(2)}, Líquido: R$${netAmount.toFixed(2)}`);
-            
-            await supabase.from('users').update({ 
-              balance: (user.balance || 0) + netAmount,
-              reserved_balance: (user.reserved_balance || 0) + reserveAmount
-            }).eq('id', link.user_id);
-            
-            // Criar registro de reserva
-            await supabase.from('balance_reserves').insert({
-              user_id: link.user_id,
-              payment_id: savedPayment?.id,
-              original_amount: value,
-              reserve_amount: reserveAmount,
-              status: 'held',
-              release_date: releaseDate.toISOString(),
-              description: `Reserva 5% - ${description}`,
-              metadata: { gross_value: value, platform_fee: platformFee, value_after_fees: valueAfterFees }
-            });
-            
-            await supabase.from('transactions').insert({
-              user_id: link.user_id,
-              type: 'payment_received',
-              amount: value,
-              status: 'completed',
-              description: `Venda com cartão - ${description} (Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)})`,
-              metadata: { gross_value: value, platform_fee: platformFee, net_amount: netAmount, reserve_amount: reserveAmount }
-            });
-            
-            // Registrar taxa da plataforma
-            await supabase.from('transactions').insert({
-              user_id: link.user_id,
-              type: 'platform_fee',
-              amount: -platformFee,
-              status: 'completed',
-              description: `Taxa da plataforma (5.99% + R$2.50) - ${description}`,
-              metadata: { gross_value: value, fee_percent: PLATFORM_FEE_PERCENT, fee_fixed: PLATFORM_FEE_FIXED }
-            });
-          }
-        }
-
-        payment = {
-          id: savedPayment?.id,
-          chargeId: chargeId,
-          status: status,
-          installments: cardInstallments || 1,
-        };
-      } else if (cardNumber && cardCvv) {
-        // Sem token, mas com dados do cartão - pagar diretamente
-        console.log('[CARTAO] Processando com dados do cartão...');
-        
-        // Detectar bandeira se não informada
-        const brand = cardBrand || detectCardBrand(cardNumber);
-        
-        const payData = {
-          payment: {
-            credit_card: {
-              installments: cardInstallments || 1,
-              customer: {
-                name: customerName,
-                email: customerEmail,
-                cpf: customerCpfCnpj?.replace(/\D/g, ''),
-                birth: '1990-01-01',
-                phone_number: customerPhone?.replace(/\D/g, ''),
-              },
-              billing_address: billingAddress || {
-                street: 'Rua Principal',
-                number: '100',
-                neighborhood: 'Centro',
-                zipcode: '01310100',
-                city: 'Sao Paulo',
-                state: 'SP',
-              },
-              payment_token: null, // Sem token
-              credit_card: {
-                brand: brand,
-                number: cardNumber?.replace(/\D/g, ''),
-                cvv: cardCvv,
-                expiration_month: cardExpiryMonth?.padStart(2, '0'),
-                expiration_year: cardExpiryYear?.length === 2 ? `20${cardExpiryYear}` : cardExpiryYear,
-              },
-            },
-          },
-        };
-
-        console.log('[CARTAO] Dados do pagamento:', JSON.stringify({
-          ...payData,
-          payment: {
-            ...payData.payment,
-            credit_card: {
-              ...payData.payment.credit_card,
-              credit_card: { ...payData.payment.credit_card.credit_card, number: '****', cvv: '***' }
+            // Calcular taxa (sem taxa fixa para valores baixos)
+            let platformFee = value * PLATFORM_FEE_PERCENT;
+            if (value >= MIN_VALUE_FOR_FEES) {
+              platformFee += PLATFORM_FEE_FIXED;
             }
-          }
-        }));
-
-        const payResult = await makeCobrancaRequest(config, 'POST', `/v1/charge/${chargeId}/pay`, payData);
-
-        if (!payResult.success) {
-          console.error('[CARTAO] Erro ao processar:', payResult.data);
-          
-          // Verificar se é erro de dados do cartão
-          const errorMsg = payResult.data?.error_description?.message || 
-                          payResult.data?.message || 
-                          payResult.data?.error_description ||
-                          'Erro ao processar cartão';
-          
-          return res.status(200).json({
-            success: false,
-            message: `Cartão recusado: ${errorMsg}`,
-            debug: payResult.data,
-          });
-        }
-
-        const payStatus = payResult.data?.data?.status;
-        const status = payStatus === 'approved' || payStatus === 'paid' ? 'RECEIVED' : 'PENDING';
-        console.log('[CARTAO] Status:', status, '(API status:', payStatus, ')');
-
-        // Salvar no banco
-        const { data: savedPayment } = await supabase
-          .from('payments')
-          .insert({
-            user_id: link.user_id,
-            billing_type: 'CREDIT_CARD',
-            value: value,
-            status: status,
-            description: description,
-            due_date: new Date().toISOString().split('T')[0],
-            payment_date: status === 'RECEIVED' ? new Date().toISOString() : null,
-            efi_charge_id: chargeId.toString(),
-            payment_link_id: linkId,
-            asaas_payment_id: chargeId.toString(),
-          })
-          .select()
-          .single();
-
-        // Atualizar link e saldo se aprovado
-        await supabase
-          .from('payment_links')
-          .update({
-            payments_count: (link.payments_count || 0) + 1,
-            total_received: status === 'RECEIVED' ? (link.total_received || 0) + value : link.total_received,
-          })
-          .eq('id', linkId);
-
-        if (status === 'RECEIVED') {
-          const { data: user } = await supabase.from('users').select('balance, reserved_balance').eq('id', link.user_id).single();
-          if (user) {
-            // ===== TAXAS DA PLATAFORMA =====
-            const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
-            const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
-            const RESERVE_PERCENT = 0.05;        // 5% reserva
-            const RESERVE_DAYS = 30;
-            
-            const platformFee = (value * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FIXED;
-            const valueAfterFees = value - platformFee;
-            const reserveAmount = valueAfterFees * RESERVE_PERCENT;
-            const netAmount = valueAfterFees - reserveAmount;
+            // Garantir que taxa não seja maior que 50% do valor
+            if (platformFee > value * 0.5) {
+              platformFee = value * 0.5;
+            }
+            const valueAfterFees = Math.max(0, value - platformFee);
+            const reserveAmount = Math.max(0, valueAfterFees * RESERVE_PERCENT);
+            const netAmount = Math.max(0, valueAfterFees - reserveAmount);
             
             const releaseDate = new Date();
             releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
@@ -785,11 +633,64 @@ export default async function handler(req, res) {
           installments: cardInstallments || 1,
         };
       } else {
-        // Sem dados do cartão - erro
-        return res.status(200).json({
-          success: false,
-          message: 'Dados do cartão são obrigatórios',
-        });
+        // Sem token - gerar link de pagamento EfiBank
+        // A API EfiBank NÃO aceita dados do cartão diretamente (PCI compliance)
+        console.log('[CARTAO] Gerando link de pagamento EfiBank...');
+        
+        const linkData = {
+          message: description || 'Pagamento via cartão',
+          expire_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          request_delivery_address: false,
+          payment_method: 'credit_card',
+        };
+
+        const linkResult = await makeCobrancaRequest(config, 'POST', `/v1/charge/${chargeId}/link`, linkData);
+        
+        if (!linkResult.success) {
+          console.error('[CARTAO] Erro ao gerar link:', linkResult.data);
+          return res.status(200).json({
+            success: false,
+            message: 'Erro ao gerar link de pagamento. Tente novamente.',
+            debug: linkResult.data,
+          });
+        }
+
+        const paymentUrl = linkResult.data?.data?.payment_url;
+        console.log('[CARTAO] Link gerado:', paymentUrl);
+
+        // Salvar no banco
+        const { data: savedPayment } = await supabase
+          .from('payments')
+          .insert({
+            user_id: link.user_id,
+            billing_type: 'CREDIT_CARD',
+            value: value,
+            status: 'PENDING',
+            description: description,
+            due_date: new Date().toISOString().split('T')[0],
+            efi_charge_id: chargeId.toString(),
+            invoice_url: paymentUrl,
+            payment_link_id: linkId,
+            asaas_payment_id: chargeId.toString(),
+          })
+          .select()
+          .single();
+
+        await supabase
+          .from('payment_links')
+          .update({ payments_count: (link.payments_count || 0) + 1 })
+          .eq('id', linkId);
+
+        payment = {
+          id: savedPayment?.id,
+          chargeId: chargeId,
+          status: 'PENDING',
+          paymentUrl: paymentUrl,
+          installments: cardInstallments || 1,
+        };
+        
+        // Taxas e reservas serão processadas quando o pagamento for confirmado via webhook
+        console.log('[CARTAO] Link gerado - aguardando pagamento via link EfiBank');
       }
       
       console.log('[CARTAO] Processo finalizado');

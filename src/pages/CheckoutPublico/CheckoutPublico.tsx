@@ -77,6 +77,62 @@ const CheckoutPublicoHubla: React.FC = () => {
   // Parcelamento
   const [installments, setInstallments] = useState(1);
   const [isNotBrazilian, setIsNotBrazilian] = useState(false);
+  const [tokenizing, setTokenizing] = useState(false);
+
+  // Tokenizar cartão usando SDK EfiBank/Gerencianet
+  const tokenizeCard = (): Promise<string | null> => {
+    return new Promise((resolve) => {
+      try {
+        // @ts-ignore - SDK carregada externamente
+        const $gn = window.$gn;
+        
+        if (!$gn || !$gn.checkout) {
+          console.error('[Tokenização] SDK não disponível');
+          resolve(null);
+          return;
+        }
+
+        const cardNumber = cardData.number.replace(/\s/g, '');
+        const cvv = cardData.ccv;
+        const expMonth = cardData.expiryMonth.padStart(2, '0');
+        const expYear = cardData.expiryYear.length === 2 ? `20${cardData.expiryYear}` : cardData.expiryYear;
+        const brand = detectCardBrand(cardNumber);
+        
+        // Account ID da EfiBank (identificador da conta)
+        const accountId = import.meta.env.VITE_EFI_ACCOUNT_ID || '820266';
+
+        console.log('[Tokenização] Iniciando...', { accountId, brand });
+
+        $gn.checkout.getPaymentToken({
+          account_id: accountId,
+          environment: 'production',
+          credit_card: {
+            customer_name: cardData.name,
+            brand: brand,
+            number: cardNumber,
+            cvv: cvv,
+            expiration_month: expMonth,
+            expiration_year: expYear,
+          }
+        }, (error: any, response: any) => {
+          if (error) {
+            console.error('[Tokenização] Erro:', error);
+            resolve(null);
+          } else if (response?.data?.payment_token) {
+            console.log('[Tokenização] Sucesso!');
+            resolve(response.data.payment_token);
+          } else {
+            console.error('[Tokenização] Resposta inválida:', response);
+            resolve(null);
+          }
+        });
+
+      } catch (error) {
+        console.error('[Tokenização] Exceção:', error);
+        resolve(null);
+      }
+    });
+  };
 
   // Detectar bandeira do cartão
   const detectCardBrand = (number: string): string => {
@@ -355,17 +411,32 @@ const CheckoutPublicoHubla: React.FC = () => {
         installments: paymentMethod === 'CREDIT_CARD' ? installments : undefined,
       };
 
-      // Para cartão, enviar dados diretamente
+      // Para cartão, tentar tokenizar primeiro
       if (paymentMethod === 'CREDIT_CARD') {
-        paymentData.creditCard = {
-          number: cardData.number.replace(/\s/g, ''),
-          name: cardData.name,
-          expiryMonth: cardData.expiryMonth,
-          expiryYear: cardData.expiryYear,
-          cvv: cardData.ccv,
-          brand: detectCardBrand(cardData.number.replace(/\s/g, '')),
-        };
-        console.log('[Checkout] Enviando dados do cartão...');
+        setTokenizing(true);
+        console.log('[Checkout] Tokenizando cartão...');
+        
+        const token = await tokenizeCard();
+        setTokenizing(false);
+        
+        if (token) {
+          // Token obtido - enviar para processar diretamente
+          console.log('[Checkout] Token obtido, processando pagamento...');
+          paymentData.creditCard = {
+            paymentToken: token,
+          };
+        } else {
+          // Sem token - enviar dados para gerar link de pagamento
+          console.log('[Checkout] Sem token, usando link de pagamento...');
+          paymentData.creditCard = {
+            number: cardData.number.replace(/\s/g, ''),
+            name: cardData.name,
+            expiryMonth: cardData.expiryMonth,
+            expiryYear: cardData.expiryYear,
+            cvv: cardData.ccv,
+            brand: detectCardBrand(cardData.number.replace(/\s/g, '')),
+          };
+        }
       }
 
       const response = await api.createPublicPayment(paymentData);
@@ -1127,7 +1198,7 @@ const CheckoutPublicoHubla: React.FC = () => {
                   {processing ? (
                     <>
                       <CircularProgress size={24} sx={{ color: customization?.buttonTextColor || 'white', mr: 1 }} />
-                      Processando...
+                      {tokenizing ? 'Processando cartão...' : 'Processando...'}
                     </>
                   ) : (
                     customization?.buttonText || 'Pagar'

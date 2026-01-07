@@ -234,18 +234,26 @@ export default async function handler(req, res) {
       // ===== TAXAS DA PLATAFORMA =====
       const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
       const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
+      const MIN_VALUE_FOR_FEES = 5.00;     // Valor mínimo para cobrar taxa fixa
       
       // ===== RESERVA DE 5% POR 30 DIAS (sobre valor líquido) =====
       const RESERVE_PERCENT = 0.05; // 5%
       const RESERVE_DAYS = 30; // dias para liberar
       
-      // Calcular taxa da plataforma
-      const platformFee = (paidValue * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FIXED;
-      const valueAfterFees = paidValue - platformFee;
+      // Calcular taxa da plataforma (sem taxa fixa para valores baixos)
+      let platformFee = paidValue * PLATFORM_FEE_PERCENT;
+      if (paidValue >= MIN_VALUE_FOR_FEES) {
+        platformFee += PLATFORM_FEE_FIXED;
+      }
+      // Garantir que taxa não seja maior que 50% do valor
+      if (platformFee > paidValue * 0.5) {
+        platformFee = paidValue * 0.5;
+      }
+      const valueAfterFees = Math.max(0, paidValue - platformFee);
       
       // Calcular reserva sobre o valor líquido (após taxas)
-      const reserveAmount = valueAfterFees * RESERVE_PERCENT;
-      const netAmount = valueAfterFees - reserveAmount;
+      const reserveAmount = Math.max(0, valueAfterFees * RESERVE_PERCENT);
+      const netAmount = Math.max(0, valueAfterFees - reserveAmount);
       
       const releaseDate = new Date();
       releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
