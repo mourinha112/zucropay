@@ -260,6 +260,22 @@ const generateTxId = () => {
   return Array.from({ length: 35 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
 };
 
+// Detectar bandeira do cartão
+const detectCardBrand = (number) => {
+  const cleanNumber = (number || '').replace(/\D/g, '');
+  
+  if (/^4/.test(cleanNumber)) return 'visa';
+  if (/^5[1-5]/.test(cleanNumber)) return 'mastercard';
+  if (/^3[47]/.test(cleanNumber)) return 'amex';
+  if (/^6(?:011|5)/.test(cleanNumber)) return 'discover';
+  if (/^(?:2131|1800|35)/.test(cleanNumber)) return 'jcb';
+  if (/^3(?:0[0-5]|[68])/.test(cleanNumber)) return 'diners';
+  if (/^(636368|438935|504175|451416|636297|5067|4576|4011|506699)/.test(cleanNumber)) return 'elo';
+  if (/^(606282|3841)/.test(cleanNumber)) return 'hipercard';
+  
+  return 'visa'; // Default
+};
+
 // ========================================
 // HANDLER
 // ========================================
@@ -316,6 +332,13 @@ export default async function handler(req, res) {
       // Dados do cartão (se aplicável)
       cardPaymentToken,
       cardInstallments,
+      // Dados do cartão direto (sem token)
+      cardNumber,
+      cardName,
+      cardExpiryMonth,
+      cardExpiryYear,
+      cardCvv,
+      cardBrand,
       // Dados de endereço (para cartão)
       billingAddress,
     } = req.body;
@@ -557,29 +580,76 @@ export default async function handler(req, res) {
           status: status,
           installments: cardInstallments || 1,
         };
-      } else {
-        // Sem token, gerar link de pagamento
-        console.log('[CARTAO] Gerando link de pagamento...');
-        const linkData = {
-          message: description || 'Pagamento via cartão',
-          expire_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-          request_delivery_address: false,
-          payment_method: 'all', // Aceitar todos os métodos no link
+      } else if (cardNumber && cardCvv) {
+        // Sem token, mas com dados do cartão - pagar diretamente
+        console.log('[CARTAO] Processando com dados do cartão...');
+        
+        // Detectar bandeira se não informada
+        const brand = cardBrand || detectCardBrand(cardNumber);
+        
+        const payData = {
+          payment: {
+            credit_card: {
+              installments: cardInstallments || 1,
+              customer: {
+                name: customerName,
+                email: customerEmail,
+                cpf: customerCpfCnpj?.replace(/\D/g, ''),
+                birth: '1990-01-01',
+                phone_number: customerPhone?.replace(/\D/g, ''),
+              },
+              billing_address: billingAddress || {
+                street: 'Rua Principal',
+                number: '100',
+                neighborhood: 'Centro',
+                zipcode: '01310100',
+                city: 'Sao Paulo',
+                state: 'SP',
+              },
+              payment_token: null, // Sem token
+              credit_card: {
+                brand: brand,
+                number: cardNumber?.replace(/\D/g, ''),
+                cvv: cardCvv,
+                expiration_month: cardExpiryMonth?.padStart(2, '0'),
+                expiration_year: cardExpiryYear?.length === 2 ? `20${cardExpiryYear}` : cardExpiryYear,
+              },
+            },
+          },
         };
 
-        const linkResult = await makeCobrancaRequest(config, 'POST', `/v1/charge/${chargeId}/link`, linkData);
-        
-        if (!linkResult.success) {
-          console.error('[CARTAO] Erro ao gerar link:', linkResult.data);
+        console.log('[CARTAO] Dados do pagamento:', JSON.stringify({
+          ...payData,
+          payment: {
+            ...payData.payment,
+            credit_card: {
+              ...payData.payment.credit_card,
+              credit_card: { ...payData.payment.credit_card.credit_card, number: '****', cvv: '***' }
+            }
+          }
+        }));
+
+        const payResult = await makeCobrancaRequest(config, 'POST', `/v1/charge/${chargeId}/pay`, payData);
+
+        if (!payResult.success) {
+          console.error('[CARTAO] Erro ao processar:', payResult.data);
+          
+          // Verificar se é erro de dados do cartão
+          const errorMsg = payResult.data?.error_description?.message || 
+                          payResult.data?.message || 
+                          payResult.data?.error_description ||
+                          'Erro ao processar cartão';
+          
           return res.status(200).json({
             success: false,
-            message: 'Erro ao gerar link de pagamento. Tente novamente.',
-            debug: linkResult.data,
+            message: `Cartão recusado: ${errorMsg}`,
+            debug: payResult.data,
           });
         }
 
-        const paymentUrl = linkResult.data?.data?.payment_url;
-        console.log('[CARTAO] Link gerado:', paymentUrl);
+        const payStatus = payResult.data?.data?.status;
+        const status = payStatus === 'approved' || payStatus === 'paid' ? 'RECEIVED' : 'PENDING';
+        console.log('[CARTAO] Status:', status, '(API status:', payStatus, ')');
 
         // Salvar no banco
         const { data: savedPayment } = await supabase
@@ -588,29 +658,52 @@ export default async function handler(req, res) {
             user_id: link.user_id,
             billing_type: 'CREDIT_CARD',
             value: value,
-            status: 'PENDING',
+            status: status,
             description: description,
             due_date: new Date().toISOString().split('T')[0],
+            payment_date: status === 'RECEIVED' ? new Date().toISOString() : null,
             efi_charge_id: chargeId.toString(),
-            invoice_url: paymentUrl,
             payment_link_id: linkId,
             asaas_payment_id: chargeId.toString(),
           })
           .select()
           .single();
 
+        // Atualizar link e saldo se aprovado
         await supabase
           .from('payment_links')
-          .update({ payments_count: (link.payments_count || 0) + 1 })
+          .update({
+            payments_count: (link.payments_count || 0) + 1,
+            total_received: status === 'RECEIVED' ? (link.total_received || 0) + value : link.total_received,
+          })
           .eq('id', linkId);
+
+        if (status === 'RECEIVED') {
+          const { data: user } = await supabase.from('users').select('balance').eq('id', link.user_id).single();
+          if (user) {
+            await supabase.from('users').update({ balance: (user.balance || 0) + value }).eq('id', link.user_id);
+            await supabase.from('transactions').insert({
+              user_id: link.user_id,
+              type: 'payment_received',
+              amount: value,
+              status: 'completed',
+              description: `Venda com cartão - ${description}`,
+            });
+          }
+        }
 
         payment = {
           id: savedPayment?.id,
           chargeId: chargeId,
-          status: 'PENDING',
-          paymentUrl: paymentUrl,
+          status: status,
           installments: cardInstallments || 1,
         };
+      } else {
+        // Sem dados do cartão - erro
+        return res.status(200).json({
+          success: false,
+          message: 'Dados do cartão são obrigatórios',
+        });
       }
       
       console.log('[CARTAO] Processo finalizado');

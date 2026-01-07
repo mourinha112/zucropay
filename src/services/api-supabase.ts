@@ -1193,12 +1193,13 @@ export const createPublicPayment = async (data: {
   };
   billingType: 'PIX' | 'CREDIT_CARD' | 'BOLETO';
   creditCard?: {
-    paymentToken?: string; // Token EfiBank
+    paymentToken?: string; // Token EfiBank (se disponível)
     number?: string;
     name?: string;
     expiryMonth?: string;
     expiryYear?: string;
-    ccv?: string;
+    cvv?: string;
+    brand?: string;
   };
   installments?: number;
   billingAddress?: {
@@ -1217,18 +1218,30 @@ export const createPublicPayment = async (data: {
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
   // Usar a nova API EfiBank
-  const apiData = {
+  const apiData: any = {
     linkId: data.linkId,
     billingType: data.billingType,
     customerName: data.customer.name,
     customerEmail: data.customer.email,
     customerCpfCnpj: data.customer.cpfCnpj,
     customerPhone: data.customer.phone,
-    // Para cartão de crédito
-    cardPaymentToken: data.creditCard?.paymentToken,
     cardInstallments: data.installments || 1,
     billingAddress: data.billingAddress,
   };
+
+  // Dados do cartão (envio direto)
+  if (data.creditCard) {
+    apiData.cardNumber = data.creditCard.number;
+    apiData.cardName = data.creditCard.name;
+    apiData.cardExpiryMonth = data.creditCard.expiryMonth;
+    apiData.cardExpiryYear = data.creditCard.expiryYear;
+    apiData.cardCvv = data.creditCard.cvv;
+    apiData.cardBrand = data.creditCard.brand;
+    // Token se disponível
+    if (data.creditCard.paymentToken) {
+      apiData.cardPaymentToken = data.creditCard.paymentToken;
+    }
+  }
 
   const response = await fetch(`${API_BASE_URL}/efi-public-payment`, {
     method: 'POST',
@@ -1262,6 +1275,7 @@ export const createPublicPayment = async (data: {
       expireAt: result.payment?.expireAt,
       // Cartão
       installments: result.payment?.installments,
+      paymentUrl: result.payment?.paymentUrl, // Link de pagamento EfiBank
     },
   };
 };
