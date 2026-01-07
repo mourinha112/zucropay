@@ -31,19 +31,22 @@ const getSupabase = () => {
 };
 
 // URLs da API
+// PIX usa mTLS (com certificado)
 const getPixApiUrl = (sandbox) => sandbox ? 'pix-h.api.efipay.com.br' : 'pix.api.efipay.com.br';
+// Cobranças (cartão/boleto) NÃO usa certificado - apenas Basic Auth
 const getCobrancaApiUrl = (sandbox) => sandbox ? 'cobrancas-h.api.efipay.com.br' : 'cobrancas.api.efipay.com.br';
 
 // ========================================
-// REQUISIÇÃO HTTPS COM CERTIFICADO (mTLS)
+// REQUISIÇÃO HTTPS COM CERTIFICADO (mTLS) - Para PIX
 // ========================================
 
-const httpsRequest = (options, postData = null) => {
+const httpsRequestWithCert = (options, postData = null) => {
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
+        console.log(`[EFI mTLS] Response ${res.statusCode}:`, data.substring(0, 500));
         try {
           resolve({ status: res.statusCode, data: JSON.parse(data) });
         } catch {
@@ -53,7 +56,7 @@ const httpsRequest = (options, postData = null) => {
     });
 
     req.on('error', (error) => {
-      console.error('HTTPS Request Error:', error);
+      console.error('[EFI mTLS] Request Error:', error);
       reject(error);
     });
 
@@ -65,16 +68,48 @@ const httpsRequest = (options, postData = null) => {
 };
 
 // ========================================
-// AUTENTICAÇÃO
+// REQUISIÇÃO HTTPS SEM CERTIFICADO - Para Cobranças (Cartão/Boleto)
 // ========================================
 
-let tokenCache = { token: null, expiry: null };
+const httpsRequestNoCert = (options, postData = null) => {
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        console.log(`[EFI Cobranca] Response ${res.statusCode}:`, data.substring(0, 500));
+        try {
+          resolve({ status: res.statusCode, data: JSON.parse(data) });
+        } catch {
+          resolve({ status: res.statusCode, data: { raw: data } });
+        }
+      });
+    });
 
-const getAccessToken = async (config) => {
-  if (tokenCache.token && tokenCache.expiry && Date.now() < tokenCache.expiry) {
-    return tokenCache.token;
+    req.on('error', (error) => {
+      console.error('[EFI Cobranca] Request Error:', error);
+      reject(error);
+    });
+
+    if (postData) {
+      req.write(postData);
+    }
+    req.end();
+  });
+};
+
+// ========================================
+// AUTENTICAÇÃO - PIX (com certificado mTLS)
+// ========================================
+
+let pixTokenCache = { token: null, expiry: null };
+
+const getPixAccessToken = async (config) => {
+  if (pixTokenCache.token && pixTokenCache.expiry && Date.now() < pixTokenCache.expiry) {
+    return pixTokenCache.token;
   }
 
+  console.log('[EFI PIX] Obtendo novo token...');
   const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
   const certBuffer = Buffer.from(config.certificate, 'base64');
   const postData = JSON.stringify({ grant_type: 'client_credentials' });
@@ -93,26 +128,72 @@ const getAccessToken = async (config) => {
     passphrase: '',
   };
 
-  const response = await httpsRequest(options, postData);
+  const response = await httpsRequestWithCert(options, postData);
 
   if (response.data?.access_token) {
-    tokenCache.token = response.data.access_token;
-    tokenCache.expiry = Date.now() + (response.data.expires_in * 1000) - 60000;
-    return tokenCache.token;
+    pixTokenCache.token = response.data.access_token;
+    pixTokenCache.expiry = Date.now() + (response.data.expires_in * 1000) - 60000;
+    console.log('[EFI PIX] Token obtido com sucesso');
+    return pixTokenCache.token;
   }
 
-  console.error('Auth failed:', response);
-  throw new Error(response.data?.error_description || 'Falha na autenticação EfiBank');
+  console.error('[EFI PIX] Auth failed:', response);
+  throw new Error(response.data?.error_description || 'Falha na autenticação EfiBank PIX');
 };
 
-const makeRequest = async (config, method, endpoint, data = null, isPix = true) => {
-  const token = await getAccessToken(config);
-  const hostname = isPix ? getPixApiUrl(config.sandbox) : getCobrancaApiUrl(config.sandbox);
+// ========================================
+// AUTENTICAÇÃO - Cobranças (SEM certificado)
+// ========================================
+
+let cobrancaTokenCache = { token: null, expiry: null };
+
+const getCobrancaAccessToken = async (config) => {
+  if (cobrancaTokenCache.token && cobrancaTokenCache.expiry && Date.now() < cobrancaTokenCache.expiry) {
+    return cobrancaTokenCache.token;
+  }
+
+  console.log('[EFI Cobranca] Obtendo novo token...');
+  const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
+  const postData = JSON.stringify({ grant_type: 'client_credentials' });
+
+  const options = {
+    hostname: getCobrancaApiUrl(config.sandbox),
+    port: 443,
+    path: '/oauth/token',
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(postData),
+    },
+    // SEM certificado para API de Cobranças
+  };
+
+  const response = await httpsRequestNoCert(options, postData);
+
+  if (response.data?.access_token) {
+    cobrancaTokenCache.token = response.data.access_token;
+    cobrancaTokenCache.expiry = Date.now() + (response.data.expires_in * 1000) - 60000;
+    console.log('[EFI Cobranca] Token obtido com sucesso');
+    return cobrancaTokenCache.token;
+  }
+
+  console.error('[EFI Cobranca] Auth failed:', response);
+  throw new Error(response.data?.error_description || 'Falha na autenticação EfiBank Cobranças');
+};
+
+// ========================================
+// REQUISIÇÕES API
+// ========================================
+
+// Requisição PIX (com certificado mTLS)
+const makePixRequest = async (config, method, endpoint, data = null) => {
+  const token = await getPixAccessToken(config);
   const certBuffer = Buffer.from(config.certificate, 'base64');
   const postData = data ? JSON.stringify(data) : null;
 
   const options = {
-    hostname,
+    hostname: getPixApiUrl(config.sandbox),
     port: 443,
     path: endpoint,
     method,
@@ -128,7 +209,39 @@ const makeRequest = async (config, method, endpoint, data = null, isPix = true) 
     options.headers['Content-Length'] = Buffer.byteLength(postData);
   }
 
-  const response = await httpsRequest(options, postData);
+  console.log(`[EFI PIX] ${method} ${endpoint}`);
+  const response = await httpsRequestWithCert(options, postData);
+  
+  return { 
+    success: response.status >= 200 && response.status < 300, 
+    status: response.status, 
+    data: response.data 
+  };
+};
+
+// Requisição Cobranças (SEM certificado)
+const makeCobrancaRequest = async (config, method, endpoint, data = null) => {
+  const token = await getCobrancaAccessToken(config);
+  const postData = data ? JSON.stringify(data) : null;
+
+  const options = {
+    hostname: getCobrancaApiUrl(config.sandbox),
+    port: 443,
+    path: endpoint,
+    method,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    // SEM certificado para API de Cobranças
+  };
+
+  if (postData) {
+    options.headers['Content-Length'] = Buffer.byteLength(postData);
+  }
+
+  console.log(`[EFI Cobranca] ${method} ${endpoint}`);
+  const response = await httpsRequestNoCert(options, postData);
   
   return { 
     success: response.status >= 200 && response.status < 300, 
@@ -222,6 +335,7 @@ export default async function handler(req, res) {
     // ========== PIX ==========
     if (billingType === 'PIX') {
       const txid = generateTxId();
+      console.log('[PIX] Criando cobrança PIX com txid:', txid);
 
       const pixData = {
         calendario: { expiracao: 3600 },
@@ -234,24 +348,39 @@ export default async function handler(req, res) {
         solicitacaoPagador: description,
       };
 
-      const result = await makeRequest(config, 'PUT', `/v2/cob/${txid}`, pixData, true);
+      console.log('[PIX] Dados da cobrança:', JSON.stringify(pixData));
+      const result = await makePixRequest(config, 'PUT', `/v2/cob/${txid}`, pixData);
 
       if (!result.success) {
+        console.error('[PIX] Erro ao criar cobrança:', result.data);
         return res.status(200).json({
           success: false,
-          message: result.data?.mensagem || 'Erro ao criar cobrança PIX',
+          message: result.data?.mensagem || result.data?.message || 'Erro ao criar cobrança PIX',
+          debug: result.data,
         });
       }
+
+      console.log('[PIX] Cobrança criada:', result.data);
 
       // Buscar QR Code
       let qrCode = null;
       if (result.data.loc?.id) {
-        const qrResult = await makeRequest(config, 'GET', `/v2/loc/${result.data.loc.id}/qrcode`, null, true);
-        if (qrResult.success) qrCode = qrResult.data;
+        console.log('[PIX] Buscando QR Code, location:', result.data.loc.id);
+        const qrResult = await makePixRequest(config, 'GET', `/v2/loc/${result.data.loc.id}/qrcode`, null);
+        if (qrResult.success) {
+          qrCode = qrResult.data;
+          console.log('[PIX] QR Code obtido com sucesso');
+        } else {
+          console.error('[PIX] Erro ao obter QR Code:', qrResult.data);
+        }
       }
 
+      // O QR Code da EfiBank vem como base64 puro (sem prefixo data:image)
+      const pixCopyPaste = result.data.pixCopiaECola || qrCode?.qrcode || '';
+      const pixQrCodeBase64 = qrCode?.imagemQrcode || '';
+
       // Salvar no banco
-      const { data: savedPayment } = await supabase
+      const { data: savedPayment, error: saveError } = await supabase
         .from('payments')
         .insert({
           user_id: link.user_id,
@@ -261,8 +390,8 @@ export default async function handler(req, res) {
           description: description,
           due_date: new Date().toISOString().split('T')[0],
           efi_txid: txid,
-          pix_qrcode: qrCode?.imagemQrcode,
-          pix_copy_paste: result.data.pixCopiaECola || qrCode?.qrcode,
+          pix_qrcode: pixQrCodeBase64,
+          pix_copy_paste: pixCopyPaste,
           metadata: {
             link_id: linkId,
             customer: { name: customerName, email: customerEmail, cpf: customerCpfCnpj, phone: customerPhone },
@@ -271,6 +400,10 @@ export default async function handler(req, res) {
         })
         .select()
         .single();
+
+      if (saveError) {
+        console.error('[PIX] Erro ao salvar pagamento:', saveError);
+      }
 
       // Incrementar contador do link
       await supabase
@@ -282,141 +415,228 @@ export default async function handler(req, res) {
         id: savedPayment?.id,
         txid: txid,
         status: 'PENDING',
-        pixCode: result.data.pixCopiaECola || qrCode?.qrcode,
-        pixQrCode: qrCode?.imagemQrcode,
+        pixCode: pixCopyPaste,
+        pixQrCode: pixQrCodeBase64,
       };
+      
+      console.log('[PIX] Pagamento processado com sucesso');
     }
 
     // ========== CARTÃO ==========
     else if (billingType === 'CREDIT_CARD') {
-      if (!cardPaymentToken) {
-        return res.status(200).json({ success: false, message: 'Token do cartão é obrigatório' });
-      }
-
+      console.log('[CARTAO] Iniciando pagamento com cartão...');
+      
+      // Para pagamentos com cartão na EfiBank, precisamos usar a tokenização
+      // Porém, como não temos SDK no frontend, vamos criar a cobrança e gerar um link de pagamento
+      
       // Criar cobrança
       const chargeData = {
         items: [{
           name: description,
-          value: Math.round(value * 100),
+          value: Math.round(value * 100), // Valor em centavos
           amount: 1,
         }],
       };
 
-      const chargeResult = await makeRequest(config, 'POST', '/v1/charge', chargeData, false);
+      console.log('[CARTAO] Criando cobrança:', JSON.stringify(chargeData));
+      const chargeResult = await makeCobrancaRequest(config, 'POST', '/v1/charge', chargeData);
 
       if (!chargeResult.success || !chargeResult.data?.data?.charge_id) {
+        console.error('[CARTAO] Erro ao criar cobrança:', chargeResult.data);
         return res.status(200).json({
           success: false,
-          message: chargeResult.data?.message || 'Erro ao criar cobrança',
+          message: chargeResult.data?.message || chargeResult.data?.error_description || 'Erro ao criar cobrança',
+          debug: chargeResult.data,
         });
       }
 
       const chargeId = chargeResult.data.data.charge_id;
+      console.log('[CARTAO] Cobrança criada:', chargeId);
 
-      // Pagar com cartão
-      const payData = {
-        payment: {
-          credit_card: {
-            installments: cardInstallments || 1,
-            payment_token: cardPaymentToken,
-            billing_address: billingAddress || {
-              street: 'Não informado',
-              number: '0',
-              neighborhood: 'Não informado',
-              zipcode: '00000000',
-              city: 'Não informado',
-              state: 'SP',
-            },
-            customer: {
-              name: customerName,
-              email: customerEmail,
-              cpf: customerCpfCnpj?.replace(/\D/g, ''),
-              birth: '1990-01-01',
-              phone_number: customerPhone?.replace(/\D/g, ''),
+      // Se temos token do cartão, pagar diretamente
+      if (cardPaymentToken) {
+        const payData = {
+          payment: {
+            credit_card: {
+              installments: cardInstallments || 1,
+              payment_token: cardPaymentToken,
+              billing_address: billingAddress || {
+                street: 'Não informado',
+                number: '0',
+                neighborhood: 'Não informado',
+                zipcode: '00000000',
+                city: 'Não informado',
+                state: 'SP',
+              },
+              customer: {
+                name: customerName,
+                email: customerEmail,
+                cpf: customerCpfCnpj?.replace(/\D/g, ''),
+                birth: '1990-01-01',
+                phone_number: customerPhone?.replace(/\D/g, ''),
+              },
             },
           },
-        },
-      };
+        };
 
-      const payResult = await makeRequest(config, 'POST', `/v1/charge/${chargeId}/pay`, payData, false);
+        console.log('[CARTAO] Processando pagamento com token...');
+        const payResult = await makeCobrancaRequest(config, 'POST', `/v1/charge/${chargeId}/pay`, payData);
 
-      const status = payResult.data?.data?.status === 'approved' ? 'RECEIVED' : 'PENDING';
-
-      // Salvar no banco
-      const { data: savedPayment } = await supabase
-        .from('payments')
-        .insert({
-          user_id: link.user_id,
-          billing_type: 'CREDIT_CARD',
-          value: value,
-          status: status,
-          description: description,
-          due_date: new Date().toISOString().split('T')[0],
-          payment_date: status === 'RECEIVED' ? new Date().toISOString() : null,
-          efi_charge_id: chargeId,
-          metadata: {
-            link_id: linkId,
-            customer: { name: customerName, email: customerEmail, cpf: customerCpfCnpj, phone: customerPhone },
-            installments: cardInstallments || 1,
-          },
-        })
-        .select()
-        .single();
-
-      // Atualizar link e saldo se aprovado
-      await supabase
-        .from('payment_links')
-        .update({
-          payments_count: (link.payments_count || 0) + 1,
-          total_received: status === 'RECEIVED' ? (link.total_received || 0) + value : link.total_received,
-        })
-        .eq('id', linkId);
-
-      if (status === 'RECEIVED') {
-        const { data: user } = await supabase.from('users').select('balance').eq('id', link.user_id).single();
-        if (user) {
-          await supabase.from('users').update({ balance: (user.balance || 0) + value }).eq('id', link.user_id);
-          await supabase.from('transactions').insert({
-            user_id: link.user_id,
-            type: 'payment_received',
-            amount: value,
-            status: 'completed',
-            description: `Venda com cartão - ${description}`,
+        if (!payResult.success) {
+          console.error('[CARTAO] Erro ao processar pagamento:', payResult.data);
+          return res.status(200).json({
+            success: false,
+            message: payResult.data?.message || payResult.data?.error_description || 'Erro ao processar pagamento com cartão',
+            debug: payResult.data,
           });
         }
-      }
 
-      payment = {
-        id: savedPayment?.id,
-        chargeId: chargeId,
-        status: status,
-        installments: cardInstallments || 1,
-      };
+        const status = payResult.data?.data?.status === 'approved' ? 'RECEIVED' : 'PENDING';
+        console.log('[CARTAO] Status do pagamento:', status);
+
+        // Salvar no banco
+        const { data: savedPayment } = await supabase
+          .from('payments')
+          .insert({
+            user_id: link.user_id,
+            billing_type: 'CREDIT_CARD',
+            value: value,
+            status: status,
+            description: description,
+            due_date: new Date().toISOString().split('T')[0],
+            payment_date: status === 'RECEIVED' ? new Date().toISOString() : null,
+            efi_charge_id: chargeId.toString(),
+            metadata: {
+              link_id: linkId,
+              customer: { name: customerName, email: customerEmail, cpf: customerCpfCnpj, phone: customerPhone },
+              installments: cardInstallments || 1,
+            },
+          })
+          .select()
+          .single();
+
+        // Atualizar link e saldo se aprovado
+        await supabase
+          .from('payment_links')
+          .update({
+            payments_count: (link.payments_count || 0) + 1,
+            total_received: status === 'RECEIVED' ? (link.total_received || 0) + value : link.total_received,
+          })
+          .eq('id', linkId);
+
+        if (status === 'RECEIVED') {
+          const { data: user } = await supabase.from('users').select('balance').eq('id', link.user_id).single();
+          if (user) {
+            await supabase.from('users').update({ balance: (user.balance || 0) + value }).eq('id', link.user_id);
+            await supabase.from('transactions').insert({
+              user_id: link.user_id,
+              type: 'payment_received',
+              amount: value,
+              status: 'completed',
+              description: `Venda com cartão - ${description}`,
+            });
+          }
+        }
+
+        payment = {
+          id: savedPayment?.id,
+          chargeId: chargeId,
+          status: status,
+          installments: cardInstallments || 1,
+        };
+      } else {
+        // Sem token, gerar link de pagamento
+        console.log('[CARTAO] Gerando link de pagamento...');
+        const linkData = {
+          billet_discount: 0,
+          card_discount: 0,
+          message: description,
+          expire_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          request_delivery_address: false,
+          payment_method: 'credit_card',
+        };
+
+        const linkResult = await makeCobrancaRequest(config, 'POST', `/v1/charge/${chargeId}/link`, linkData);
+        
+        if (!linkResult.success) {
+          console.error('[CARTAO] Erro ao gerar link:', linkResult.data);
+          return res.status(200).json({
+            success: false,
+            message: 'Erro ao gerar link de pagamento. Tente novamente.',
+            debug: linkResult.data,
+          });
+        }
+
+        const paymentUrl = linkResult.data?.data?.payment_url;
+        console.log('[CARTAO] Link gerado:', paymentUrl);
+
+        // Salvar no banco
+        const { data: savedPayment } = await supabase
+          .from('payments')
+          .insert({
+            user_id: link.user_id,
+            billing_type: 'CREDIT_CARD',
+            value: value,
+            status: 'PENDING',
+            description: description,
+            due_date: new Date().toISOString().split('T')[0],
+            efi_charge_id: chargeId.toString(),
+            invoice_url: paymentUrl,
+            metadata: {
+              link_id: linkId,
+              customer: { name: customerName, email: customerEmail, cpf: customerCpfCnpj, phone: customerPhone },
+              installments: cardInstallments || 1,
+              payment_url: paymentUrl,
+            },
+          })
+          .select()
+          .single();
+
+        await supabase
+          .from('payment_links')
+          .update({ payments_count: (link.payments_count || 0) + 1 })
+          .eq('id', linkId);
+
+        payment = {
+          id: savedPayment?.id,
+          chargeId: chargeId,
+          status: 'PENDING',
+          paymentUrl: paymentUrl,
+          installments: cardInstallments || 1,
+        };
+      }
+      
+      console.log('[CARTAO] Processo finalizado');
     }
 
     // ========== BOLETO ==========
     else if (billingType === 'BOLETO') {
+      console.log('[BOLETO] Iniciando geração de boleto...');
       const expireAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
       // Criar cobrança
       const chargeData = {
         items: [{
           name: description,
-          value: Math.round(value * 100),
+          value: Math.round(value * 100), // Valor em centavos
           amount: 1,
         }],
       };
 
-      const chargeResult = await makeRequest(config, 'POST', '/v1/charge', chargeData, false);
+      console.log('[BOLETO] Criando cobrança:', JSON.stringify(chargeData));
+      const chargeResult = await makeCobrancaRequest(config, 'POST', '/v1/charge', chargeData);
 
       if (!chargeResult.success || !chargeResult.data?.data?.charge_id) {
+        console.error('[BOLETO] Erro ao criar cobrança:', chargeResult.data);
         return res.status(200).json({
           success: false,
-          message: chargeResult.data?.message || 'Erro ao criar cobrança',
+          message: chargeResult.data?.message || chargeResult.data?.error_description || 'Erro ao criar cobrança',
+          debug: chargeResult.data,
         });
       }
 
       const chargeId = chargeResult.data.data.charge_id;
+      console.log('[BOLETO] Cobrança criada:', chargeId);
 
       // Gerar boleto
       const boletoData = {
@@ -434,19 +654,23 @@ export default async function handler(req, res) {
         },
       };
 
-      const payResult = await makeRequest(config, 'POST', `/v1/charge/${chargeId}/pay`, boletoData, false);
+      console.log('[BOLETO] Gerando boleto...');
+      const payResult = await makeCobrancaRequest(config, 'POST', `/v1/charge/${chargeId}/pay`, boletoData);
 
       if (!payResult.success) {
+        console.error('[BOLETO] Erro ao gerar boleto:', payResult.data);
         return res.status(200).json({
           success: false,
-          message: payResult.data?.message || 'Erro ao gerar boleto',
+          message: payResult.data?.message || payResult.data?.error_description || 'Erro ao gerar boleto',
+          debug: payResult.data,
         });
       }
 
       const boletoInfo = payResult.data?.data?.payment?.banking_billet;
+      console.log('[BOLETO] Boleto gerado:', boletoInfo);
 
       // Salvar no banco
-      const { data: savedPayment } = await supabase
+      const { data: savedPayment, error: saveError } = await supabase
         .from('payments')
         .insert({
           user_id: link.user_id,
@@ -455,7 +679,7 @@ export default async function handler(req, res) {
           status: 'PENDING',
           description: description,
           due_date: expireAt,
-          efi_charge_id: chargeId,
+          efi_charge_id: chargeId.toString(),
           bank_slip_url: boletoInfo?.link,
           metadata: {
             link_id: linkId,
@@ -466,6 +690,10 @@ export default async function handler(req, res) {
         })
         .select()
         .single();
+
+      if (saveError) {
+        console.error('[BOLETO] Erro ao salvar:', saveError);
+      }
 
       await supabase
         .from('payment_links')
@@ -481,6 +709,8 @@ export default async function handler(req, res) {
         boletoPdf: boletoInfo?.pdf?.charge,
         expireAt: expireAt,
       };
+      
+      console.log('[BOLETO] Processo finalizado');
     }
 
     else {

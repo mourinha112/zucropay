@@ -18,28 +18,31 @@ const getEfiConfig = () => {
 };
 
 // URLs da API EfiBank (apenas hostname, sem https://)
-const getApiUrl = (sandbox) => {
+// PIX usa mTLS (com certificado)
+const getPixApiUrl = (sandbox) => {
   return sandbox 
     ? 'pix-h.api.efipay.com.br' // Homologação
     : 'pix.api.efipay.com.br';  // Produção
 };
 
-const getCobrancaUrl = (sandbox) => {
+// Cobranças (cartão/boleto) NÃO usa certificado - apenas Basic Auth
+const getCobrancaApiUrl = (sandbox) => {
   return sandbox
     ? 'cobrancas-h.api.efipay.com.br' // Homologação
     : 'cobrancas.api.efipay.com.br';  // Produção
 };
 
 // ========================================
-// REQUISIÇÃO HTTPS COM CERTIFICADO (mTLS)
+// REQUISIÇÃO HTTPS COM CERTIFICADO (mTLS) - Para PIX
 // ========================================
 
-const httpsRequest = (options, postData = null) => {
+const httpsRequestWithCert = (options, postData = null) => {
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
+        console.log(`[EFI mTLS] Response ${res.statusCode}:`, data.substring(0, 300));
         try {
           resolve({ status: res.statusCode, data: JSON.parse(data) });
         } catch {
@@ -49,7 +52,7 @@ const httpsRequest = (options, postData = null) => {
     });
 
     req.on('error', (error) => {
-      console.error('HTTPS Request Error:', error);
+      console.error('[EFI mTLS] Request Error:', error);
       reject(error);
     });
 
@@ -61,24 +64,55 @@ const httpsRequest = (options, postData = null) => {
 };
 
 // ========================================
-// AUTENTICAÇÃO OAUTH2
+// REQUISIÇÃO HTTPS SEM CERTIFICADO - Para Cobranças (Cartão/Boleto)
 // ========================================
 
-let accessToken = null;
-let tokenExpiry = null;
+const httpsRequestNoCert = (options, postData = null) => {
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        console.log(`[EFI Cobranca] Response ${res.statusCode}:`, data.substring(0, 300));
+        try {
+          resolve({ status: res.statusCode, data: JSON.parse(data) });
+        } catch {
+          resolve({ status: res.statusCode, data: { raw: data } });
+        }
+      });
+    });
 
-const getAccessToken = async (config) => {
-  // Verificar se token ainda é válido
-  if (accessToken && tokenExpiry && Date.now() < tokenExpiry) {
-    return accessToken;
+    req.on('error', (error) => {
+      console.error('[EFI Cobranca] Request Error:', error);
+      reject(error);
+    });
+
+    if (postData) {
+      req.write(postData);
+    }
+    req.end();
+  });
+};
+
+// ========================================
+// AUTENTICAÇÃO - PIX (com certificado mTLS)
+// ========================================
+
+let pixAccessToken = null;
+let pixTokenExpiry = null;
+
+const getPixAccessToken = async (config) => {
+  if (pixAccessToken && pixTokenExpiry && Date.now() < pixTokenExpiry) {
+    return pixAccessToken;
   }
 
+  console.log('[EFI PIX] Obtendo novo token...');
   const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
   const certBuffer = Buffer.from(config.certificate, 'base64');
   const postData = JSON.stringify({ grant_type: 'client_credentials' });
 
   const options = {
-    hostname: getApiUrl(config.sandbox),
+    hostname: getPixApiUrl(config.sandbox),
     port: 443,
     path: '/oauth/token',
     method: 'POST',
@@ -91,30 +125,73 @@ const getAccessToken = async (config) => {
     passphrase: '',
   };
 
-  const response = await httpsRequest(options, postData);
+  const response = await httpsRequestWithCert(options, postData);
 
   if (response.data?.access_token) {
-    accessToken = response.data.access_token;
-    tokenExpiry = Date.now() + (response.data.expires_in * 1000) - 60000;
-    return accessToken;
+    pixAccessToken = response.data.access_token;
+    pixTokenExpiry = Date.now() + (response.data.expires_in * 1000) - 60000;
+    console.log('[EFI PIX] Token obtido com sucesso');
+    return pixAccessToken;
   }
 
-  console.error('Auth failed:', response);
-  throw new Error(response.data?.error_description || 'Falha ao obter token de acesso EfiBank');
+  console.error('[EFI PIX] Auth failed:', response);
+  throw new Error(response.data?.error_description || 'Falha ao obter token de acesso EfiBank PIX');
 };
 
 // ========================================
-// FUNÇÕES AUXILIARES
+// AUTENTICAÇÃO - Cobranças (SEM certificado)
 // ========================================
 
-const makeEfiRequest = async (config, method, endpoint, data = null, usePixApi = true) => {
-  const token = await getAccessToken(config);
-  const hostname = usePixApi ? getApiUrl(config.sandbox) : getCobrancaUrl(config.sandbox);
+let cobrancaAccessToken = null;
+let cobrancaTokenExpiry = null;
+
+const getCobrancaAccessToken = async (config) => {
+  if (cobrancaAccessToken && cobrancaTokenExpiry && Date.now() < cobrancaTokenExpiry) {
+    return cobrancaAccessToken;
+  }
+
+  console.log('[EFI Cobranca] Obtendo novo token...');
+  const auth = Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64');
+  const postData = JSON.stringify({ grant_type: 'client_credentials' });
+
+  const options = {
+    hostname: getCobrancaApiUrl(config.sandbox),
+    port: 443,
+    path: '/oauth/token',
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(postData),
+    },
+    // SEM certificado para API de Cobranças
+  };
+
+  const response = await httpsRequestNoCert(options, postData);
+
+  if (response.data?.access_token) {
+    cobrancaAccessToken = response.data.access_token;
+    cobrancaTokenExpiry = Date.now() + (response.data.expires_in * 1000) - 60000;
+    console.log('[EFI Cobranca] Token obtido com sucesso');
+    return cobrancaAccessToken;
+  }
+
+  console.error('[EFI Cobranca] Auth failed:', response);
+  throw new Error(response.data?.error_description || 'Falha ao obter token de acesso EfiBank Cobranças');
+};
+
+// ========================================
+// REQUISIÇÕES API
+// ========================================
+
+// Requisição PIX (com certificado mTLS)
+const makePixRequest = async (config, method, endpoint, data = null) => {
+  const token = await getPixAccessToken(config);
   const certBuffer = Buffer.from(config.certificate, 'base64');
   const postData = data ? JSON.stringify(data) : null;
 
   const options = {
-    hostname,
+    hostname: getPixApiUrl(config.sandbox),
     port: 443,
     path: endpoint,
     method,
@@ -130,7 +207,39 @@ const makeEfiRequest = async (config, method, endpoint, data = null, usePixApi =
     options.headers['Content-Length'] = Buffer.byteLength(postData);
   }
 
-  const response = await httpsRequest(options, postData);
+  console.log(`[EFI PIX] ${method} ${endpoint}`);
+  const response = await httpsRequestWithCert(options, postData);
+
+  return {
+    success: response.status >= 200 && response.status < 300,
+    status: response.status,
+    data: response.data,
+  };
+};
+
+// Requisição Cobranças (SEM certificado)
+const makeCobrancaRequest = async (config, method, endpoint, data = null) => {
+  const token = await getCobrancaAccessToken(config);
+  const postData = data ? JSON.stringify(data) : null;
+
+  const options = {
+    hostname: getCobrancaApiUrl(config.sandbox),
+    port: 443,
+    path: endpoint,
+    method,
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    // SEM certificado para API de Cobranças
+  };
+
+  if (postData) {
+    options.headers['Content-Length'] = Buffer.byteLength(postData);
+  }
+
+  console.log(`[EFI Cobranca] ${method} ${endpoint}`);
+  const response = await httpsRequestNoCert(options, postData);
 
   return {
     success: response.status >= 200 && response.status < 300,
@@ -250,6 +359,7 @@ async function createPixCharge(config, params, res) {
     }
 
     const txid = generateTxId();
+    console.log('[PIX] Criando cobrança com txid:', txid);
 
     // Criar cobrança PIX imediata
     const chargeData = {
@@ -267,9 +377,10 @@ async function createPixCharge(config, params, res) {
       solicitacaoPagador: description || 'Pagamento ZucroPay',
     };
 
-    const result = await makeEfiRequest(config, 'PUT', `/v2/cob/${txid}`, chargeData, true);
+    const result = await makePixRequest(config, 'PUT', `/v2/cob/${txid}`, chargeData);
 
     if (!result.success) {
+      console.error('[PIX] Erro ao criar cobrança:', result.data);
       return res.status(200).json({
         success: false,
         message: result.data?.mensagem || 'Erro ao criar cobrança PIX',
@@ -277,14 +388,18 @@ async function createPixCharge(config, params, res) {
       });
     }
 
+    console.log('[PIX] Cobrança criada com sucesso');
+
     // Buscar QR Code
     const locationId = result.data.loc?.id;
     let qrCode = null;
 
     if (locationId) {
-      const qrResult = await makeEfiRequest(config, 'GET', `/v2/loc/${locationId}/qrcode`, null, true);
+      console.log('[PIX] Buscando QR Code, location:', locationId);
+      const qrResult = await makePixRequest(config, 'GET', `/v2/loc/${locationId}/qrcode`, null);
       if (qrResult.success) {
         qrCode = qrResult.data;
+        console.log('[PIX] QR Code obtido');
       }
     }
 
@@ -315,7 +430,7 @@ async function getPixCharge(config, txid, res) {
       return res.status(400).json({ success: false, message: 'txid é obrigatório' });
     }
 
-    const result = await makeEfiRequest(config, 'GET', `/v2/cob/${txid}`, null, true);
+    const result = await makePixRequest(config, 'GET', `/v2/cob/${txid}`, null);
 
     if (!result.success) {
       return res.status(200).json({
@@ -348,7 +463,7 @@ async function getPixQrCode(config, locationId, res) {
       return res.status(400).json({ success: false, message: 'locationId é obrigatório' });
     }
 
-    const result = await makeEfiRequest(config, 'GET', `/v2/loc/${locationId}/qrcode`, null, true);
+    const result = await makePixRequest(config, 'GET', `/v2/loc/${locationId}/qrcode`, null);
 
     if (!result.success) {
       return res.status(200).json({
@@ -394,7 +509,9 @@ async function createCardCharge(config, params, res) {
       return res.status(400).json({ success: false, message: 'Dados do cliente e cartão são obrigatórios' });
     }
 
-    // 1. Criar transação (charge)
+    console.log('[CARTAO] Criando cobrança...');
+
+    // 1. Criar transação (charge) - SEM certificado
     const chargeData = {
       items: [{
         name: description || 'Pagamento ZucroPay',
@@ -403,17 +520,19 @@ async function createCardCharge(config, params, res) {
       }],
     };
 
-    const chargeResult = await makeEfiRequest(config, 'POST', '/v1/charge', chargeData, false);
+    const chargeResult = await makeCobrancaRequest(config, 'POST', '/v1/charge', chargeData);
 
     if (!chargeResult.success || !chargeResult.data?.data?.charge_id) {
+      console.error('[CARTAO] Erro ao criar cobrança:', chargeResult.data);
       return res.status(200).json({
         success: false,
-        message: chargeResult.data?.message || 'Erro ao criar cobrança',
+        message: chargeResult.data?.message || chargeResult.data?.error_description || 'Erro ao criar cobrança',
         error: chargeResult.data,
       });
     }
 
     const chargeId = chargeResult.data.data.charge_id;
+    console.log('[CARTAO] Cobrança criada:', chargeId);
 
     // 2. Pagar com cartão
     const paymentData = {
@@ -440,15 +559,19 @@ async function createCardCharge(config, params, res) {
       },
     };
 
-    const payResult = await makeEfiRequest(config, 'POST', `/v1/charge/${chargeId}/pay`, paymentData, false);
+    console.log('[CARTAO] Processando pagamento...');
+    const payResult = await makeCobrancaRequest(config, 'POST', `/v1/charge/${chargeId}/pay`, paymentData);
 
     if (!payResult.success) {
+      console.error('[CARTAO] Erro ao processar:', payResult.data);
       return res.status(200).json({
         success: false,
-        message: payResult.data?.message || 'Erro ao processar pagamento com cartão',
+        message: payResult.data?.message || payResult.data?.error_description || 'Erro ao processar pagamento com cartão',
         error: payResult.data,
       });
     }
+
+    console.log('[CARTAO] Pagamento processado:', payResult.data?.data?.status);
 
     return res.status(200).json({
       success: true,
@@ -474,7 +597,7 @@ async function getCardCharge(config, chargeId, res) {
       return res.status(400).json({ success: false, message: 'chargeId é obrigatório' });
     }
 
-    const result = await makeEfiRequest(config, 'GET', `/v1/charge/${chargeId}`, null, false);
+    const result = await makeCobrancaRequest(config, 'GET', `/v1/charge/${chargeId}`, null);
 
     if (!result.success) {
       return res.status(200).json({
@@ -516,10 +639,12 @@ async function createBoletoCharge(config, params, res) {
       return res.status(400).json({ success: false, message: 'Dados do cliente são obrigatórios' });
     }
 
+    console.log('[BOLETO] Criando cobrança...');
+
     // Data de vencimento padrão: 3 dias
     const expireAt = dueDate || new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-    // 1. Criar transação
+    // 1. Criar transação - SEM certificado
     const chargeData = {
       items: [{
         name: description || 'Pagamento ZucroPay',
@@ -528,17 +653,19 @@ async function createBoletoCharge(config, params, res) {
       }],
     };
 
-    const chargeResult = await makeEfiRequest(config, 'POST', '/v1/charge', chargeData, false);
+    const chargeResult = await makeCobrancaRequest(config, 'POST', '/v1/charge', chargeData);
 
     if (!chargeResult.success || !chargeResult.data?.data?.charge_id) {
+      console.error('[BOLETO] Erro ao criar cobrança:', chargeResult.data);
       return res.status(200).json({
         success: false,
-        message: chargeResult.data?.message || 'Erro ao criar cobrança',
+        message: chargeResult.data?.message || chargeResult.data?.error_description || 'Erro ao criar cobrança',
         error: chargeResult.data,
       });
     }
 
     const chargeId = chargeResult.data.data.charge_id;
+    console.log('[BOLETO] Cobrança criada:', chargeId);
 
     // 2. Gerar boleto
     const boletoData = {
@@ -556,17 +683,20 @@ async function createBoletoCharge(config, params, res) {
       },
     };
 
-    const payResult = await makeEfiRequest(config, 'POST', `/v1/charge/${chargeId}/pay`, boletoData, false);
+    console.log('[BOLETO] Gerando boleto...');
+    const payResult = await makeCobrancaRequest(config, 'POST', `/v1/charge/${chargeId}/pay`, boletoData);
 
     if (!payResult.success) {
+      console.error('[BOLETO] Erro ao gerar:', payResult.data);
       return res.status(200).json({
         success: false,
-        message: payResult.data?.message || 'Erro ao gerar boleto',
+        message: payResult.data?.message || payResult.data?.error_description || 'Erro ao gerar boleto',
         error: payResult.data,
       });
     }
 
     const boletoInfo = payResult.data?.data?.payment?.banking_billet;
+    console.log('[BOLETO] Boleto gerado com sucesso');
 
     return res.status(200).json({
       success: true,
@@ -593,7 +723,7 @@ async function getBoletoCharge(config, chargeId, res) {
       return res.status(400).json({ success: false, message: 'chargeId é obrigatório' });
     }
 
-    const result = await makeEfiRequest(config, 'GET', `/v1/charge/${chargeId}`, null, false);
+    const result = await makeCobrancaRequest(config, 'GET', `/v1/charge/${chargeId}`, null);
 
     if (!result.success) {
       return res.status(200).json({
@@ -625,9 +755,12 @@ async function getPaymentStatus(config, params, res) {
       return res.status(400).json({ success: false, message: 'paymentType e paymentId são obrigatórios' });
     }
 
+    console.log(`[STATUS] Verificando pagamento ${paymentType}:`, paymentId);
+
     if (paymentType === 'PIX') {
       return await getPixCharge(config, paymentId, res);
     } else {
+      // Cartão e Boleto usam a mesma API de cobranças
       return await getCardCharge(config, paymentId, res);
     }
 

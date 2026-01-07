@@ -625,9 +625,13 @@ const CheckoutPublicoHubla: React.FC = () => {
                 <Box sx={{ mb: 3 }}>
                   <Box
                     component="img"
-                    src={`data:image/png;base64,${pixQrCode}`}
+                    src={pixQrCode.startsWith('data:') ? pixQrCode : `data:image/png;base64,${pixQrCode}`}
                     alt="QR Code PIX"
-                    sx={{ width: 250, height: 250, mx: 'auto' }}
+                    sx={{ width: 250, height: 250, mx: 'auto', bgcolor: 'white' }}
+                    onError={(e) => {
+                      console.error('Erro ao carregar QR Code');
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
                   />
                 </Box>
 

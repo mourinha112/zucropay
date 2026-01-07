@@ -274,12 +274,18 @@ const CheckoutPublicoHubla: React.FC = () => {
       if (response.success) {
         // PIX: capturar QR Code e código
         if (paymentMethod === 'PIX') {
-          if (response.payment?.pixCode && response.payment?.pixQrCode) {
+          if (response.payment?.pixCode) {
             setPixCode(response.payment.pixCode);
-            // EfiBank retorna QR Code em base64 já formatado
-            setPixQrCode(response.payment.pixQrCode);
+            // EfiBank retorna QR Code em base64 (pode ser com ou sem prefixo data:)
+            if (response.payment?.pixQrCode) {
+              setPixQrCode(response.payment.pixQrCode);
+            }
+            console.log('PIX gerado:', { 
+              pixCode: response.payment.pixCode?.substring(0, 50) + '...', 
+              hasQrCode: !!response.payment?.pixQrCode 
+            });
           } else {
-            setError('Erro ao gerar QR Code PIX. Tente novamente.');
+            setError('Erro ao gerar código PIX. Tente novamente.');
             return;
           }
         }
@@ -983,21 +989,27 @@ const CheckoutPublicoHubla: React.FC = () => {
                   Compra realizada via ZucroPay - Pagamentos Seguros
                 </Typography>
               </Paper>
-            ) : success && paymentMethod === 'PIX' && pixQrCode ? (
+            ) : success && paymentMethod === 'PIX' && (pixQrCode || pixCode) ? (
               /* Tela de QR Code PIX */
               <Paper elevation={0} sx={{ p: 4, borderRadius: 2, border: '1px solid #e5e7eb', textAlign: 'center' }}>
                 <Typography variant="h6" fontWeight={600} sx={{ mb: 3, color: '#1e293b' }}>
                   Pagamento via PIX
                 </Typography>
                 
-                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
-                  <Box
-                    component="img"
-                    src={`data:image/png;base64,${pixQrCode}`}
-                    alt="QR Code PIX"
-                    sx={{ width: 250, height: 250, border: '2px solid #e5e7eb', borderRadius: 2, p: 1 }}
-                  />
-                </Box>
+                {pixQrCode && (
+                  <Box sx={{ mb: 3, display: 'flex', justifyContent: 'center' }}>
+                    <Box
+                      component="img"
+                      src={pixQrCode.startsWith('data:') ? pixQrCode : `data:image/png;base64,${pixQrCode}`}
+                      alt="QR Code PIX"
+                      sx={{ width: 250, height: 250, border: '2px solid #e5e7eb', borderRadius: 2, p: 1, bgcolor: 'white' }}
+                      onError={(e) => {
+                        console.error('Erro ao carregar QR Code');
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </Box>
+                )}
 
                 <Button
                   fullWidth

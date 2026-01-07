@@ -270,7 +270,15 @@ const CheckoutPepper: React.FC = () => {
             
             {pixQrCode && (
               <Box sx={{ mb: 3 }}>
-                <img src={`data:image/png;base64,${pixQrCode}`} alt="QR Code PIX" style={{ maxWidth: 200 }} />
+                <img 
+                  src={pixQrCode.startsWith('data:') ? pixQrCode : `data:image/png;base64,${pixQrCode}`} 
+                  alt="QR Code PIX" 
+                  style={{ maxWidth: 200, backgroundColor: 'white' }}
+                  onError={(e) => {
+                    console.error('Erro ao carregar QR Code');
+                    (e.target as HTMLImageElement).style.display = 'none';
+                  }}
+                />
               </Box>
             )}
 

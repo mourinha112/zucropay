@@ -1156,32 +1156,18 @@ export const deletePaymentLink = async (id: string) => {
 // ========================================
 
 export const getPublicPaymentLink = async (linkId: string) => {
-  const { data, error } = await supabase
-    .from('payment_links')
-    .select(`
-      *,
-      product:products(*)
-    `)
-    .eq('id', linkId)
-    .eq('active', true)
-    .single();
-
-  if (error) throw new Error('Link de pagamento não encontrado');
-
-  // Mapear dados para o formato esperado pelo checkout
-  return {
-    id: data.id,
-    name: data.name,
-    description: data.description,
-    amount: data.amount,
-    value: data.amount,
-    billingType: data.billing_type,
-    productId: data.product_id,
-    productName: data.product?.name || data.name,
-    productDescription: data.product?.description || data.description,
-    productImage: data.product?.image_url,
-    productPrice: data.product?.price || data.amount,
-  };
+  // Usar API pública que bypassa RLS - não requer autenticação
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
+  
+  const response = await fetch(`${API_BASE_URL}/get-public-link?id=${encodeURIComponent(linkId)}`);
+  const result = await response.json();
+  
+  if (!result.success) {
+    throw new Error(result.error || 'Link de pagamento não encontrado');
+  }
+  
+  // Dados já vêm mapeados da API
+  return result.data;
 };
 
 export const createPublicPayment = async (data: {
