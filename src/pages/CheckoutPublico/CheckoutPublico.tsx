@@ -79,28 +79,27 @@ const CheckoutPublicoHubla: React.FC = () => {
   const [isNotBrazilian, setIsNotBrazilian] = useState(false);
   const [tokenizingCard, setTokenizingCard] = useState(false);
 
-  // Função para tokenizar cartão usando SDK da EfiBank
+  // Função para tokenizar cartão usando SDK da Gerencianet/EfiBank
   const tokenizeCard = async (): Promise<string | null> => {
     return new Promise((resolve) => {
       try {
         // Verificar se SDK está carregada
         // @ts-ignore
-        const EfiJs = window.EfiJs || window.$gn;
+        const $gn = window.$gn;
         
-        if (!EfiJs) {
-          console.error('[Tokenização] SDK EfiBank não encontrada. Verificando alternativas...');
-          // @ts-ignore
-          console.log('[Tokenização] window.EfiJs:', typeof window.EfiJs);
+        if (!$gn || !$gn.checkout) {
+          console.error('[Tokenização] SDK Gerencianet não encontrada');
           // @ts-ignore
           console.log('[Tokenização] window.$gn:', typeof window.$gn);
-          setError('SDK de pagamento não carregada. Recarregue a página.');
+          
+          // Fallback: processar sem token (vai gerar link de pagamento)
+          console.log('[Tokenização] Usando fallback sem token...');
           resolve(null);
           return;
         }
 
-        // Account ID da EfiBank (conta de produção)
+        // Account ID da EfiBank/Gerencianet (identificador da conta)
         const accountId = import.meta.env.VITE_EFI_ACCOUNT_ID || '820266';
-        const isSandbox = import.meta.env.VITE_EFI_SANDBOX === 'true';
 
         // Preparar dados do cartão
         const cardNumber = cardData.number.replace(/\s/g, '');
@@ -110,8 +109,7 @@ const CheckoutPublicoHubla: React.FC = () => {
         const brand = detectCardBrand(cardNumber);
 
         console.log('[Tokenização] Iniciando...', { 
-          accountId, 
-          isSandbox,
+          accountId,
           cardNumberLength: cardNumber.length,
           brand,
           expirationMonth,
@@ -122,49 +120,44 @@ const CheckoutPublicoHubla: React.FC = () => {
         // Validar dados antes de tokenizar
         if (cardNumber.length < 13 || cardNumber.length > 19) {
           console.error('[Tokenização] Número do cartão inválido');
-          setError('Número do cartão inválido');
+          setError('Número do cartão inválido. Verifique os números.');
           resolve(null);
           return;
         }
 
         if (cvv.length < 3) {
           console.error('[Tokenização] CVV inválido');
-          setError('CVV inválido');
+          setError('CVV inválido. Digite 3 ou 4 números.');
           resolve(null);
           return;
         }
 
-        // Usar a SDK
+        // Configurar a SDK da Gerencianet
         // @ts-ignore
-        EfiJs.CreditCard
-          .setAccount(accountId)
-          .setEnvironment(isSandbox ? 'sandbox' : 'production')
-          .setCreditCardData({
+        $gn.checkout.getPaymentToken({
+          account_id: accountId,
+          environment: 'production', // ou 'sandbox' para testes
+          credit_card: {
+            customer_name: cardData.name,
             brand: brand,
             number: cardNumber,
             cvv: cvv,
-            expirationMonth: expirationMonth,
-            expirationYear: expirationYear,
-            reuse: false,
-          })
-          .getPaymentToken()
-          .then((result: any) => {
-            console.log('[Tokenização] Resultado:', result);
-            if (result && result.payment_token) {
-              console.log('[Tokenização] ✅ Sucesso! Token:', result.payment_token.substring(0, 20) + '...');
-              resolve(result.payment_token);
-            } else {
-              console.error('[Tokenização] Token não retornado:', result);
-              resolve(null);
-            }
-          })
-          .catch((error: any) => {
+            expiration_month: expirationMonth,
+            expiration_year: expirationYear,
+          }
+        }, (error: any, response: any) => {
+          if (error) {
             console.error('[Tokenização] ❌ Erro:', error);
-            if (error.error_description) {
-              setError(`Erro no cartão: ${error.error_description}`);
-            }
+            // Usar fallback
             resolve(null);
-          });
+          } else if (response && response.data && response.data.payment_token) {
+            console.log('[Tokenização] ✅ Sucesso!');
+            resolve(response.data.payment_token);
+          } else {
+            console.error('[Tokenização] Resposta inválida:', response);
+            resolve(null);
+          }
+        });
 
       } catch (error) {
         console.error('[Tokenização] ❌ Exceção:', error);
@@ -440,19 +433,19 @@ const CheckoutPublicoHubla: React.FC = () => {
     try {
       let cardPaymentToken: string | undefined;
 
-      // Para cartão, tokenizar primeiro
+      // Para cartão, tentar tokenizar primeiro
       if (paymentMethod === 'CREDIT_CARD') {
         setTokenizingCard(true);
         const token = await tokenizeCard();
         setTokenizingCard(false);
 
-        if (!token) {
-          setError('Erro ao processar dados do cartão. Verifique os dados e tente novamente.');
-          setProcessing(false);
-          return;
+        if (token) {
+          cardPaymentToken = token;
+          console.log('[Checkout] Token obtido com sucesso');
+        } else {
+          // Sem token - vai usar link de pagamento como fallback
+          console.log('[Checkout] Tokenização não disponível, usando link de pagamento');
         }
-        cardPaymentToken = token;
-        console.log('[Checkout] Token obtido com sucesso');
       }
       
       const paymentData = {
