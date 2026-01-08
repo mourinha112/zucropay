@@ -14,22 +14,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
     <title>ZucroPay - Dashboard</title>
-    <!-- Gerencianet/EfiBank SDK para tokenização de cartão de crédito -->
-    <script type="text/javascript">
-      var s=document.createElement('script');
-      s.type='text/javascript';
-      var v=parseInt(Math.random()*1000000);
-      s.src='https://api.gerencianet.com.br/v1/cdn/'+v+'/checkout.min.js';
-      s.async=false;
-      s.id='gn-script-'+v;
-      if(!document.getElementById('gn-script-'+v)){
-        document.getElementsByTagName('head')[0].appendChild(s);
-      }
-      s.onload=function(){
-        console.log('[Gerencianet SDK] Carregada com sucesso');
-        console.log('[Gerencianet SDK] $gn disponível:', typeof window.$gn);
-      }
-    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -29,6 +29,7 @@ import {
   VisibilityOff,
 } from '@mui/icons-material';
 import * as api from '../../services/api-supabase';
+import EfiPay from 'payment-token-efi';
 
 const CheckoutPublicoHubla: React.FC = () => {
   const { linkId } = useParams<{ linkId: string }>();
@@ -79,97 +80,75 @@ const CheckoutPublicoHubla: React.FC = () => {
   const [isNotBrazilian, setIsNotBrazilian] = useState(false);
   const [tokenizing, setTokenizing] = useState(false);
 
-  // Tokenizar cartão usando SDK EfiBank/Gerencianet
-  const tokenizeCard = (): Promise<string | null> => {
-    return new Promise((resolve) => {
-      try {
-        // @ts-ignore - SDK carregada externamente
-        const $gn = window.$gn;
-        
-        console.log('[Tokenização] Verificando SDK...', { 
-          gnExists: !!$gn, 
-          gnCheckout: !!$gn?.checkout,
-          gnMethods: $gn ? Object.keys($gn) : []
-        });
-        
-        if (!$gn) {
-          console.error('[Tokenização] SDK $gn não carregada');
-          setError('SDK de pagamento não carregada. Recarregue a página.');
-          resolve(null);
-          return;
-        }
-        
-        if (!$gn.checkout || typeof $gn.checkout.getPaymentToken !== 'function') {
-          console.error('[Tokenização] Método getPaymentToken não disponível');
-          // Tentar método alternativo
-          if ($gn.ready && typeof $gn.ready === 'function') {
-            console.log('[Tokenização] Tentando via $gn.ready...');
-          }
-          resolve(null);
-          return;
-        }
+  // Tokenizar cartão usando SDK EfiBank (payment-token-efi)
+  const tokenizeCard = async (): Promise<{ token: string; cardMask: string } | null> => {
+    try {
+      const cardNumber = cardData.number.replace(/\s/g, '');
+      const cvv = cardData.ccv;
+      const expMonth = cardData.expiryMonth.padStart(2, '0');
+      // Ano precisa ser YYYY (4 dígitos)
+      const expYear = cardData.expiryYear.length === 2 ? `20${cardData.expiryYear}` : cardData.expiryYear;
+      const brand = detectCardBrand(cardNumber);
+      
+      // Account ID da EfiBank (identificador da conta)
+      const accountId = import.meta.env.VITE_EFI_ACCOUNT_ID || '820266';
 
-        const cardNumber = cardData.number.replace(/\s/g, '');
-        const cvv = cardData.ccv;
-        const expMonth = cardData.expiryMonth.padStart(2, '0');
-        const expYear = cardData.expiryYear.length === 2 ? `20${cardData.expiryYear}` : cardData.expiryYear;
-        const brand = detectCardBrand(cardNumber);
-        
-        // Account ID da EfiBank (identificador da conta)
-        const accountId = import.meta.env.VITE_EFI_ACCOUNT_ID || '820266';
+      console.log('[Tokenização] Dados:', { 
+        accountId, 
+        brand,
+        cardLength: cardNumber.length,
+        cvvLength: cvv.length,
+        expMonth,
+        expYear,
+        holderName: cardData.name,
+        holderDocument: customerData.cpfCnpj.replace(/\D/g, '')
+      });
 
-        console.log('[Tokenização] Dados:', { 
-          accountId, 
-          brand,
-          cardLength: cardNumber.length,
-          cvvLength: cvv.length,
-          expMonth,
-          expYear,
-          customerName: cardData.name
-        });
-
-        const tokenData = {
-          account_id: accountId,
-          environment: 'production',
-          credit_card: {
-            customer_name: cardData.name,
-            brand: brand,
-            number: cardNumber,
-            cvv: cvv,
-            expiration_month: expMonth,
-            expiration_year: expYear,
-          }
-        };
-
-        console.log('[Tokenização] Chamando getPaymentToken...');
-
-        $gn.checkout.getPaymentToken(tokenData, (error: any, response: any) => {
-          console.log('[Tokenização] Callback:', { error, response });
-          
-          if (error) {
-            console.error('[Tokenização] Erro retornado:', JSON.stringify(error));
-            // Não mostrar erro ao usuário, apenas usar fallback
-            resolve(null);
-          } else if (response?.data?.payment_token) {
-            console.log('[Tokenização] Token obtido com sucesso!');
-            resolve(response.data.payment_token);
-          } else {
-            console.error('[Tokenização] Resposta sem token:', JSON.stringify(response));
-            resolve(null);
-          }
-        });
-
-        // Timeout de 10 segundos
-        setTimeout(() => {
-          console.warn('[Tokenização] Timeout - usando fallback');
-          resolve(null);
-        }, 10000);
-
-      } catch (error) {
-        console.error('[Tokenização] Exceção:', error);
-        resolve(null);
+      // Ativar debug para ver erros detalhados
+      // @ts-ignore - função existe mas não está nos tipos
+      if (typeof EfiPay.CreditCard.debugger === 'function') {
+        EfiPay.CreditCard.debugger(true);
       }
-    });
+
+      // Usar a nova biblioteca payment-token-efi
+      const result = await EfiPay.CreditCard
+        .setAccount(accountId)
+        .setEnvironment('production')
+        .setCreditCardData({
+          brand: brand,
+          number: cardNumber,
+          cvv: cvv,
+          expirationMonth: expMonth,
+          expirationYear: expYear,
+          holderName: cardData.name,
+          holderDocument: customerData.cpfCnpj.replace(/\D/g, ''),
+          reuse: false
+        })
+        .getPaymentToken();
+
+      console.log('[Tokenização] Resultado:', result);
+
+      if (result?.payment_token && result?.card_mask) {
+        console.log('[Tokenização] Token obtido com sucesso!');
+        return {
+          token: result.payment_token,
+          cardMask: result.card_mask
+        };
+      }
+
+      console.error('[Tokenização] Resposta sem token:', result);
+      return null;
+
+    } catch (error: any) {
+      console.error('[Tokenização] Erro:', error);
+      // Se for erro da API, mostrar mensagem
+      if (error?.error_description) {
+        setError(`Erro no cartão: ${error.error_description}`);
+      } else if (error?.message) {
+        setError(`Erro ao processar cartão: ${error.message}`);
+      }
+      return null;
+    }
   };
 
   // Detectar bandeira do cartão
@@ -449,24 +428,27 @@ const CheckoutPublicoHubla: React.FC = () => {
         installments: paymentMethod === 'CREDIT_CARD' ? installments : undefined,
       };
 
-      // Para cartão, tentar tokenizar primeiro
+      // Para cartão, tokenizar primeiro usando SDK EfiBank
       if (paymentMethod === 'CREDIT_CARD') {
         setTokenizing(true);
         console.log('[Checkout] Tokenizando cartão...');
         
-        const token = await tokenizeCard();
+        const tokenResult = await tokenizeCard();
         setTokenizing(false);
         
-        if (token) {
+        if (tokenResult) {
           // Token obtido - enviar para processar diretamente
           console.log('[Checkout] Token obtido, processando pagamento...');
           paymentData.creditCard = {
-            paymentToken: token,
+            paymentToken: tokenResult.token,
+            cardMask: tokenResult.cardMask,
           };
         } else {
-          // Sem token - gerar link e exibir em iframe
-          console.log('[Checkout] Sem token, gerando link para iframe...');
-          paymentData.creditCard = {};
+          // Sem token - mostrar erro e não prosseguir
+          console.error('[Checkout] Falha ao tokenizar cartão');
+          setError('Erro ao processar os dados do cartão. Verifique os dados e tente novamente.');
+          setProcessing(false);
+          return;
         }
       }
 
