@@ -31,22 +31,23 @@ const getUserIdFromToken = (authHeader) => {
   } catch { return null; }
 };
 
-// Verificar se usuário é admin
+// Verificar se usuário é admin (por email)
 const isAdmin = async (supabase, userId) => {
   console.log('[Admin Check] Verificando userId:', userId);
   
   const { data: user, error } = await supabase
     .from('users')
-    .select('role, email')
+    .select('email')
     .eq('id', userId)
     .single();
   
-  console.log('[Admin Check] User encontrado:', user, 'Error:', error);
+  console.log('[Admin Check] User encontrado:', user?.email, 'Error:', error);
   
+  // Lista de emails de administradores
   const adminEmails = ['mourinha112@gmail.com', 'admin@zucropay.com'];
-  const isAdminUser = user?.role === 'admin' || adminEmails.includes(user?.email);
+  const isAdminUser = adminEmails.includes(user?.email);
   
-  console.log('[Admin Check] É admin?', isAdminUser, 'Email:', user?.email, 'Role:', user?.role);
+  console.log('[Admin Check] É admin?', isAdminUser);
   
   return isAdminUser;
 };

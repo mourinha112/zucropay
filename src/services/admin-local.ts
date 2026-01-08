@@ -4,7 +4,10 @@
 
 import { supabase } from '../config/supabase';
 
-// Verificar se usuário é admin
+// Lista de emails de administradores
+const ADMIN_EMAILS = ['mourinha112@gmail.com', 'admin@zucropay.com'];
+
+// Verificar se usuário é admin (por email)
 export const verifyIsAdmin = async (): Promise<{ isAdmin: boolean; adminId: string | null; userId: string | null }> => {
   const { data: { user } } = await supabase.auth.getUser();
   
@@ -12,41 +15,12 @@ export const verifyIsAdmin = async (): Promise<{ isAdmin: boolean; adminId: stri
     return { isAdmin: false, adminId: null, userId: null };
   }
 
-  const { data: admin, error } = await supabase
-    .from('admin_users')
-    .select('id')
-    .eq('user_id', user.id)
-    .single();
+  // Verificar pelo email
+  const isAdminUser = ADMIN_EMAILS.includes(user.email || '');
+  
+  console.log('[Admin Local] Verificando admin:', user.email, 'É admin?', isAdminUser);
 
-  // Se a tabela não existe ou não há admin, tenta criar automaticamente em dev
-  if (error && (error.code === 'PGRST116' || error.code === '42P01')) {
-    // Verificar se é modo de desenvolvimento
-    const isDev = import.meta.env.DEV;
-    
-    if (isDev) {
-      console.log('[Admin Local] Modo dev detectado. Tentando criar admin automaticamente...');
-      
-      // Tenta inserir o usuário como admin
-      const { data: newAdmin, error: insertError } = await supabase
-        .from('admin_users')
-        .insert({
-          user_id: user.id,
-          role: 'super_admin',
-          permissions: ['view_users', 'approve_users', 'reject_users', 'verify_identity', 'manage_withdrawals', 'block_users', 'view_stats', 'manage_admins']
-        })
-        .select('id')
-        .single();
-
-      if (!insertError && newAdmin) {
-        console.log('[Admin Local] Admin criado automaticamente:', newAdmin.id);
-        return { isAdmin: true, adminId: newAdmin.id, userId: user.id };
-      } else {
-        console.log('[Admin Local] Não foi possível criar admin:', insertError?.message);
-      }
-    }
-  }
-
-  return { isAdmin: !!admin, adminId: admin?.id || null, userId: user.id };
+  return { isAdmin: isAdminUser, adminId: isAdminUser ? user.id : null, userId: user.id };
 };
 
 // Função para promover usuário a admin (para setup inicial)
