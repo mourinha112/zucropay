@@ -96,8 +96,13 @@ export default async function handler(req, res) {
     const reserves = reservesResult.data || [];
 
     // Calcular dados de reserva
-    const totalReserved = reserves.reduce((sum, r) => sum + parseFloat(r.reserve_amount || 0), 0);
+    // Usar o reserved_balance do usuário (mais confiável) ou somar da tabela balance_reserves
+    const reservesTotal = reserves.reduce((sum, r) => sum + parseFloat(r.reserve_amount || 0), 0);
+    const totalReserved = parseFloat(user?.reserved_balance || 0) || reservesTotal;
     const nextRelease = reserves.length > 0 ? reserves[0] : null;
+    
+    // Contar reservas ativas (se não tiver na tabela, mas tiver saldo reservado, conta como 1)
+    const reservesCount = reserves.length > 0 ? reserves.length : (totalReserved > 0 ? 1 : 0);
 
     // Calcular estatísticas
     const today = new Date();
@@ -173,7 +178,7 @@ export default async function handler(req, res) {
         },
         reserves: {
           totalReserved: totalReserved,
-          reservesCount: reserves.length,
+          reservesCount: reservesCount,
           nextRelease: nextRelease ? {
             amount: parseFloat(nextRelease.reserve_amount),
             releaseDate: nextRelease.release_date,
