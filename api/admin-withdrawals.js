@@ -33,14 +33,22 @@ const getUserIdFromToken = (authHeader) => {
 
 // Verificar se usuário é admin
 const isAdmin = async (supabase, userId) => {
-  const { data: user } = await supabase
+  console.log('[Admin Check] Verificando userId:', userId);
+  
+  const { data: user, error } = await supabase
     .from('users')
     .select('role, email')
     .eq('id', userId)
     .single();
   
+  console.log('[Admin Check] User encontrado:', user, 'Error:', error);
+  
   const adminEmails = ['mourinha112@gmail.com', 'admin@zucropay.com'];
-  return user?.role === 'admin' || adminEmails.includes(user?.email);
+  const isAdminUser = user?.role === 'admin' || adminEmails.includes(user?.email);
+  
+  console.log('[Admin Check] É admin?', isAdminUser, 'Email:', user?.email, 'Role:', user?.role);
+  
+  return isAdminUser;
 };
 
 // ========================================
