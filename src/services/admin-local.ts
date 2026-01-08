@@ -442,10 +442,10 @@ export const getWithdrawals = async (params: { status?: string } = {}) => {
   if (!isAdmin) throw new Error('Não autorizado');
 
   let query = supabase
-    .from('withdrawal_requests')
+    .from('withdrawals')
     .select(`
       *,
-      user:users(name, email, cpf_cnpj)
+      users:user_id(name, email, cpf_cnpj)
     `)
     .order('created_at', { ascending: false });
 
@@ -468,11 +468,11 @@ export const approveWithdrawal = async (withdrawalId: string) => {
   if (!isAdmin) throw new Error('Não autorizado');
 
   const { error } = await supabase
-    .from('withdrawal_requests')
+    .from('withdrawals')
     .update({ 
       status: 'approved', 
-      processed_at: new Date().toISOString(),
-      processed_by: adminId
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: adminId
     })
     .eq('id', withdrawalId);
 
@@ -480,7 +480,7 @@ export const approveWithdrawal = async (withdrawalId: string) => {
 
   await logAdminAction(adminId!, 'approve_withdrawal', 'withdrawal', withdrawalId);
 
-  return { success: true, message: 'Saque aprovado' };
+  return { success: true, message: 'Saque aprovado! Realize a transferência e marque como concluído.' };
 };
 
 export const rejectWithdrawal = async (withdrawalId: string, reason: string) => {
@@ -489,34 +489,52 @@ export const rejectWithdrawal = async (withdrawalId: string, reason: string) => 
 
   // Buscar dados do saque
   const { data: withdrawal } = await supabase
-    .from('withdrawal_requests')
+    .from('withdrawals')
     .select('user_id, amount')
     .eq('id', withdrawalId)
     .single();
 
   const { error } = await supabase
-    .from('withdrawal_requests')
+    .from('withdrawals')
     .update({ 
       status: 'rejected', 
       rejection_reason: reason,
-      processed_at: new Date().toISOString(),
-      processed_by: adminId
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: adminId
     })
     .eq('id', withdrawalId);
 
   if (error) throw error;
 
-  // Devolver saldo ao usuário
+  // Devolver saldo ao usuário (valor + taxa de R$2)
   if (withdrawal) {
-    await supabase.rpc('increment_balance', { 
-      user_id: withdrawal.user_id, 
-      amount: withdrawal.amount 
-    });
+    const refundAmount = parseFloat(withdrawal.amount) + 2.00;
+    const { data: user } = await supabase
+      .from('users')
+      .select('balance')
+      .eq('id', withdrawal.user_id)
+      .single();
+    
+    if (user) {
+      await supabase
+        .from('users')
+        .update({ balance: parseFloat(user.balance || 0) + refundAmount })
+        .eq('id', withdrawal.user_id);
+      
+      // Registrar estorno
+      await supabase.from('transactions').insert({
+        user_id: withdrawal.user_id,
+        type: 'withdrawal_refund',
+        amount: refundAmount,
+        status: 'completed',
+        description: `Estorno de saque rejeitado: ${reason}`,
+      });
+    }
   }
 
   await logAdminAction(adminId!, 'reject_withdrawal', 'withdrawal', withdrawalId, { reason });
 
-  return { success: true, message: 'Saque rejeitado e saldo devolvido' };
+  return { success: true, message: 'Saque rejeitado e saldo devolvido ao usuário' };
 };
 
 // ========================================

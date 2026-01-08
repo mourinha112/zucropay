@@ -1081,7 +1081,10 @@ const Admin = () => {
                             <TableCell><Typography variant="body2" sx={{ fontWeight: 700, color: '#5818C8' }}>{formatCurrency(w.amount)}</Typography></TableCell>
                             <TableCell>
                               <Typography variant="caption">
-                                {w.pix_key ? `PIX: ${w.pix_key}` : `${w.bank_name} - Ag: ${w.agency} Cc: ${w.account}-${w.account_digit}`}
+                                {w.pix_key ? `PIX (${w.pix_key_type}): ${w.pix_key}` : `${w.bank_name} - Ag: ${w.agency} Cc: ${w.account_number}-${w.account_digit}`}
+                              </Typography>
+                              <Typography variant="caption" display="block" color="text.secondary">
+                                {w.holder_name}
                               </Typography>
                             </TableCell>
                             <TableCell><Chip label={getStatusLabel(w.status)} color={getStatusColor(w.status) as any} size="small" /></TableCell>

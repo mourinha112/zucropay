@@ -21,439 +21,744 @@ import {
   Alert,
   Snackbar,
   MenuItem,
+  Tabs,
+  Tab,
+  FormControl,
+  FormControlLabel,
+  Radio,
+  RadioGroup,
+  InputAdornment,
+  Divider,
+  CircularProgress,
 } from '@mui/material';
 import {
   AccountBalance as AccountBalanceIcon,
-  TrendingUp as TrendingUpIcon,
+  Lock as LockIcon,
   AttachMoney as MoneyIcon,
+  Pix as PixIcon,
+  AccountBalanceWallet as WalletIcon,
+  Schedule as ScheduleIcon,
+  CheckCircle as CheckCircleIcon,
+  Cancel as CancelIcon,
+  HourglassEmpty as PendingIcon,
 } from '@mui/icons-material';
 import Header from '../../components/Header/Header';
-import * as api from '../../services/api-supabase';
 
 interface Transaction {
-  id: number;
+  id: string;
   type: string;
   amount: number;
   status: string;
   description: string;
-  createdAt: string;
+  created_at: string;
 }
 
+interface Withdrawal {
+  id: string;
+  amount: number;
+  status: string;
+  withdrawal_type: string;
+  pix_key?: string;
+  pix_key_type?: string;
+  bank_name?: string;
+  holder_name?: string;
+  requested_at: string;
+  rejection_reason?: string;
+}
+
+const API_URL = import.meta.env.VITE_API_URL || '';
+
 const Finances: React.FC = () => {
-  const [balance, setBalance] = useState({ available: 0, pending: 0, total: 0 });
+  const [balance, setBalance] = useState({ available: 0, reserved: 0, total: 0 });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [openDepositDialog, setOpenDepositDialog] = useState(false);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [tabValue, setTabValue] = useState(0);
+  
+  // Modal de saque
   const [openWithdrawDialog, setOpenWithdrawDialog] = useState(false);
-  const [depositAmount, setDepositAmount] = useState('');
   const [withdrawAmount, setWithdrawAmount] = useState('');
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  const [withdrawType, setWithdrawType] = useState<'pix' | 'bank'>('pix');
+  const [submitting, setSubmitting] = useState(false);
   
-  // Estados para QR Code PIX do depósito
-  const [pixQrCode, setPixQrCode] = useState('');
-  const [pixCode, setPixCode] = useState('');
-  const [showPixDialog, setShowPixDialog] = useState(false);
+  // Dados PIX
+  const [pixKey, setPixKey] = useState('');
+  const [pixKeyType, setPixKeyType] = useState('cpf');
   
-  const [bankAccountForm, setBankAccountForm] = useState({
-    bank: '',
+  // Dados bancários
+  const [bankForm, setBankForm] = useState({
+    bankCode: '',
+    bankName: '',
     agency: '',
-    account: '',
+    accountNumber: '',
     accountDigit: '',
-    cpfCnpj: '',
-    name: '',
+    accountType: 'checking',
+    holderName: '',
+    holderDocument: '',
   });
+  
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'info' });
+
+  const getAuthToken = () => localStorage.getItem('token');
 
   useEffect(() => {
-    loadBalance();
-    loadTransactions();
+    loadData();
   }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    await Promise.all([loadBalance(), loadTransactions(), loadWithdrawals()]);
+    setLoading(false);
+  };
 
   const loadBalance = async () => {
     try {
-      const response = await api.getBalance();
-      if (response.success) {
-        setBalance(response.balance);
+      const response = await fetch(`${API_URL}/api/dashboard-data`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setBalance({
+          available: data.data.user?.balance || 0,
+          reserved: data.data.user?.reservedBalance || data.data.reserves?.totalReserved || 0,
+          total: (data.data.user?.balance || 0) + (data.data.user?.reservedBalance || 0),
+        });
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erro ao carregar saldo:', error);
     }
   };
 
   const loadTransactions = async () => {
     try {
-      const response = await api.getTransactions(50);
-      if (response.success) {
-        setTransactions(response.transactions);
+      const response = await fetch(`${API_URL}/api/transactions?limit=50`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setTransactions(data.transactions || []);
       }
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erro ao carregar transações:', error);
     }
   };
 
-  const showSnackbar = (message: string, severity: 'success' | 'error') => {
-    setSnackbar({ open: true, message, severity });
+  const loadWithdrawals = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/withdrawals`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        setWithdrawals(data.withdrawals || []);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar saques:', error);
+    }
   };
 
-  const handleDeposit = async () => {
-    const amount = parseFloat(depositAmount);
-    
-    if (isNaN(amount) || amount <= 0) {
-      showSnackbar('Valor inválido', 'error');
-      return;
-    }
-
-    if (amount < 10) {
-      showSnackbar('Valor mínimo para depósito: R$ 10,00', 'error');
-      return;
-    }
-
-    try {
-      showSnackbar('Gerando QR Code PIX...', 'success');
-      
-      const response = await api.deposit(amount, 'Depósito via plataforma') as any;
-      
-      // Verificar se a resposta contém dados do PIX
-      if (response.pix && response.pix.payload && response.pix.encodedImage) {
-        setPixCode(response.pix.payload);
-        setPixQrCode(response.pix.encodedImage);
-        setOpenDepositDialog(false);
-        setShowPixDialog(true);
-        
-        showSnackbar('QR Code PIX gerado! Aguardando pagamento...', 'success');
-      } else {
-        // Fallback caso o backend ainda não esteja retornando PIX
-        showSnackbar('⚠️ Depósito simulado! QR Code PIX será implementado em breve', 'success');
-        setOpenDepositDialog(false);
-        setDepositAmount('');
-        loadBalance();
-        loadTransactions();
-      }
-    } catch (error: any) {
-      showSnackbar(error.message || 'Erro ao gerar QR Code PIX', 'error');
-    }
+  const showSnackbar = (message: string, severity: 'success' | 'error' | 'info') => {
+    setSnackbar({ open: true, message, severity });
   };
 
   const handleWithdraw = async () => {
     const amount = parseFloat(withdrawAmount);
     
-    if (isNaN(amount) || amount <= 0) {
-      showSnackbar('Valor inválido', 'error');
+    if (isNaN(amount) || amount < 10) {
+      showSnackbar('Valor mínimo para saque: R$ 10,00', 'error');
       return;
     }
 
-    if (amount > balance.available) {
-      showSnackbar('Saldo insuficiente', 'error');
+    if (amount + 2 > balance.available) {
+      showSnackbar(`Saldo insuficiente. Disponível: R$ ${balance.available.toFixed(2)} (Taxa: R$ 2,00)`, 'error');
       return;
     }
 
-    // Validar campos bancários
-    const { bank, agency, account, accountDigit, cpfCnpj, name } = bankAccountForm;
-    if (!bank || !agency || !account || !accountDigit || !cpfCnpj || !name) {
-      showSnackbar('Preencha todos os dados bancários', 'error');
-      return;
+    // Validar dados
+    if (withdrawType === 'pix') {
+      if (!pixKey.trim()) {
+        showSnackbar('Informe a chave PIX', 'error');
+        return;
+      }
+    } else {
+      if (!bankForm.bankCode || !bankForm.agency || !bankForm.accountNumber || !bankForm.holderName || !bankForm.holderDocument) {
+        showSnackbar('Preencha todos os dados bancários', 'error');
+        return;
+      }
     }
+
+    setSubmitting(true);
 
     try {
-      await api.withdraw(amount, bankAccountForm);
-      showSnackbar('Saque solicitado com sucesso!', 'success');
-      setOpenWithdrawDialog(false);
-      setWithdrawAmount('');
-      setBankAccountForm({
-        bank: '',
-        agency: '',
-        account: '',
-        accountDigit: '',
-        cpfCnpj: '',
-        name: '',
+      const response = await fetch(`${API_URL}/api/withdrawals`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${getAuthToken()}`,
+        },
+        body: JSON.stringify({
+          amount,
+          withdrawalType: withdrawType === 'pix' ? 'pix' : 'bank_transfer',
+          pixKey: withdrawType === 'pix' ? pixKey : undefined,
+          pixKeyType: withdrawType === 'pix' ? pixKeyType : undefined,
+          ...( withdrawType === 'bank' ? bankForm : {}),
+        }),
       });
-      loadBalance();
-      loadTransactions();
+
+      const data = await response.json();
+
+      if (data.success) {
+        showSnackbar('Solicitação de saque enviada! Aguarde a aprovação.', 'success');
+        setOpenWithdrawDialog(false);
+        resetWithdrawForm();
+        loadData();
+      } else {
+        showSnackbar(data.message || 'Erro ao solicitar saque', 'error');
+      }
     } catch (error: any) {
       showSnackbar(error.message || 'Erro ao solicitar saque', 'error');
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'success';
-      case 'pending':
-        return 'warning';
-      case 'failed':
-        return 'error';
-      default:
-        return 'default';
-    }
+  const resetWithdrawForm = () => {
+    setWithdrawAmount('');
+    setPixKey('');
+    setPixKeyType('cpf');
+    setBankForm({
+      bankCode: '',
+      bankName: '',
+      agency: '',
+      accountNumber: '',
+      accountDigit: '',
+      accountType: 'checking',
+      holderName: '',
+      holderDocument: '',
+    });
   };
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'Concluído';
-      case 'pending':
-        return 'Pendente';
-      case 'failed':
-        return 'Falhou';
-      case 'cancelled':
-        return 'Cancelado';
-      default:
-        return status;
-    }
+  const getStatusChip = (status: string) => {
+    const configs: Record<string, { color: 'success' | 'warning' | 'error' | 'info' | 'default'; icon: React.ReactNode; label: string }> = {
+      pending: { color: 'warning', icon: <PendingIcon fontSize="small" />, label: 'Pendente' },
+      approved: { color: 'info', icon: <CheckCircleIcon fontSize="small" />, label: 'Aprovado' },
+      completed: { color: 'success', icon: <CheckCircleIcon fontSize="small" />, label: 'Concluído' },
+      rejected: { color: 'error', icon: <CancelIcon fontSize="small" />, label: 'Rejeitado' },
+      cancelled: { color: 'default', icon: <CancelIcon fontSize="small" />, label: 'Cancelado' },
+    };
+    
+    const config = configs[status] || configs.pending;
+    return (
+      <Chip
+        icon={config.icon}
+        label={config.label}
+        color={config.color}
+        size="small"
+      />
+    );
   };
 
-  const getTypeLabel = (type: string) => {
-    switch (type) {
-      case 'deposit':
-        return 'Depósito';
-      case 'withdraw':
-        return 'Saque';
-      case 'payment_received':
-        return 'Pagamento Recebido';
-      case 'payment_sent':
-        return 'Pagamento Enviado';
-      case 'fee':
-        return 'Taxa';
-      case 'refund':
-        return 'Reembolso';
-      default:
-        return type;
-    }
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const BANKS = [
+    { code: '001', name: 'Banco do Brasil' },
+    { code: '237', name: 'Bradesco' },
+    { code: '104', name: 'Caixa Econômica' },
+    { code: '341', name: 'Itaú' },
+    { code: '033', name: 'Santander' },
+    { code: '260', name: 'Nubank' },
+    { code: '077', name: 'Inter' },
+    { code: '336', name: 'C6 Bank' },
+    { code: '212', name: 'Banco Original' },
+    { code: '756', name: 'Sicoob' },
+  ];
 
   return (
     <>
       <Header />
-      <Box sx={{ minHeight: '100vh', backgroundColor: '#fafafa' }}>
+      <Box sx={{ minHeight: '100vh', backgroundColor: '#f8fafc' }}>
         <Container maxWidth="lg" sx={{ py: 4 }}>
-          <Typography variant="h4" component="h1" gutterBottom>
+          <Typography variant="h4" component="h1" gutterBottom fontWeight={700}>
             💰 Financeiro
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-            Gerencie seu saldo e transações
+            Gerencie seu saldo e solicite saques
           </Typography>
 
-          {/* Cards de Saldo */}
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 3, mb: 4 }}>
-            <Card sx={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <AccountBalanceIcon sx={{ color: 'white', mr: 1 }} />
-                  <Typography color="white" variant="body2">
-                    Saldo Disponível
-                  </Typography>
-                </Box>
-                <Typography variant="h4" component="div" sx={{ color: 'white', mb: 2 }}>
-                  R$ {balance.available.toFixed(2)}
+          {loading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <>
+              {/* Cards de Saldo */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' }, gap: 3, mb: 4 }}>
+                {/* Saldo Disponível */}
+                <Card sx={{ 
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                  color: 'white',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}>
+                  <Box sx={{ 
+                    position: 'absolute', 
+                    right: -20, 
+                    top: -20, 
+                    width: 120, 
+                    height: 120, 
+                    borderRadius: '50%', 
+                    bgcolor: 'rgba(255,255,255,0.1)' 
+                  }} />
+                  <CardContent sx={{ position: 'relative', zIndex: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <WalletIcon sx={{ mr: 1 }} />
+                      <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                        Saldo Disponível
+                      </Typography>
+                    </Box>
+                    <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>
+                      {formatCurrency(balance.available)}
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={() => setOpenWithdrawDialog(true)}
+                      disabled={balance.available < 12}
+                      sx={{ 
+                        bgcolor: 'rgba(255,255,255,0.2)', 
+                        color: 'white',
+                        '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+                        '&:disabled': { bgcolor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }
+                      }}
+                    >
+                      Solicitar Saque
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Saldo Retido */}
+                <Card sx={{ 
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  color: 'white',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}>
+                  <Box sx={{ 
+                    position: 'absolute', 
+                    right: -20, 
+                    top: -20, 
+                    width: 120, 
+                    height: 120, 
+                    borderRadius: '50%', 
+                    bgcolor: 'rgba(255,255,255,0.1)' 
+                  }} />
+                  <CardContent sx={{ position: 'relative', zIndex: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <LockIcon sx={{ mr: 1 }} />
+                      <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                        Saldo Retido (30 dias)
+                      </Typography>
+                    </Box>
+                    <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>
+                      {formatCurrency(balance.reserved)}
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                      Reserva de 5% para chargebacks
+                    </Typography>
+                  </CardContent>
+                </Card>
+
+                {/* Saldo Total */}
+                <Card sx={{ 
+                  background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                  color: 'white',
+                  position: 'relative',
+                  overflow: 'hidden',
+                }}>
+                  <Box sx={{ 
+                    position: 'absolute', 
+                    right: -20, 
+                    top: -20, 
+                    width: 120, 
+                    height: 120, 
+                    borderRadius: '50%', 
+                    bgcolor: 'rgba(255,255,255,0.1)' 
+                  }} />
+                  <CardContent sx={{ position: 'relative', zIndex: 1 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <MoneyIcon sx={{ mr: 1 }} />
+                      <Typography variant="body2" sx={{ opacity: 0.9 }}>
+                        Saldo Total
+                      </Typography>
+                    </Box>
+                    <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>
+                      {formatCurrency(balance.total)}
+                    </Typography>
+                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                      Disponível + Retido
+                    </Typography>
+                  </CardContent>
+                </Card>
+              </Box>
+
+              {/* Tabs */}
+              <Card sx={{ mb: 4 }}>
+                <Tabs 
+                  value={tabValue} 
+                  onChange={(_, v) => setTabValue(v)}
+                  sx={{ borderBottom: 1, borderColor: 'divider', px: 2 }}
+                >
+                  <Tab label="Solicitações de Saque" />
+                  <Tab label="Histórico de Transações" />
+                </Tabs>
+
+                <CardContent>
+                  {/* Tab Saques */}
+                  {tabValue === 0 && (
+                    <>
+                      {withdrawals.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 6 }}>
+                          <ScheduleIcon sx={{ fontSize: 60, color: '#cbd5e1', mb: 2 }} />
+                          <Typography color="text.secondary">
+                            Nenhuma solicitação de saque ainda
+                          </Typography>
+                          <Button 
+                            variant="contained" 
+                            sx={{ mt: 2 }}
+                            onClick={() => setOpenWithdrawDialog(true)}
+                            disabled={balance.available < 12}
+                          >
+                            Solicitar Primeiro Saque
+                          </Button>
+                        </Box>
+                      ) : (
+                        <TableContainer>
+                          <Table>
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Data</TableCell>
+                                <TableCell>Tipo</TableCell>
+                                <TableCell>Destino</TableCell>
+                                <TableCell align="right">Valor</TableCell>
+                                <TableCell align="center">Status</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {withdrawals.map((w) => (
+                                <TableRow key={w.id}>
+                                  <TableCell>{formatDate(w.requested_at)}</TableCell>
+                                  <TableCell>
+                                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                      {w.withdrawal_type === 'pix' ? (
+                                        <><PixIcon fontSize="small" color="primary" /> PIX</>
+                                      ) : (
+                                        <><AccountBalanceIcon fontSize="small" color="primary" /> TED</>
+                                      )}
+                                    </Box>
+                                  </TableCell>
+                                  <TableCell>
+                                    {w.withdrawal_type === 'pix' 
+                                      ? `${w.pix_key_type?.toUpperCase()}: ${w.pix_key}`
+                                      : `${w.bank_name} - ${w.holder_name}`
+                                    }
+                                  </TableCell>
+                                  <TableCell align="right" sx={{ fontWeight: 600 }}>
+                                    {formatCurrency(w.amount)}
+                                  </TableCell>
+                                  <TableCell align="center">
+                                    {getStatusChip(w.status)}
+                                    {w.rejection_reason && (
+                                      <Typography variant="caption" display="block" color="error">
+                                        {w.rejection_reason}
+                                      </Typography>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      )}
+                    </>
+                  )}
+
+                  {/* Tab Transações */}
+                  {tabValue === 1 && (
+                    <>
+                      {transactions.length === 0 ? (
+                        <Box sx={{ textAlign: 'center', py: 6 }}>
+                          <Typography color="text.secondary">
+                            Nenhuma transação registrada
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <TableContainer>
+                          <Table>
+                            <TableHead>
+                              <TableRow>
+                                <TableCell>Data</TableCell>
+                                <TableCell>Tipo</TableCell>
+                                <TableCell>Descrição</TableCell>
+                                <TableCell align="right">Valor</TableCell>
+                                <TableCell align="center">Status</TableCell>
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {transactions.map((t) => (
+                                <TableRow key={t.id}>
+                                  <TableCell>{formatDate(t.created_at)}</TableCell>
+                                  <TableCell>
+                                    {t.type === 'payment_received' ? 'Venda' 
+                                      : t.type === 'platform_fee' ? 'Taxa'
+                                      : t.type === 'withdrawal_request' ? 'Saque'
+                                      : t.type === 'withdrawal_fee' ? 'Taxa Saque'
+                                      : t.type}
+                                  </TableCell>
+                                  <TableCell>{t.description}</TableCell>
+                                  <TableCell 
+                                    align="right" 
+                                    sx={{ 
+                                      fontWeight: 600, 
+                                      color: t.amount >= 0 ? 'success.main' : 'error.main' 
+                                    }}
+                                  >
+                                    {t.amount >= 0 ? '+' : ''}{formatCurrency(t.amount)}
+                                  </TableCell>
+                                  <TableCell align="center">
+                                    {getStatusChip(t.status)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
+                      )}
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Info */}
+              <Alert severity="info" sx={{ mb: 2 }}>
+                <Typography variant="body2">
+                  <strong>Taxa de saque:</strong> R$ 2,00 por saque | <strong>Mínimo:</strong> R$ 10,00 | 
+                  <strong> Prazo:</strong> Até 24h úteis após aprovação
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 1 }}>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={() => setOpenDepositDialog(true)}
-                    sx={{ bgcolor: 'rgba(255,255,255,0.2)', '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' } }}
-                  >
-                    Depositar
-                  </Button>
-                  <Button
-                    variant="contained"
-                    size="small"
-                    onClick={() => setOpenWithdrawDialog(true)}
-                    sx={{ bgcolor: 'rgba(255,255,255,0.2)', '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' } }}
-                  >
-                    Sacar
-                  </Button>
-                </Box>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <TrendingUpIcon sx={{ color: '#ff9800', mr: 1 }} />
-                  <Typography color="textSecondary" variant="body2">
-                    Saldo Pendente
-                  </Typography>
-                </Box>
-                <Typography variant="h4" component="div" sx={{ color: '#ff9800' }}>
-                  R$ {balance.pending.toFixed(2)}
-                </Typography>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                  <MoneyIcon sx={{ color: '#4caf50', mr: 1 }} />
-                  <Typography color="textSecondary" variant="body2">
-                    Saldo Total
-                  </Typography>
-                </Box>
-                <Typography variant="h4" component="div" sx={{ color: '#4caf50' }}>
-                  R$ {balance.total.toFixed(2)}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Box>
-
-          {/* Tabela de Transações */}
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Histórico de Transações
-              </Typography>
-              <TableContainer>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Data</TableCell>
-                      <TableCell>Tipo</TableCell>
-                      <TableCell>Descrição</TableCell>
-                      <TableCell align="right">Valor</TableCell>
-                      <TableCell align="center">Status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {transactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell>{new Date(transaction.createdAt).toLocaleDateString('pt-BR')}</TableCell>
-                        <TableCell>{getTypeLabel(transaction.type)}</TableCell>
-                        <TableCell>{transaction.description}</TableCell>
-                        <TableCell align="right" sx={{ color: transaction.amount >= 0 ? 'success.main' : 'error.main' }}>
-                          {transaction.amount >= 0 ? '+' : ''} R$ {Math.abs(transaction.amount).toFixed(2)}
-                        </TableCell>
-                        <TableCell align="center">
-                          <Chip
-                            label={getStatusLabel(transaction.status)}
-                            color={getStatusColor(transaction.status) as any}
-                            size="small"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-
-              {transactions.length === 0 && (
-                <Box sx={{ textAlign: 'center', py: 4 }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Nenhuma transação registrada
-                  </Typography>
-                </Box>
-              )}
-            </CardContent>
-          </Card>
+              </Alert>
+            </>
+          )}
         </Container>
       </Box>
 
-      {/* Dialog Depósito */}
-      <Dialog open={openDepositDialog} onClose={() => setOpenDepositDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Realizar Depósito</DialogTitle>
-        <DialogContent>
-          <Box sx={{ mt: 2 }}>
-            <TextField
-              label="Valor (R$)"
-              type="number"
-              value={depositAmount}
-              onChange={(e) => setDepositAmount(e.target.value)}
-              fullWidth
-              inputProps={{ step: '0.01', min: '0' }}
-              placeholder="0,00"
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDepositDialog(false)}>Cancelar</Button>
-          <Button onClick={handleDeposit} variant="contained">
-            Depositar
-          </Button>
-        </DialogActions>
-      </Dialog>
-
       {/* Dialog Saque */}
-      <Dialog open={openWithdrawDialog} onClose={() => setOpenWithdrawDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Solicitar Saque</DialogTitle>
+      <Dialog 
+        open={openWithdrawDialog} 
+        onClose={() => !submitting && setOpenWithdrawDialog(false)} 
+        maxWidth="sm" 
+        fullWidth
+      >
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <WalletIcon color="primary" />
+            <Typography variant="h6">Solicitar Saque</Typography>
+          </Box>
+        </DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-            <Alert severity="info">
-              Saldo disponível para saque: <strong>R$ {balance.available.toFixed(2)}</strong>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
+            <Alert severity="success">
+              <Typography variant="body2">
+                <strong>Saldo disponível:</strong> {formatCurrency(balance.available)}
+              </Typography>
             </Alert>
-            
+
             <TextField
-              label="Valor (R$)"
+              label="Valor do Saque"
               type="number"
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
               fullWidth
-              inputProps={{ step: '0.01', min: '0', max: balance.available }}
-              placeholder="0,00"
+              inputProps={{ step: '0.01', min: '10' }}
+              InputProps={{
+                startAdornment: <InputAdornment position="start">R$</InputAdornment>,
+              }}
+              helperText={`Mínimo: R$ 10,00 | Taxa: R$ 2,00 | Você receberá: ${formatCurrency(Math.max(0, parseFloat(withdrawAmount || '0')))}`}
             />
 
-            <Typography variant="subtitle2" sx={{ mt: 1 }}>
-              Dados Bancários
+            <Divider />
+
+            <Typography variant="subtitle2" fontWeight={600}>
+              Como deseja receber?
             </Typography>
 
-            <TextField
-              label="Banco"
-              select
-              value={bankAccountForm.bank}
-              onChange={(e) => setBankAccountForm({ ...bankAccountForm, bank: e.target.value })}
-              fullWidth
-            >
-              <MenuItem value="001">001 - Banco do Brasil</MenuItem>
-              <MenuItem value="237">237 - Bradesco</MenuItem>
-              <MenuItem value="104">104 - Caixa Econômica</MenuItem>
-              <MenuItem value="341">341 - Itaú</MenuItem>
-              <MenuItem value="033">033 - Santander</MenuItem>
-              <MenuItem value="260">260 - Nubank</MenuItem>
-              <MenuItem value="077">077 - Inter</MenuItem>
-            </TextField>
+            <FormControl>
+              <RadioGroup
+                value={withdrawType}
+                onChange={(e) => setWithdrawType(e.target.value as 'pix' | 'bank')}
+              >
+                <FormControlLabel 
+                  value="pix" 
+                  control={<Radio />} 
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <PixIcon color="primary" /> PIX (Instantâneo)
+                    </Box>
+                  } 
+                />
+                <FormControlLabel 
+                  value="bank" 
+                  control={<Radio />} 
+                  label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <AccountBalanceIcon color="primary" /> Transferência Bancária (TED)
+                    </Box>
+                  } 
+                />
+              </RadioGroup>
+            </FormControl>
 
-            <TextField
-              label="Agência"
-              value={bankAccountForm.agency}
-              onChange={(e) => setBankAccountForm({ ...bankAccountForm, agency: e.target.value })}
-              fullWidth
-              placeholder="0000"
-            />
+            {/* Formulário PIX */}
+            {withdrawType === 'pix' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField
+                  select
+                  label="Tipo da Chave PIX"
+                  value={pixKeyType}
+                  onChange={(e) => setPixKeyType(e.target.value)}
+                  fullWidth
+                >
+                  <MenuItem value="cpf">CPF</MenuItem>
+                  <MenuItem value="cnpj">CNPJ</MenuItem>
+                  <MenuItem value="email">E-mail</MenuItem>
+                  <MenuItem value="phone">Telefone</MenuItem>
+                  <MenuItem value="random">Chave Aleatória</MenuItem>
+                </TextField>
 
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
-                label="Conta"
-                value={bankAccountForm.account}
-                onChange={(e) => setBankAccountForm({ ...bankAccountForm, account: e.target.value })}
-                fullWidth
-                placeholder="000000"
-              />
-              <TextField
-                label="Dígito"
-                value={bankAccountForm.accountDigit}
-                onChange={(e) => setBankAccountForm({ ...bankAccountForm, accountDigit: e.target.value })}
-                sx={{ width: '100px' }}
-                placeholder="0"
-              />
-            </Box>
+                <TextField
+                  label="Chave PIX"
+                  value={pixKey}
+                  onChange={(e) => setPixKey(e.target.value)}
+                  fullWidth
+                  placeholder={
+                    pixKeyType === 'cpf' ? '000.000.000-00'
+                      : pixKeyType === 'cnpj' ? '00.000.000/0000-00'
+                      : pixKeyType === 'email' ? 'seu@email.com'
+                      : pixKeyType === 'phone' ? '+5511999999999'
+                      : 'Chave aleatória'
+                  }
+                />
+              </Box>
+            )}
 
-            <TextField
-              label="CPF/CNPJ do Titular"
-              value={bankAccountForm.cpfCnpj}
-              onChange={(e) => setBankAccountForm({ ...bankAccountForm, cpfCnpj: e.target.value })}
-              fullWidth
-              placeholder="000.000.000-00"
-            />
+            {/* Formulário Banco */}
+            {withdrawType === 'bank' && (
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField
+                  select
+                  label="Banco"
+                  value={bankForm.bankCode}
+                  onChange={(e) => {
+                    const bank = BANKS.find(b => b.code === e.target.value);
+                    setBankForm({ 
+                      ...bankForm, 
+                      bankCode: e.target.value,
+                      bankName: bank?.name || ''
+                    });
+                  }}
+                  fullWidth
+                >
+                  {BANKS.map((bank) => (
+                    <MenuItem key={bank.code} value={bank.code}>
+                      {bank.code} - {bank.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
 
-            <TextField
-              label="Nome do Titular"
-              value={bankAccountForm.name}
-              onChange={(e) => setBankAccountForm({ ...bankAccountForm, name: e.target.value })}
-              fullWidth
-              placeholder="Nome completo"
-            />
+                <Box sx={{ display: 'flex', gap: 2 }}>
+                  <TextField
+                    label="Agência"
+                    value={bankForm.agency}
+                    onChange={(e) => setBankForm({ ...bankForm, agency: e.target.value })}
+                    fullWidth
+                    placeholder="0000"
+                  />
+                  <TextField
+                    label="Conta"
+                    value={bankForm.accountNumber}
+                    onChange={(e) => setBankForm({ ...bankForm, accountNumber: e.target.value })}
+                    fullWidth
+                    placeholder="00000"
+                  />
+                  <TextField
+                    label="Dígito"
+                    value={bankForm.accountDigit}
+                    onChange={(e) => setBankForm({ ...bankForm, accountDigit: e.target.value })}
+                    sx={{ width: 100 }}
+                    placeholder="0"
+                  />
+                </Box>
+
+                <TextField
+                  select
+                  label="Tipo de Conta"
+                  value={bankForm.accountType}
+                  onChange={(e) => setBankForm({ ...bankForm, accountType: e.target.value })}
+                  fullWidth
+                >
+                  <MenuItem value="checking">Conta Corrente</MenuItem>
+                  <MenuItem value="savings">Conta Poupança</MenuItem>
+                </TextField>
+
+                <TextField
+                  label="Nome do Titular"
+                  value={bankForm.holderName}
+                  onChange={(e) => setBankForm({ ...bankForm, holderName: e.target.value })}
+                  fullWidth
+                  placeholder="Nome completo"
+                />
+
+                <TextField
+                  label="CPF/CNPJ do Titular"
+                  value={bankForm.holderDocument}
+                  onChange={(e) => setBankForm({ ...bankForm, holderDocument: e.target.value })}
+                  fullWidth
+                  placeholder="000.000.000-00"
+                />
+              </Box>
+            )}
+
+            <Alert severity="warning">
+              <Typography variant="body2">
+                ⚠️ Confira os dados antes de enviar. Saques para dados incorretos podem ser rejeitados.
+              </Typography>
+            </Alert>
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenWithdrawDialog(false)}>Cancelar</Button>
-          <Button onClick={handleWithdraw} variant="contained">
-            Solicitar Saque
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setOpenWithdrawDialog(false)} disabled={submitting}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleWithdraw} 
+            variant="contained" 
+            disabled={submitting}
+            startIcon={submitting ? <CircularProgress size={20} /> : null}
+          >
+            {submitting ? 'Enviando...' : 'Solicitar Saque'}
           </Button>
         </DialogActions>
       </Dialog>
@@ -461,7 +766,7 @@ const Finances: React.FC = () => {
       {/* Snackbar */}
       <Snackbar
         open={snackbar.open}
-        autoHideDuration={4000}
+        autoHideDuration={5000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
       >
@@ -469,86 +774,6 @@ const Finances: React.FC = () => {
           {snackbar.message}
         </Alert>
       </Snackbar>
-
-      {/* Dialog PIX QR Code */}
-      <Dialog 
-        open={showPixDialog} 
-        onClose={() => {
-          setShowPixDialog(false);
-          setDepositAmount('');
-          loadBalance();
-          loadTransactions();
-        }} 
-        maxWidth="sm" 
-        fullWidth
-      >
-        <DialogTitle sx={{ textAlign: 'center', pb: 1 }}>
-          Pague com PIX
-        </DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, py: 2 }}>
-            <Alert severity="info" sx={{ width: '100%' }}>
-              Escaneie o QR Code ou copie o código PIX para realizar o pagamento
-            </Alert>
-
-            {pixQrCode && (
-              <Box 
-                component="img" 
-                src={`data:image/png;base64,${pixQrCode}`}
-                alt="QR Code PIX"
-                sx={{ 
-                  width: 250, 
-                  height: 250, 
-                  border: '1px solid #e0e0e0',
-                  borderRadius: 2,
-                  p: 1
-                }}
-              />
-            )}
-
-            {pixCode && (
-              <TextField
-                label="Código PIX Copia e Cola"
-                value={pixCode}
-                fullWidth
-                multiline
-                rows={3}
-                InputProps={{
-                  readOnly: true,
-                  endAdornment: (
-                    <Button 
-                      onClick={() => {
-                        navigator.clipboard.writeText(pixCode);
-                        showSnackbar('Código PIX copiado!', 'success');
-                      }}
-                      size="small"
-                    >
-                      Copiar
-                    </Button>
-                  ),
-                }}
-              />
-            )}
-
-            <Alert severity="warning" sx={{ width: '100%' }}>
-              Seu saldo será atualizado automaticamente após a confirmação do pagamento
-            </Alert>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button 
-            onClick={() => {
-              setShowPixDialog(false);
-              setDepositAmount('');
-              loadBalance();
-              loadTransactions();
-            }}
-            variant="outlined"
-          >
-            Fechar
-          </Button>
-        </DialogActions>
-      </Dialog>
     </>
   );
 };
