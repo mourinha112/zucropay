@@ -360,7 +360,7 @@ const Finances: React.FC = () => {
                       variant="contained"
                       size="small"
                       onClick={() => setOpenWithdrawDialog(true)}
-                      disabled={loading || balance.available < 12}
+                      disabled={loading || balance.available < 10}
                       sx={{ 
                         bgcolor: 'rgba(255,255,255,0.2)', 
                         color: 'white',
@@ -368,7 +368,7 @@ const Finances: React.FC = () => {
                         '&:disabled': { bgcolor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }
                       }}
                     >
-                      {loading ? 'Carregando...' : balance.available < 12 ? `Mínimo R$ 12` : 'Solicitar Saque'}
+                      {loading ? 'Carregando...' : balance.available < 10 ? `Mínimo R$ 10` : 'Solicitar Saque'}
                     </Button>
                   </CardContent>
                 </Card>
