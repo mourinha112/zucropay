@@ -354,8 +354,9 @@ const Admin = () => {
           loadVerifications();
           break;
         case 'approveWithdrawal':
-          await adminApi.approveWithdrawal(item.id);
-          setSuccess('Saque aprovado!');
+          // eslint-disable-next-line no-case-declarations
+          const approveResult = await adminApi.approveWithdrawal(item.id);
+          setSuccess(approveResult.message || 'Saque aprovado!');
           loadWithdrawals();
           loadStats();
           break;

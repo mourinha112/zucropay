@@ -184,15 +184,67 @@ export interface GetWithdrawalsParams {
 }
 
 export const getWithdrawals = async (params: GetWithdrawalsParams = {}) => {
-  return callAdminAPI('getWithdrawals', params);
+  // Chamar API serverless diretamente
+  const token = await getAuthToken();
+  if (!token) throw new Error('Não autenticado');
+  
+  const queryParams = new URLSearchParams();
+  if (params.status) queryParams.append('status', params.status);
+  
+  const response = await fetch(`${API_BASE_URL}/admin-withdrawals?${queryParams}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+    },
+  });
+  
+  const result = await response.json();
+  if (!result.success && result.error) {
+    throw new Error(result.error);
+  }
+  return result;
 };
 
 export const approveWithdrawal = async (withdrawalId: string) => {
-  return callAdminAPI('approveWithdrawal', { withdrawalId });
+  // Chamar API serverless diretamente para PIX automático
+  const token = await getAuthToken();
+  if (!token) throw new Error('Não autenticado');
+  
+  const response = await fetch(`${API_BASE_URL}/admin-withdrawals`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ withdrawalId, action: 'approve' }),
+  });
+  
+  const result = await response.json();
+  if (!result.success && result.error) {
+    throw new Error(result.error);
+  }
+  return result;
 };
 
 export const rejectWithdrawal = async (withdrawalId: string, reason: string) => {
-  return callAdminAPI('rejectWithdrawal', { withdrawalId, reason });
+  // Chamar API serverless diretamente
+  const token = await getAuthToken();
+  if (!token) throw new Error('Não autenticado');
+  
+  const response = await fetch(`${API_BASE_URL}/admin-withdrawals`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ withdrawalId, action: 'reject', rejectionReason: reason }),
+  });
+  
+  const result = await response.json();
+  if (!result.success && result.error) {
+    throw new Error(result.error);
+  }
+  return result;
 };
 
 export const blockUserWithdrawals = async (userId: string, reason: string) => {
