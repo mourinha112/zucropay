@@ -102,6 +102,7 @@ const Admin = () => {
   const [success, setSuccess] = useState('');
   const [configError, setConfigError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   // Estados dos dados
   const [stats, setStats] = useState<any>(null);
@@ -171,8 +172,7 @@ const Admin = () => {
       setStats(response.stats);
     } catch (err: any) {
       if (err.message.includes('não é um administrador')) {
-        const match = err.message.match(/userId: ([a-f0-9-]+)/i);
-        if (match) setUserId(match[1]);
+        setAccessDenied(true);
         setConfigError(err.message);
       } else if (err.message.includes('não configurado') || err.message.includes('Supabase')) {
         setConfigError(err.message);
@@ -523,6 +523,158 @@ const Admin = () => {
       </CardContent>
     </Card>
   );
+
+  // ============================================
+  // PÁGINA DE ACESSO NEGADO
+  // ============================================
+  if (accessDenied) {
+    return (
+      <>
+        <AdminHeader />
+        <Box
+          sx={{
+            minHeight: '100vh',
+            bgcolor: '#0f172a',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            p: 3,
+          }}
+        >
+          <Card
+            sx={{
+              maxWidth: 500,
+              width: '100%',
+              background: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: 4,
+              overflow: 'hidden',
+              position: 'relative',
+            }}
+          >
+            {/* Gradient border effect */}
+            <Box
+              sx={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                background: 'linear-gradient(90deg, #ef4444, #f97316, #ef4444)',
+              }}
+            />
+            
+            <CardContent sx={{ p: 5, textAlign: 'center' }}>
+              {/* Icon */}
+              <Box
+                sx={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2) 0%, rgba(239, 68, 68, 0.05) 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mx: 'auto',
+                  mb: 3,
+                  border: '2px solid rgba(239, 68, 68, 0.3)',
+                }}
+              >
+                <BlockIcon sx={{ fontSize: 50, color: '#ef4444' }} />
+              </Box>
+
+              {/* Title */}
+              <Typography
+                variant="h4"
+                sx={{
+                  fontWeight: 800,
+                  color: '#f1f5f9',
+                  mb: 1.5,
+                  letterSpacing: '-0.5px',
+                }}
+              >
+                Acesso Negado
+              </Typography>
+
+              {/* Subtitle */}
+              <Typography
+                variant="body1"
+                sx={{
+                  color: '#94a3b8',
+                  mb: 4,
+                  lineHeight: 1.7,
+                }}
+              >
+                Você não tem permissão para acessar o painel administrativo.
+                <br />
+                Esta área é restrita apenas para administradores.
+              </Typography>
+
+              {/* Info Box */}
+              <Box
+                sx={{
+                  bgcolor: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                  borderRadius: 2,
+                  p: 2.5,
+                  mb: 4,
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{ color: '#fca5a5', fontWeight: 500 }}
+                >
+                  ⚠️ Se você acredita que deveria ter acesso, entre em contato com o suporte.
+                </Typography>
+              </Box>
+
+              {/* Button */}
+              <Button
+                variant="contained"
+                size="large"
+                href="/dashboard"
+                sx={{
+                  bgcolor: '#5818C8',
+                  color: 'white',
+                  fontWeight: 700,
+                  px: 5,
+                  py: 1.5,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontSize: '1rem',
+                  '&:hover': {
+                    bgcolor: '#4a14a8',
+                    transform: 'translateY(-2px)',
+                    boxShadow: '0 10px 25px rgba(88, 24, 200, 0.3)',
+                  },
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Voltar ao Dashboard
+              </Button>
+            </CardContent>
+
+            {/* Footer */}
+            <Box
+              sx={{
+                bgcolor: 'rgba(0, 0, 0, 0.2)',
+                py: 2,
+                px: 3,
+                borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{ color: '#64748b', display: 'block', textAlign: 'center' }}
+              >
+                ZucroPay © {new Date().getFullYear()} • Sistema de Pagamentos
+              </Typography>
+            </Box>
+          </Card>
+        </Box>
+      </>
+    );
+  }
 
   return (
     <>
