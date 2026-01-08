@@ -114,8 +114,10 @@ const Finances: React.FC = () => {
   const loadBalance = async () => {
     try {
       const token = getAuthToken();
+      console.log('[Finances] Token encontrado:', !!token);
+      
       if (!token) {
-        console.error('Token não encontrado');
+        console.error('[Finances] Token não encontrado no localStorage');
         return;
       }
       
@@ -125,11 +127,16 @@ const Finances: React.FC = () => {
           'Authorization': `Bearer ${token}` 
         },
       });
+      
+      console.log('[Finances] Response status:', response.status);
       const data = await response.json();
+      console.log('[Finances] Data received:', data);
       
       if (data.success && data.data) {
         const available = parseFloat(data.data.user?.balance) || 0;
         const reserved = parseFloat(data.data.user?.reservedBalance) || parseFloat(data.data.reserves?.totalReserved) || 0;
+        
+        console.log('[Finances] Saldo disponível:', available, 'Reservado:', reserved);
         
         setBalance({
           available,
@@ -141,9 +148,11 @@ const Finances: React.FC = () => {
         if (data.data.transactions) {
           setTransactions(data.data.transactions);
         }
+      } else {
+        console.error('[Finances] Resposta inválida:', data);
       }
     } catch (error) {
-      console.error('Erro ao carregar saldo:', error);
+      console.error('[Finances] Erro ao carregar saldo:', error);
     }
   };
 
@@ -351,7 +360,7 @@ const Finances: React.FC = () => {
                       variant="contained"
                       size="small"
                       onClick={() => setOpenWithdrawDialog(true)}
-                      disabled={balance.available < 12}
+                      disabled={loading || balance.available < 12}
                       sx={{ 
                         bgcolor: 'rgba(255,255,255,0.2)', 
                         color: 'white',
@@ -359,7 +368,7 @@ const Finances: React.FC = () => {
                         '&:disabled': { bgcolor: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }
                       }}
                     >
-                      Solicitar Saque
+                      {loading ? 'Carregando...' : balance.available < 12 ? `Mínimo R$ 12` : 'Solicitar Saque'}
                     </Button>
                   </CardContent>
                 </Card>
