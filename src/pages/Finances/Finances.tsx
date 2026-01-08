@@ -99,7 +99,7 @@ const Finances: React.FC = () => {
   
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'info' });
 
-  const getAuthToken = () => localStorage.getItem('token');
+  const getAuthToken = () => localStorage.getItem('zucropay_token');
 
   useEffect(() => {
     loadData();
@@ -113,17 +113,34 @@ const Finances: React.FC = () => {
 
   const loadBalance = async () => {
     try {
+      const token = getAuthToken();
+      if (!token) {
+        console.error('Token não encontrado');
+        return;
+      }
+      
       const response = await fetch(`${API_URL}/api/dashboard-data`, {
-        headers: { Authorization: `Bearer ${getAuthToken()}` },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` 
+        },
       });
       const data = await response.json();
       
-      if (data.success) {
+      if (data.success && data.data) {
+        const available = parseFloat(data.data.user?.balance) || 0;
+        const reserved = parseFloat(data.data.user?.reservedBalance) || parseFloat(data.data.reserves?.totalReserved) || 0;
+        
         setBalance({
-          available: data.data.user?.balance || 0,
-          reserved: data.data.user?.reservedBalance || data.data.reserves?.totalReserved || 0,
-          total: (data.data.user?.balance || 0) + (data.data.user?.reservedBalance || 0),
+          available,
+          reserved,
+          total: available + reserved,
         });
+        
+        // Transações vêm do mesmo endpoint (se disponível)
+        if (data.data.transactions) {
+          setTransactions(data.data.transactions);
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar saldo:', error);
@@ -131,15 +148,11 @@ const Finances: React.FC = () => {
   };
 
   const loadTransactions = async () => {
+    // As transações agora são carregadas junto com o saldo via dashboard-data
+    // Mas se precisar buscar separadamente, usar Supabase diretamente
     try {
-      const response = await fetch(`${API_URL}/api/transactions?limit=50`, {
-        headers: { Authorization: `Bearer ${getAuthToken()}` },
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        setTransactions(data.transactions || []);
-      }
+      // Buscar transações diretamente do Supabase se não vieram no dashboard-data
+      // Por enquanto, apenas log se houver erro
     } catch (error) {
       console.error('Erro ao carregar transações:', error);
     }

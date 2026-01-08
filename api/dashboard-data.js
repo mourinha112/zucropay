@@ -57,7 +57,7 @@ export default async function handler(req, res) {
     const supabase = getSupabase();
     
     // Buscar dados em paralelo (muito mais rápido!)
-    const [userResult, paymentsResult, linksResult, reservesResult] = await Promise.all([
+    const [userResult, paymentsResult, linksResult, reservesResult, transactionsResult] = await Promise.all([
       // Saldo do usuário
       supabase
         .from('users')
@@ -87,13 +87,22 @@ export default async function handler(req, res) {
         .select('*')
         .eq('user_id', userId)
         .eq('status', 'held')
-        .order('release_date', { ascending: true })
+        .order('release_date', { ascending: true }),
+      
+      // Transações do usuário (últimas 50)
+      supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(50)
     ]);
 
     const user = userResult.data;
     const payments = paymentsResult.data || [];
     const links = linksResult.data || [];
     const reserves = reservesResult.data || [];
+    const transactions = transactionsResult.data || [];
 
     // Calcular dados de reserva
     // Usar o reserved_balance do usuário (mais confiável) ou somar da tabela balance_reserves
@@ -196,6 +205,7 @@ export default async function handler(req, res) {
         chartData,
         recentPayments: payments.slice(0, 10),
         activeLinks: links,
+        transactions: transactions,
       }
     });
 
