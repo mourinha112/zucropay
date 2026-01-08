@@ -5,7 +5,7 @@
 import { supabase } from '../config/supabase';
 
 // Lista de emails de administradores
-const ADMIN_EMAILS = ['mourinha112@gmail.com', 'admin@zucropay.com'];
+const ADMIN_EMAILS = ['mourinha112@gmail.com', 'admin@zucropay.com', 'victorgronnyt@gmail.com', 'felipeaugusto.quark@gmail.com'];
 
 // Verificar se usuário é admin (por email)
 export const verifyIsAdmin = async (): Promise<{ isAdmin: boolean; adminId: string | null; userId: string | null }> => {

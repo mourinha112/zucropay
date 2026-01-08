@@ -44,7 +44,7 @@ const isAdmin = async (supabase, userId) => {
   console.log('[Admin Check] User encontrado:', user?.email, 'Error:', error);
   
   // Lista de emails de administradores
-  const adminEmails = ['mourinha112@gmail.com', 'admin@zucropay.com'];
+  const adminEmails = ['mourinha112@gmail.com', 'admin@zucropay.com', 'victorgronnyt@gmail.com', 'felipeaugusto.quark@gmail.com'];
   const isAdminUser = adminEmails.includes(user?.email);
   
   console.log('[Admin Check] É admin?', isAdminUser);
