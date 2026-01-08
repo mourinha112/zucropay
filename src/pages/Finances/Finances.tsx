@@ -187,15 +187,21 @@ const Finances: React.FC = () => {
   };
 
   const handleWithdraw = async () => {
-    const amount = parseFloat(withdrawAmount);
+    const amount = parseFloat(withdrawAmount); // Valor bruto (total a debitar)
+    const netAmount = amount - 2; // Valor líquido que o usuário recebe
     
     if (isNaN(amount) || amount < 10) {
       showSnackbar('Valor mínimo para saque: R$ 10,00', 'error');
       return;
     }
 
-    if (amount + 2 > balance.available) {
-      showSnackbar(`Saldo insuficiente. Disponível: R$ ${balance.available.toFixed(2)} (Taxa: R$ 2,00)`, 'error');
+    if (amount > balance.available) {
+      showSnackbar(`Saldo insuficiente. Disponível: R$ ${balance.available.toFixed(2)}`, 'error');
+      return;
+    }
+    
+    if (netAmount < 8) {
+      showSnackbar('Valor mínimo após taxa: R$ 8,00. Aumente o valor do saque.', 'error');
       return;
     }
 
@@ -609,16 +615,16 @@ const Finances: React.FC = () => {
             </Alert>
 
             <TextField
-              label="Valor do Saque"
+              label="Valor do Saque (será debitado do seu saldo)"
               type="number"
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
               fullWidth
-              inputProps={{ step: '0.01', min: '10' }}
+              inputProps={{ step: '0.01', min: '10', max: balance.available }}
               InputProps={{
                 startAdornment: <InputAdornment position="start">R$</InputAdornment>,
               }}
-              helperText={`Mínimo: R$ 10,00 | Taxa: R$ 2,00 | Você receberá: ${formatCurrency(Math.max(0, parseFloat(withdrawAmount || '0')))}`}
+              helperText={`Mínimo: R$ 10,00 | Taxa: R$ 2,00 | Você receberá: ${formatCurrency(Math.max(0, parseFloat(withdrawAmount || '0') - 2))}`}
             />
 
             <Divider />

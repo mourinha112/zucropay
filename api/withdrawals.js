@@ -70,8 +70,11 @@ export default async function handler(req, res) {
       } = req.body;
 
       // Validações
-      const withdrawalAmount = parseFloat(amount);
-      if (isNaN(withdrawalAmount) || withdrawalAmount < MIN_WITHDRAWAL) {
+      // amount = valor BRUTO (total a ser debitado do saldo)
+      const grossAmount = parseFloat(amount);
+      const netAmount = grossAmount - WITHDRAWAL_FEE; // Valor que o usuário recebe
+      
+      if (isNaN(grossAmount) || grossAmount < MIN_WITHDRAWAL) {
         return res.status(400).json({
           success: false,
           message: `Valor mínimo para saque: R$ ${MIN_WITHDRAWAL.toFixed(2)}`,
@@ -90,12 +93,18 @@ export default async function handler(req, res) {
       }
 
       const availableBalance = parseFloat(user.balance || 0);
-      const totalWithFee = withdrawalAmount + WITHDRAWAL_FEE;
 
-      if (totalWithFee > availableBalance) {
+      if (grossAmount > availableBalance) {
         return res.status(400).json({
           success: false,
-          message: `Saldo insuficiente. Disponível: R$ ${availableBalance.toFixed(2)} | Necessário: R$ ${totalWithFee.toFixed(2)} (incluindo taxa de R$ ${WITHDRAWAL_FEE.toFixed(2)})`,
+          message: `Saldo insuficiente. Disponível: R$ ${availableBalance.toFixed(2)}`,
+        });
+      }
+      
+      if (netAmount < 8) {
+        return res.status(400).json({
+          success: false,
+          message: `Valor líquido mínimo: R$ 8,00. Você receberá R$ ${netAmount.toFixed(2)} (após taxa de R$ ${WITHDRAWAL_FEE.toFixed(2)})`,
         });
       }
 
@@ -136,9 +145,10 @@ export default async function handler(req, res) {
       }
 
       // Criar solicitação de saque
+      // amount = valor líquido que o usuário vai receber (grossAmount - taxa)
       const withdrawalData = {
         user_id: userId,
-        amount: withdrawalAmount,
+        amount: netAmount, // Valor que o usuário recebe
         status: 'pending',
         withdrawal_type: withdrawalType,
         // PIX
@@ -163,21 +173,21 @@ export default async function handler(req, res) {
 
       if (insertError) throw insertError;
 
-      // Debitar saldo do usuário (incluindo taxa)
-      const newBalance = availableBalance - totalWithFee;
+      // Debitar saldo do usuário (valor bruto = líquido + taxa)
+      const newBalance = availableBalance - grossAmount;
       await supabase
         .from('users')
         .update({ balance: newBalance })
         .eq('id', userId);
 
-      // Registrar transação de saque
+      // Registrar transação de saque (valor líquido)
       await supabase.from('transactions').insert({
         user_id: userId,
         type: 'withdrawal_request',
-        amount: -withdrawalAmount,
+        amount: -netAmount,
         status: 'pending',
-        description: `Solicitação de saque via ${withdrawalType === 'pix' ? 'PIX' : 'Transferência Bancária'}`,
-        metadata: { withdrawal_id: withdrawal.id },
+        description: `Solicitação de saque via ${withdrawalType === 'pix' ? 'PIX' : 'Transferência Bancária'} (Você receberá R$ ${netAmount.toFixed(2)})`,
+        metadata: { withdrawal_id: withdrawal.id, gross_amount: grossAmount, net_amount: netAmount, fee: WITHDRAWAL_FEE },
       });
 
       // Registrar taxa de saque
@@ -190,16 +200,16 @@ export default async function handler(req, res) {
         metadata: { withdrawal_id: withdrawal.id },
       });
 
-      console.log(`[SAQUE] Solicitação criada: ${withdrawal.id} - R$ ${withdrawalAmount} por ${user.email}`);
+      console.log(`[SAQUE] Solicitação criada: ${withdrawal.id} - Líquido: R$ ${netAmount.toFixed(2)} | Bruto: R$ ${grossAmount.toFixed(2)} | Taxa: R$ ${WITHDRAWAL_FEE.toFixed(2)} | Usuário: ${user.email}`);
 
       return res.status(200).json({
         success: true,
-        message: 'Solicitação de saque enviada! Aguarde a aprovação do administrador.',
+        message: `Solicitação de saque enviada! Você receberá R$ ${netAmount.toFixed(2)} após aprovação.`,
         withdrawal: {
           id: withdrawal.id,
-          amount: withdrawalAmount,
+          amount: netAmount, // Valor que o usuário recebe
+          grossAmount: grossAmount, // Valor debitado do saldo
           fee: WITHDRAWAL_FEE,
-          total: totalWithFee,
           status: 'pending',
           withdrawalType,
         },
