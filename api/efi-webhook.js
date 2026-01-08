@@ -73,12 +73,116 @@ export default async function handler(req, res) {
   }
 }
 
-// Processar pagamento PIX recebido
+// Processar pagamento PIX recebido OU enviado
 async function processPixPayment(supabase, pixData) {
   try {
-    const { txid, valor, horario, pagador, endToEndId } = pixData;
+    const { txid, valor, horario, pagador, endToEndId, tipo, status, gnExtras } = pixData;
 
-    console.log(`[EfiBank Webhook] PIX recebido: txid=${txid}, valor=${valor}`);
+    console.log(`[EfiBank Webhook] PIX: tipo=${tipo}, status=${status}, txid=${txid}, valor=${valor}`);
+
+    // ========================================
+    // PIX DE SAÍDA (Saque) - tipo: SOLICITACAO
+    // ========================================
+    if (tipo === 'SOLICITACAO') {
+      const idEnvio = gnExtras?.idEnvio;
+      console.log(`[EfiBank Webhook] PIX de saída: idEnvio=${idEnvio}, status=${status}`);
+
+      if (!idEnvio) {
+        console.log('[EfiBank Webhook] PIX de saída sem idEnvio, ignorando');
+        return;
+      }
+
+      // Buscar saque pelo idEnvio (está no admin_notes)
+      const { data: withdrawals, error: wError } = await supabase
+        .from('withdrawals')
+        .select('*')
+        .ilike('admin_notes', `%${idEnvio}%`);
+
+      if (wError || !withdrawals?.length) {
+        console.log(`[EfiBank Webhook] Saque não encontrado para idEnvio: ${idEnvio}`);
+        return;
+      }
+
+      const withdrawal = withdrawals[0];
+
+      if (status === 'REALIZADO') {
+        // PIX enviado com sucesso!
+        console.log(`[EfiBank Webhook] PIX de saque REALIZADO: ${withdrawal.id}`);
+        
+        await supabase
+          .from('withdrawals')
+          .update({ 
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            admin_notes: withdrawal.admin_notes + ' | PIX confirmado: ' + endToEndId
+          })
+          .eq('id', withdrawal.id);
+
+        // Atualizar transação
+        await supabase
+          .from('transactions')
+          .update({ status: 'completed', description: 'Saque concluído - PIX enviado' })
+          .eq('metadata->>withdrawal_id', withdrawal.id)
+          .eq('type', 'withdrawal_request');
+
+      } else if (status === 'NAO_REALIZADO') {
+        // PIX falhou!
+        const erro = gnExtras?.erro;
+        const motivoErro = erro?.motivo || 'Erro desconhecido';
+        console.log(`[EfiBank Webhook] PIX de saque FALHOU: ${motivoErro}`);
+
+        // Devolver saldo ao usuário
+        const { data: user } = await supabase
+          .from('users')
+          .select('balance')
+          .eq('id', withdrawal.user_id)
+          .single();
+
+        const refundAmount = parseFloat(withdrawal.amount) + 2.00; // valor + taxa
+        const newBalance = parseFloat(user?.balance || 0) + refundAmount;
+
+        await supabase
+          .from('users')
+          .update({ balance: newBalance })
+          .eq('id', withdrawal.user_id);
+
+        // Atualizar saque para falhou
+        await supabase
+          .from('withdrawals')
+          .update({ 
+            status: 'rejected',
+            rejection_reason: `PIX falhou: ${motivoErro}`,
+            admin_notes: withdrawal.admin_notes + ' | ERRO: ' + motivoErro
+          })
+          .eq('id', withdrawal.id);
+
+        // Criar transação de estorno
+        await supabase.from('transactions').insert({
+          user_id: withdrawal.user_id,
+          type: 'withdrawal_refund',
+          amount: refundAmount,
+          status: 'completed',
+          description: `Estorno - PIX falhou: ${motivoErro}`,
+          metadata: { withdrawal_id: withdrawal.id, error: erro },
+        });
+
+        // Atualizar transação original
+        await supabase
+          .from('transactions')
+          .update({ status: 'failed', description: `Saque falhou: ${motivoErro}` })
+          .eq('metadata->>withdrawal_id', withdrawal.id)
+          .eq('type', 'withdrawal_request');
+
+        console.log(`[EfiBank Webhook] Saldo devolvido ao usuário: R$ ${refundAmount.toFixed(2)}`);
+      }
+
+      return;
+    }
+
+    // ========================================
+    // PIX DE ENTRADA (Pagamento recebido)
+    // ========================================
+    console.log(`[EfiBank Webhook] PIX de entrada: txid=${txid}, valor=${valor}`);
 
     // Buscar pagamento pelo txid
     const { data: payment, error: paymentError } = await supabase
