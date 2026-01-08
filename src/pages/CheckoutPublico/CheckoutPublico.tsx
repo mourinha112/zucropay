@@ -90,8 +90,8 @@ const CheckoutPublicoHubla: React.FC = () => {
       const expYear = cardData.expiryYear.length === 2 ? `20${cardData.expiryYear}` : cardData.expiryYear;
       const brand = detectCardBrand(cardNumber);
       
-      // Account ID da EfiBank (identificador da conta)
-      const accountId = import.meta.env.VITE_EFI_ACCOUNT_ID || '820266';
+      // Account ID da EfiBank (identificador da conta - payee_code)
+      const accountId = import.meta.env.VITE_EFI_ACCOUNT_ID || 'ece645632413c19903346509af8b14b1';
 
       console.log('[Tokenização] Dados:', { 
         accountId, 
