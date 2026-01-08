@@ -242,7 +242,7 @@ const Finances: React.FC = () => {
   };
 
   const getStatusChip = (status: string) => {
-    const configs: Record<string, { color: 'success' | 'warning' | 'error' | 'info' | 'default'; icon: React.ReactNode; label: string }> = {
+    const configs: Record<string, { color: 'success' | 'warning' | 'error' | 'info' | 'default'; icon: React.ReactElement; label: string }> = {
       pending: { color: 'warning', icon: <PendingIcon fontSize="small" />, label: 'Pendente' },
       approved: { color: 'info', icon: <CheckCircleIcon fontSize="small" />, label: 'Aprovado' },
       completed: { color: 'success', icon: <CheckCircleIcon fontSize="small" />, label: 'Concluído' },
