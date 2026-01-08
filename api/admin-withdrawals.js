@@ -219,6 +219,7 @@ export default async function handler(req, res) {
     // GET - Listar todos os saques pendentes
     if (req.method === 'GET') {
       const { status = 'pending' } = req.query;
+      console.log('[Admin Withdrawals] GET - status filter:', status);
 
       let query = supabase
         .from('withdrawals')
@@ -234,13 +235,23 @@ export default async function handler(req, res) {
 
       const { data: withdrawals, error } = await query;
 
-      if (error) throw error;
+      console.log('[Admin Withdrawals] Query result:', { count: withdrawals?.length, error });
+      if (withdrawals?.length > 0) {
+        console.log('[Admin Withdrawals] First withdrawal:', withdrawals[0]);
+      }
+
+      if (error) {
+        console.error('[Admin Withdrawals] Query error:', error);
+        throw error;
+      }
 
       const formattedWithdrawals = (withdrawals || []).map(w => ({
         ...w,
         userName: w.users?.name || 'Usuário',
         userEmail: w.users?.email || '',
       }));
+
+      console.log('[Admin Withdrawals] Returning', formattedWithdrawals.length, 'withdrawals');
 
       return res.status(200).json({
         success: true,
