@@ -131,8 +131,8 @@ const configurarWebhookPix = async (config) => {
   const token = await getPixAccessToken(config);
   const certBuffer = Buffer.from(config.certificate, 'base64');
   
-  // URL do webhook com skip-mtls para funcionar na Vercel
-  const webhookUrl = 'https://dashboard.appzucropay.com/api/efi-webhook#skip-mtls-checking';
+  // URL do webhook - sem âncora, apenas URL limpa
+  const webhookUrl = 'https://dashboard.appzucropay.com/api/efi-webhook';
   
   const postData = JSON.stringify({ webhookUrl });
   
@@ -145,13 +145,14 @@ const configurarWebhookPix = async (config) => {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
       'Content-Length': Buffer.byteLength(postData),
-      'x-skip-mtls-checking': 'true', // Header para skip mTLS
+      'x-skip-mtls-checking': 'true', // Header para skip mTLS (Vercel não suporta)
     },
     pfx: certBuffer,
     passphrase: '',
   };
 
-  console.log(`[Webhook] PUT /v2/webhook/${config.pixKey}`);
+  console.log(`[Webhook] PUT /v2/webhook/${config.pixKey} (skip-mTLS: true)`);
+  console.log(`[Webhook] URL: ${webhookUrl}`);
   const response = await httpsRequestWithCert(options, postData);
 
   if (response.status >= 200 && response.status < 300) {

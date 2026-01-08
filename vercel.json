@@ -5,6 +5,14 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/api/efi-webhook/pix",
+      "destination": "/api/efi-webhook"
+    },
+    {
+      "source": "/api/efi-webhook/:path*",
+      "destination": "/api/efi-webhook"
+    },
+    {
       "source": "/api/:path*",
       "destination": "/api/:path*"
     },
