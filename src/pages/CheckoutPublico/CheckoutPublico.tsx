@@ -104,12 +104,6 @@ const CheckoutPublicoHubla: React.FC = () => {
         holderDocument: customerData.cpfCnpj.replace(/\D/g, '')
       });
 
-      // Ativar debug para ver erros detalhados
-      // @ts-ignore - função existe mas não está nos tipos
-      if (typeof EfiPay.CreditCard.debugger === 'function') {
-        EfiPay.CreditCard.debugger(true);
-      }
-
       // Usar a nova biblioteca payment-token-efi
       const result = await EfiPay.CreditCard
         .setAccount(accountId)
@@ -128,12 +122,20 @@ const CheckoutPublicoHubla: React.FC = () => {
 
       console.log('[Tokenização] Resultado:', result);
 
-      if (result?.payment_token && result?.card_mask) {
+      // Verificar se é resposta de sucesso (tem payment_token)
+      const successResult = result as { payment_token: string; card_mask: string };
+      if (successResult?.payment_token && successResult?.card_mask) {
         console.log('[Tokenização] Token obtido com sucesso!');
         return {
-          token: result.payment_token,
-          cardMask: result.card_mask
+          token: successResult.payment_token,
+          cardMask: successResult.card_mask
         };
+      }
+
+      // Se for erro, verificar mensagem
+      const errorResult = result as { error_description?: string };
+      if (errorResult?.error_description) {
+        setError(`Erro no cartão: ${errorResult.error_description}`);
       }
 
       console.error('[Tokenização] Resposta sem token:', result);
