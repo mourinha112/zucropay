@@ -135,21 +135,36 @@ export const getStats = async () => {
     .select('*', { count: 'exact', head: true });
 
   // Saques pendentes
-  const { count: pendingWithdrawals } = await supabase
-    .from('withdrawal_requests')
-    .select('*', { count: 'exact', head: true })
+  const { count: pendingWithdrawals, data: pendingWithdrawalsData } = await supabase
+    .from('withdrawals')
+    .select('*', { count: 'exact' })
     .eq('status', 'pending');
+  
+  const pendingWithdrawalsAmount = pendingWithdrawalsData?.reduce((sum, w) => sum + parseFloat(w.amount || 0), 0) || 0;
 
   return {
     success: true,
     stats: {
-      totalUsers: totalUsers || 0,
-      pendingUsers: pendingUsers || 0,
-      approvedUsers: approvedUsers || 0,
-      totalSales,
-      todaySales,
-      totalTransactions: totalTransactions || 0,
-      pendingWithdrawals: pendingWithdrawals || 0,
+      users: {
+        total: totalUsers || 0,
+        pending: pendingUsers || 0,
+        approved: approvedUsers || 0,
+      },
+      sales: {
+        total: totalSales,
+        today: todaySales,
+      },
+      transactions: {
+        total: totalTransactions || 0,
+      },
+      withdrawals: {
+        pending: pendingWithdrawals || 0,
+        pendingAmount: pendingWithdrawalsAmount,
+        completed: 0,
+      },
+      verifications: {
+        pending: 0,
+      },
     }
   };
 };
