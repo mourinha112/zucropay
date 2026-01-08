@@ -182,7 +182,7 @@ const CheckoutPublicoHubla: React.FC = () => {
     const checkPixStatus = async () => {
       try {
         setCheckingStatus(true);
-        const response = await fetch(`/api/check-pix-status?txid=${pixTxid}${paymentId ? `&paymentId=${paymentId}` : ''}`);
+        const response = await fetch(`/api/check-payment-status?type=pix&txid=${pixTxid}${paymentId ? `&paymentId=${paymentId}` : ''}`);
         const data = await response.json();
         
         console.log('[Polling PIX] Status:', data);
@@ -224,7 +224,7 @@ const CheckoutPublicoHubla: React.FC = () => {
     const checkBoletoStatus = async () => {
       try {
         setCheckingStatus(true);
-        const response = await fetch(`/api/check-charge-status?chargeId=${chargeId}${paymentId ? `&paymentId=${paymentId}` : ''}`);
+        const response = await fetch(`/api/check-payment-status?type=charge&chargeId=${chargeId}${paymentId ? `&paymentId=${paymentId}` : ''}`);
         const data = await response.json();
         
         console.log('[Polling Boleto] Status:', data);

@@ -83,7 +83,7 @@ const CheckoutPublicoHubla: React.FC = () => {
     const checkPixStatus = async () => {
       try {
         setCheckingStatus(true);
-        const response = await fetch(`/api/check-pix-status?txid=${pixTxid}${paymentId ? `&paymentId=${paymentId}` : ''}`);
+        const response = await fetch(`/api/check-payment-status?type=pix&txid=${pixTxid}${paymentId ? `&paymentId=${paymentId}` : ''}`);
         const data = await response.json();
         
         if (data.success && data.status === 'CONFIRMED') {
