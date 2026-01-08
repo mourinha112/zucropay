@@ -247,6 +247,27 @@ export const rejectWithdrawal = async (withdrawalId: string, reason: string) => 
   return result;
 };
 
+export const completeWithdrawal = async (withdrawalId: string) => {
+  // Marcar saque como concluído após transferência manual
+  const token = await getAuthToken();
+  if (!token) throw new Error('Não autenticado');
+  
+  const response = await fetch(`${API_BASE_URL}/admin-withdrawals`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ withdrawalId, action: 'complete' }),
+  });
+  
+  const result = await response.json();
+  if (!result.success && result.error) {
+    throw new Error(result.error);
+  }
+  return result;
+};
+
 export const blockUserWithdrawals = async (userId: string, reason: string) => {
   return callAdminAPI('blockUserWithdrawals', { userId, reason });
 };
@@ -434,6 +455,7 @@ export default {
   getWithdrawals,
   approveWithdrawal,
   rejectWithdrawal,
+  completeWithdrawal,
   blockUserWithdrawals,
   unblockUserWithdrawals,
   getSales,

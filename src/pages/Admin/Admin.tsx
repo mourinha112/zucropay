@@ -247,8 +247,16 @@ const Admin = () => {
   const loadWithdrawals = async () => {
     try {
       setLoading(true);
-      const response = await adminApi.getWithdrawals({ status: 'pending' });
-      setWithdrawals(response.withdrawals || []);
+      // Buscar saques pendentes E aprovados (aguardando transferência manual)
+      const [pendingRes, approvedRes] = await Promise.all([
+        adminApi.getWithdrawals({ status: 'pending' }),
+        adminApi.getWithdrawals({ status: 'approved' }),
+      ]);
+      const allWithdrawals = [
+        ...(pendingRes.withdrawals || []),
+        ...(approvedRes.withdrawals || []),
+      ];
+      setWithdrawals(allWithdrawals);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -357,6 +365,13 @@ const Admin = () => {
           // eslint-disable-next-line no-case-declarations
           const approveResult = await adminApi.approveWithdrawal(item.id);
           setSuccess(approveResult.message || 'Saque aprovado!');
+          loadWithdrawals();
+          loadStats();
+          break;
+        case 'completeWithdrawal':
+          // eslint-disable-next-line no-case-declarations
+          const completeResult = await adminApi.completeWithdrawal(item.id);
+          setSuccess(completeResult.message || 'Saque concluído!');
           loadWithdrawals();
           loadStats();
           break;
@@ -1092,8 +1107,23 @@ const Admin = () => {
                             <TableCell><Typography variant="caption">{formatDate(w.created_at)}</Typography></TableCell>
                             <TableCell align="center">
                               <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-                                <Tooltip title="Aprovar Saque"><IconButton size="small" onClick={() => setActionDialog({ open: true, type: 'approveWithdrawal', item: w, reason: '' })} sx={{ color: '#22c55e' }}><CheckCircleIcon fontSize="small" /></IconButton></Tooltip>
-                                <Tooltip title="Rejeitar Saque"><IconButton size="small" onClick={() => setActionDialog({ open: true, type: 'rejectWithdrawal', item: w, reason: '' })} sx={{ color: '#ef4444' }}><CancelIcon fontSize="small" /></IconButton></Tooltip>
+                                {w.status === 'pending' ? (
+                                  <>
+                                    <Tooltip title="Aprovar Saque"><IconButton size="small" onClick={() => setActionDialog({ open: true, type: 'approveWithdrawal', item: w, reason: '' })} sx={{ color: '#22c55e' }}><CheckCircleIcon fontSize="small" /></IconButton></Tooltip>
+                                    <Tooltip title="Rejeitar Saque"><IconButton size="small" onClick={() => setActionDialog({ open: true, type: 'rejectWithdrawal', item: w, reason: '' })} sx={{ color: '#ef4444' }}><CancelIcon fontSize="small" /></IconButton></Tooltip>
+                                  </>
+                                ) : w.status === 'approved' ? (
+                                  <Tooltip title="Marcar como Concluído (transferência feita)">
+                                    <Button 
+                                      size="small" 
+                                      variant="contained"
+                                      onClick={() => setActionDialog({ open: true, type: 'completeWithdrawal', item: w, reason: '' })} 
+                                      sx={{ bgcolor: '#5818C8', '&:hover': { bgcolor: '#4a14a8' }, fontSize: '0.7rem' }}
+                                    >
+                                      ✓ Concluir
+                                    </Button>
+                                  </Tooltip>
+                                ) : null}
                               </Box>
                             </TableCell>
                           </TableRow>
@@ -1362,7 +1392,8 @@ const Admin = () => {
             {actionDialog.type === 'blockUser' && 'Informe o motivo do bloqueio:'}
             {actionDialog.type === 'approveVerification' && 'Confirmar aprovação da verificação de identidade?'}
             {actionDialog.type === 'rejectVerification' && 'Informe o motivo da rejeição:'}
-            {actionDialog.type === 'approveWithdrawal' && 'Confirmar aprovação do saque?'}
+            {actionDialog.type === 'approveWithdrawal' && 'Confirmar aprovação do saque? Você deverá fazer a transferência manualmente e depois clicar em "Concluir".'}
+            {actionDialog.type === 'completeWithdrawal' && 'Confirmar que a transferência foi realizada?'}
             {actionDialog.type === 'rejectWithdrawal' && 'Informe o motivo da rejeição do saque:'}
             {actionDialog.type === 'blockWithdrawals' && 'Informe o motivo do bloqueio de saques:'}
             {actionDialog.type === 'unblockWithdrawals' && 'Confirmar liberação de saques para este usuário?'}

@@ -122,6 +122,58 @@ const getPixAccessToken = async (config) => {
 };
 
 // ========================================
+// CONFIGURAR WEBHOOK PARA PIX (necessário para envio)
+// ========================================
+
+const configurarWebhookPix = async (config) => {
+  console.log('[Webhook] Configurando webhook para chave PIX:', config.pixKey);
+  
+  const token = await getPixAccessToken(config);
+  const certBuffer = Buffer.from(config.certificate, 'base64');
+  
+  // URL do webhook com skip-mtls para funcionar na Vercel
+  const webhookUrl = 'https://dashboard.appzucropay.com/api/efi-webhook#skip-mtls-checking';
+  
+  const postData = JSON.stringify({ webhookUrl });
+  
+  const options = {
+    hostname: getPixApiUrl(config.sandbox),
+    port: 443,
+    path: `/v2/webhook/${encodeURIComponent(config.pixKey)}`,
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(postData),
+      'x-skip-mtls-checking': 'true', // Header para skip mTLS
+    },
+    pfx: certBuffer,
+    passphrase: '',
+  };
+
+  console.log(`[Webhook] PUT /v2/webhook/${config.pixKey}`);
+  const response = await httpsRequestWithCert(options, postData);
+
+  if (response.status >= 200 && response.status < 300) {
+    console.log('[Webhook] Webhook configurado com sucesso!');
+    return { success: true };
+  }
+
+  console.log('[Webhook] Resposta:', response.status, response.data);
+  // Se já existir webhook, tudo bem
+  if (response.data?.nome === 'webhook_ja_cadastrado_para_essa_chave' || 
+      response.data?.mensagem?.includes('já cadastrado')) {
+    console.log('[Webhook] Webhook já existe, continuando...');
+    return { success: true, existing: true };
+  }
+
+  return { 
+    success: false, 
+    error: response.data?.mensagem || response.data?.error_description || 'Erro ao configurar webhook' 
+  };
+};
+
+// ========================================
 // ENVIAR PIX AUTOMÁTICO
 // ========================================
 
@@ -130,13 +182,20 @@ const enviarPixAutomatico = async (config, withdrawal) => {
   console.log('[PIX Send] Valor:', withdrawal.amount);
   console.log('[PIX Send] Favorecido:', withdrawal.pix_key || `${withdrawal.bank_code}-${withdrawal.agency}-${withdrawal.account_number}`);
 
+  // Primeiro, garantir que o webhook está configurado
+  const webhookResult = await configurarWebhookPix(config);
+  if (!webhookResult.success) {
+    console.error('[PIX Send] Falha ao configurar webhook:', webhookResult.error);
+    // Continuar mesmo assim, talvez o webhook já esteja configurado de outra forma
+  }
+
   const token = await getPixAccessToken(config);
   const certBuffer = Buffer.from(config.certificate, 'base64');
   
-  // Gerar ID único para o envio
-  const idEnvio = randomUUID().replace(/-/g, '').substring(0, 35);
+  // Gerar ID único para o envio (35 caracteres alfanuméricos)
+  const idEnvio = `zp${Date.now()}${randomUUID().replace(/-/g, '')}`.substring(0, 35);
   
-  // Montar payload do PIX
+  // Montar payload do PIX - formato correto para envio (Cash-out)
   const pixPayload = {
     valor: withdrawal.amount.toFixed(2),
     pagador: {
@@ -279,10 +338,10 @@ export default async function handler(req, res) {
         });
       }
 
-      if (!['approve', 'reject'].includes(action)) {
+      if (!['approve', 'reject', 'complete'].includes(action)) {
         return res.status(400).json({
           success: false,
-          message: 'Ação inválida. Use: approve ou reject',
+          message: 'Ação inválida. Use: approve, reject ou complete',
         });
       }
 
@@ -300,10 +359,18 @@ export default async function handler(req, res) {
         });
       }
 
-      if (withdrawal.status !== 'pending') {
+      // Validar status para cada ação
+      if (action === 'approve' && withdrawal.status !== 'pending') {
         return res.status(400).json({
           success: false,
           message: `Este saque já foi ${withdrawal.status === 'approved' ? 'aprovado' : withdrawal.status === 'completed' ? 'concluído' : 'processado'}`,
+        });
+      }
+      
+      if (action === 'reject' && withdrawal.status !== 'pending') {
+        return res.status(400).json({
+          success: false,
+          message: `Apenas saques pendentes podem ser rejeitados`,
         });
       }
 
@@ -339,9 +406,15 @@ export default async function handler(req, res) {
         
         if (!config.certificate || !config.clientId || !config.pixKey) {
           console.error('[ADMIN] Configuração EfiBank incompleta');
-          return res.status(500).json({
-            success: false,
-            message: 'Configuração de pagamento não disponível. Configure as variáveis EFI_CERTIFICATE, EFI_CLIENT_ID e EFI_PIX_KEY.',
+          // Fallback para aprovação manual
+          updateData.status = 'approved';
+          updateData.admin_notes = 'PIX automático indisponível - transferência manual necessária';
+          await supabase.from('withdrawals').update(updateData).eq('id', withdrawalId);
+          
+          return res.status(200).json({
+            success: true,
+            message: `⚠️ Configuração de PIX incompleta. Saque aprovado para transferência manual.\n\n💰 Valor: R$ ${withdrawal.amount.toFixed(2)}\n📱 PIX: ${withdrawal.pix_key}`,
+            withdrawal: { id: withdrawalId, status: 'approved' },
           });
         }
 
@@ -352,7 +425,7 @@ export default async function handler(req, res) {
             // PIX enviado com sucesso!
             updateData.status = 'completed';
             updateData.completed_at = new Date().toISOString();
-            updateData.admin_notes = `PIX enviado automaticamente. ID: ${pixResult.idEnvio}${adminNotes ? ` | ${adminNotes}` : ''}`;
+            updateData.admin_notes = `PIX automático enviado. ID: ${pixResult.idEnvio}${adminNotes ? ` | ${adminNotes}` : ''}`;
 
             // Atualizar transação para concluído
             await supabase
@@ -381,17 +454,21 @@ export default async function handler(req, res) {
             });
 
           } else {
-            // Erro ao enviar PIX - marcar como aprovado para tentar manualmente
+            // Erro ao enviar PIX - marcar como aprovado para transferência manual
             console.error(`[ADMIN] Erro ao enviar PIX: ${pixResult.error}`);
             
             updateData.status = 'approved';
-            updateData.admin_notes = `Erro ao enviar PIX automático: ${pixResult.error}${adminNotes ? ` | ${adminNotes}` : ''}`;
+            updateData.admin_notes = `Erro no PIX automático: ${pixResult.error}${adminNotes ? ` | ${adminNotes}` : ''}`;
 
             await supabase.from('withdrawals').update(updateData).eq('id', withdrawalId);
 
+            const transferInfo = withdrawal.withdrawal_type === 'pix' 
+              ? `PIX para: ${withdrawal.pix_key} (${withdrawal.pix_key_type})`
+              : `TED para: ${withdrawal.bank_name} Ag: ${withdrawal.agency} Cc: ${withdrawal.account_number}`;
+
             return res.status(200).json({
               success: true,
-              message: `⚠️ Saque aprovado, mas PIX automático falhou: ${pixResult.error}. Realize a transferência manualmente.`,
+              message: `⚠️ PIX automático falhou: ${pixResult.error}\n\nFaça a transferência manualmente:\n💰 Valor: R$ ${withdrawal.amount.toFixed(2)}\n📱 ${transferInfo}`,
               pixError: pixResult.error,
               withdrawal: {
                 id: withdrawalId,
@@ -403,21 +480,57 @@ export default async function handler(req, res) {
         } catch (pixError) {
           console.error('[ADMIN] Exceção ao enviar PIX:', pixError);
           
-          // Em caso de erro, apenas aprovar para transferência manual
+          // Em caso de erro, aprovar para transferência manual
           updateData.status = 'approved';
-          updateData.admin_notes = `Exceção ao enviar PIX: ${pixError.message}${adminNotes ? ` | ${adminNotes}` : ''}`;
+          updateData.admin_notes = `Exceção no PIX: ${pixError.message}${adminNotes ? ` | ${adminNotes}` : ''}`;
 
           await supabase.from('withdrawals').update(updateData).eq('id', withdrawalId);
 
           return res.status(200).json({
             success: true,
-            message: `⚠️ Saque aprovado, mas erro no PIX automático: ${pixError.message}. Realize a transferência manualmente.`,
+            message: `⚠️ Erro no sistema de PIX: ${pixError.message}\n\nFaça a transferência manualmente.`,
             withdrawal: {
               id: withdrawalId,
               status: 'approved',
             },
           });
         }
+      }
+      
+      // ========================================
+      // CONCLUIR SAQUE (após transferência manual)
+      // ========================================
+      if (action === 'complete') {
+        if (withdrawal.status !== 'approved') {
+          return res.status(400).json({
+            success: false,
+            message: 'Apenas saques aprovados podem ser marcados como concluídos',
+          });
+        }
+
+        updateData.status = 'completed';
+        updateData.completed_at = new Date().toISOString();
+        updateData.admin_notes = adminNotes || 'Transferência realizada manualmente';
+
+        await supabase.from('withdrawals').update(updateData).eq('id', withdrawalId);
+
+        // Atualizar transação para concluído
+        await supabase
+          .from('transactions')
+          .update({ status: 'completed', description: 'Saque concluído - Transferência realizada' })
+          .eq('metadata->>withdrawal_id', withdrawalId)
+          .eq('type', 'withdrawal_request');
+
+        console.log(`[ADMIN] Saque ${withdrawalId} CONCLUÍDO manualmente`);
+
+        return res.status(200).json({
+          success: true,
+          message: '✅ Saque marcado como concluído!',
+          withdrawal: {
+            id: withdrawalId,
+            status: 'completed',
+          },
+        });
       }
 
       // ========================================
