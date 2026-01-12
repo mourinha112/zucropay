@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 // Headers CORS
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Content-Type': 'application/json',
 };
@@ -37,31 +37,165 @@ const getUserIdFromToken = (authHeader) => {
 };
 
 export default async function handler(req, res) {
+  // Set CORS headers
+  Object.entries(corsHeaders).forEach(([key, value]) => {
+    res.setHeader(key, value);
+  });
+
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return res.status(200).json({});
+    return res.status(200).end();
   }
 
-  // Apenas GET
-  if (req.method !== 'GET') {
-    return res.status(405).json({ error: 'Method not allowed' });
+  const userId = getUserIdFromToken(req.headers.authorization);
+  if (!userId) {
+    return res.status(401).json({ error: 'Token inválido ou não fornecido' });
   }
+
+  const supabase = getSupabase();
+  const { type } = req.query; // ?type=verification para dados de verificação
 
   try {
-    const userId = getUserIdFromToken(req.headers.authorization);
+    // ========================================
+    // VERIFICAÇÃO DE USUÁRIO (integrado)
+    // ========================================
     
-    if (!userId) {
-      return res.status(401).json({ error: 'Token inválido ou não fornecido' });
+    // GET ?type=verification - Buscar status de verificação
+    if (req.method === 'GET' && type === 'verification') {
+      const { data: user, error: userError } = await supabase
+        .from('users')
+        .select('id, name, email, cpf_cnpj, phone, verification_status, verification_rejection_reason')
+        .eq('id', userId)
+        .single();
+
+      if (userError) throw userError;
+
+      const { data: verification } = await supabase
+        .from('user_verifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      return res.status(200).json({
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          cpf_cnpj: user.cpf_cnpj,
+          phone: user.phone,
+          verification_status: user.verification_status || 'pending',
+          verification_rejection_reason: user.verification_rejection_reason
+        },
+        verification: verification || null
+      });
     }
 
-    const supabase = getSupabase();
+    // POST - Enviar documentos de verificação
+    if (req.method === 'POST') {
+      const { 
+        document_type, 
+        document_front_url, 
+        document_back_url, 
+        selfie_url, 
+        full_name, 
+        birth_date, 
+        document_number 
+      } = req.body;
+
+      if (!document_type || !document_front_url || !selfie_url || !full_name || !birth_date || !document_number) {
+        return res.status(400).json({ error: 'Todos os campos obrigatórios devem ser preenchidos' });
+      }
+
+      const { data: existingVerification } = await supabase
+        .from('user_verifications')
+        .select('id, status')
+        .eq('user_id', userId)
+        .in('status', ['pending', 'approved'])
+        .single();
+
+      if (existingVerification) {
+        if (existingVerification.status === 'approved') {
+          return res.status(400).json({ error: 'Sua conta já está verificada' });
+        }
+        return res.status(400).json({ error: 'Você já possui uma verificação pendente' });
+      }
+
+      const { data: newVerification, error: insertError } = await supabase
+        .from('user_verifications')
+        .insert({
+          user_id: userId,
+          document_type,
+          document_front_url,
+          document_back_url: document_back_url || null,
+          selfie_url,
+          full_name,
+          birth_date,
+          document_number,
+          status: 'pending'
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+
+      await supabase
+        .from('users')
+        .update({ 
+          verification_status: 'submitted',
+          verification_submitted_at: new Date().toISOString()
+        })
+        .eq('id', userId);
+
+      console.log('[VERIFICATION] Nova verificação enviada:', newVerification.id, 'Usuário:', userId);
+
+      return res.status(201).json({
+        success: true,
+        message: 'Documentos enviados com sucesso! Aguarde a análise.',
+        verification: newVerification
+      });
+    }
+
+    // PUT - Atualizar dados do perfil
+    if (req.method === 'PUT') {
+      const { name, phone, cpf_cnpj } = req.body;
+
+      const updateData = {};
+      if (name) updateData.name = name;
+      if (phone) updateData.phone = phone;
+      if (cpf_cnpj) updateData.cpf_cnpj = cpf_cnpj;
+
+      const { data, error } = await supabase
+        .from('users')
+        .update(updateData)
+        .eq('id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      return res.status(200).json({
+        success: true,
+        message: 'Dados atualizados com sucesso!',
+        user: data
+      });
+    }
+
+    // ========================================
+    // DASHBOARD DATA (padrão GET)
+    // ========================================
     
+    if (req.method !== 'GET') {
+      return res.status(405).json({ error: 'Method not allowed' });
+    }
+
     // Buscar dados em paralelo (muito mais rápido!)
     const [userResult, paymentsResult, linksResult, reservesResult, transactionsResult] = await Promise.all([
       // Saldo do usuário e status de verificação
       supabase
         .from('users')
-        .select('balance, reserved_balance, name, email, verification_status, verification_rejection_reason')
+        .select('balance, reserved_balance, name, email, cpf_cnpj, phone, verification_status, verification_rejection_reason')
         .eq('id', userId)
         .single(),
       
@@ -105,12 +239,9 @@ export default async function handler(req, res) {
     const transactions = transactionsResult.data || [];
 
     // Calcular dados de reserva
-    // Usar o reserved_balance do usuário (mais confiável) ou somar da tabela balance_reserves
     const reservesTotal = reserves.reduce((sum, r) => sum + parseFloat(r.reserve_amount || 0), 0);
     const totalReserved = parseFloat(user?.reserved_balance || 0) || reservesTotal;
     const nextRelease = reserves.length > 0 ? reserves[0] : null;
-    
-    // Contar reservas ativas (se não tiver na tabela, mas tiver saldo reservado, conta como 1)
     const reservesCount = reserves.length > 0 ? reserves.length : (totalReserved > 0 ? 1 : 0);
 
     // Calcular estatísticas
@@ -172,8 +303,11 @@ export default async function handler(req, res) {
       success: true,
       data: {
         user: {
+          id: userId,
           name: user?.name || 'Usuário',
           email: user?.email,
+          cpf_cnpj: user?.cpf_cnpj,
+          phone: user?.phone,
           balance: parseFloat(user?.balance || 0),
           reservedBalance: parseFloat(user?.reserved_balance || 0),
           verificationStatus: user?.verification_status || 'pending',
@@ -219,4 +353,3 @@ export default async function handler(req, res) {
     });
   }
 }
-

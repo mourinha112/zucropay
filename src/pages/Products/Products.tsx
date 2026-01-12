@@ -102,7 +102,7 @@ const Products: React.FC = () => {
   const loadVerificationStatus = async () => {
     try {
       const token = localStorage.getItem('zucropay_token');
-      const response = await fetch(`${API_URL}/api/user-verification`, {
+      const response = await fetch(`${API_URL}/api/dashboard-data?type=verification`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },

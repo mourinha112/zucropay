@@ -135,7 +135,7 @@ const Settings: React.FC = () => {
     setLoading(true);
     try {
       const token = getAuthToken();
-      const response = await fetch(`${API_URL}/api/user-verification`, {
+      const response = await fetch(`${API_URL}/api/dashboard-data?type=verification`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -170,7 +170,7 @@ const Settings: React.FC = () => {
     setSaving(true);
     try {
       const token = getAuthToken();
-      const response = await fetch(`${API_URL}/api/user-verification`, {
+      const response = await fetch(`${API_URL}/api/dashboard-data`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -261,7 +261,7 @@ const Settings: React.FC = () => {
 
       // Enviar verificação
       const token = getAuthToken();
-      const response = await fetch(`${API_URL}/api/user-verification`, {
+      const response = await fetch(`${API_URL}/api/dashboard-data`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
