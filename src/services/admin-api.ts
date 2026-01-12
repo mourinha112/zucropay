@@ -164,65 +164,15 @@ export interface GetVerificationsParams {
 }
 
 export const getVerifications = async (params: GetVerificationsParams = {}) => {
-  // Chamar API serverless diretamente
-  const token = await getAuthToken();
-  if (!token) throw new Error('Não autenticado');
-  
-  const queryParams = new URLSearchParams();
-  if (params.status) queryParams.append('status', params.status);
-  
-  const response = await fetch(`${API_BASE_URL}/admin-verifications?${queryParams}`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
-  
-  const result = await response.json();
-  if (result.error) {
-    throw new Error(result.error);
-  }
-  return result;
+  return callAdminAPI('getVerifications', params);
 };
 
 export const approveVerification = async (verificationId: string) => {
-  const token = await getAuthToken();
-  if (!token) throw new Error('Não autenticado');
-  
-  const response = await fetch(`${API_BASE_URL}/admin-verifications`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify({ verification_id: verificationId, action: 'approve' }),
-  });
-  
-  const result = await response.json();
-  if (result.error) {
-    throw new Error(result.error);
-  }
-  return result;
+  return callAdminAPI('approveVerification', { verificationId });
 };
 
 export const rejectVerification = async (verificationId: string, reason: string) => {
-  const token = await getAuthToken();
-  if (!token) throw new Error('Não autenticado');
-  
-  const response = await fetch(`${API_BASE_URL}/admin-verifications`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`,
-    },
-    body: JSON.stringify({ verification_id: verificationId, action: 'reject', rejection_reason: reason }),
-  });
-  
-  const result = await response.json();
-  if (result.error) {
-    throw new Error(result.error);
-  }
-  return result;
+  return callAdminAPI('rejectVerification', { verificationId, reason });
 };
 
 // ========================================

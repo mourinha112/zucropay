@@ -101,7 +101,7 @@ const Admin = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [configError, setConfigError] = useState<string | null>(null);
-  const [userId, setUserId] = useState<string | null>(null);
+  const [userId, _setUserId] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
 
   // Estados dos dados

@@ -18,7 +18,6 @@ import {
   Select,
   MenuItem,
   Paper,
-  IconButton,
   Snackbar,
   styled,
 } from '@mui/material';
@@ -26,7 +25,6 @@ import {
   Person as PersonIcon,
   VerifiedUser as VerifiedIcon,
   CloudUpload as UploadIcon,
-  CameraAlt as CameraIcon,
   Badge as BadgeIcon,
   Warning as WarningIcon,
   CheckCircle as CheckCircleIcon,
@@ -98,7 +96,7 @@ const Settings: React.FC = () => {
   
   // User data
   const [userData, setUserData] = useState<UserData | null>(null);
-  const [verificationData, setVerificationData] = useState<VerificationData | null>(null);
+  const [_verificationData, setVerificationData] = useState<VerificationData | null>(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -220,7 +218,7 @@ const Settings: React.FC = () => {
     const fileExt = file.name.split('.').pop();
     const fileName = `${userData?.id}/${folder}/${Date.now()}.${fileExt}`;
     
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from('verifications')
       .upload(fileName, file, {
         cacheControl: '3600',
