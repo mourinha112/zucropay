@@ -1,367 +1,703 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Container,
   Typography,
-  Paper,
-  Button,
-  TextField,
-  Stack,
-  Alert,
   Card,
   CardContent,
-  Chip,
+  TextField,
+  Button,
+  Avatar,
+  Grid,
   Divider,
+  Alert,
+  CircularProgress,
+  Chip,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Paper,
   IconButton,
-  Tooltip,
+  Snackbar,
+  styled,
 } from '@mui/material';
 import {
-  Computer as LocalhostIcon,
-  Cloud as NgrokIcon,
-  Dns as VpsIcon,
-  Save as SaveIcon,
-  RestartAlt as ResetIcon,
-  CheckCircle,
-  Edit as EditIcon,
-  ContentCopy,
+  Person as PersonIcon,
+  VerifiedUser as VerifiedIcon,
+  CloudUpload as UploadIcon,
+  CameraAlt as CameraIcon,
+  Badge as BadgeIcon,
+  Warning as WarningIcon,
+  CheckCircle as CheckCircleIcon,
+  Pending as PendingIcon,
+  Cancel as CancelIcon,
+  PhotoCamera as PhotoCameraIcon,
+  Description as DocumentIcon,
 } from '@mui/icons-material';
-import {
-  getSystemConfig,
-  changeEnvironmentMode,
-  updateCustomUrls,
-  resetToDefault,
-  PREDEFINED_CONFIGS,
-} from '../../config/config';
-import type { EnvironmentMode, SystemConfig } from '../../config/config';
+import Header from '../../components/Header/Header';
+import { createClient } from '@supabase/supabase-js';
+
+const API_URL = import.meta.env.VITE_API_URL || '';
+
+// Initialize Supabase client for file uploads
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+interface UserData {
+  id: string;
+  name: string;
+  email: string;
+  cpf_cnpj: string | null;
+  phone: string | null;
+  verification_status: 'pending' | 'submitted' | 'approved' | 'rejected';
+  verification_rejection_reason: string | null;
+}
+
+interface VerificationData {
+  id: string;
+  document_type: string;
+  document_front_url: string;
+  document_back_url: string | null;
+  selfie_url: string;
+  full_name: string;
+  birth_date: string;
+  document_number: string;
+  status: string;
+  rejection_reason: string | null;
+  created_at: string;
+}
+
+const UploadBox = styled(Paper)(({ theme }) => ({
+  border: '2px dashed #c4c4c4',
+  borderRadius: 12,
+  padding: theme.spacing(3),
+  textAlign: 'center',
+  cursor: 'pointer',
+  transition: 'all 0.3s ease',
+  backgroundColor: '#fafafa',
+  '&:hover': {
+    borderColor: '#5818C8',
+    backgroundColor: '#f5f0ff',
+  },
+}));
+
+const PreviewImage = styled('img')({
+  maxWidth: '100%',
+  maxHeight: 200,
+  borderRadius: 8,
+  objectFit: 'cover',
+});
 
 const Settings: React.FC = () => {
-  const [config, setConfig] = useState<SystemConfig>(getSystemConfig());
-  const [customBackendUrl, setCustomBackendUrl] = useState('');
-  const [customFrontendUrl, setCustomFrontendUrl] = useState('');
-  const [showCustomFields, setShowCustomFields] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
+  
+  // User data
+  const [userData, setUserData] = useState<UserData | null>(null);
+  const [verificationData, setVerificationData] = useState<VerificationData | null>(null);
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    name: '',
+    phone: '',
+    cpf_cnpj: '',
+  });
+  
+  // Verification form
+  const [verificationForm, setVerificationForm] = useState({
+    document_type: 'cnh',
+    full_name: '',
+    birth_date: '',
+    document_number: '',
+  });
+  
+  // File uploads
+  const [documentFront, setDocumentFront] = useState<File | null>(null);
+  const [documentBack, setDocumentBack] = useState<File | null>(null);
+  const [selfie, setSelfie] = useState<File | null>(null);
+  const [documentFrontPreview, setDocumentFrontPreview] = useState<string>('');
+  const [documentBackPreview, setDocumentBackPreview] = useState<string>('');
+  const [selfiePreview, setSelfiePreview] = useState<string>('');
+  
+  const frontInputRef = useRef<HTMLInputElement>(null);
+  const backInputRef = useRef<HTMLInputElement>(null);
+  const selfieInputRef = useRef<HTMLInputElement>(null);
+
+  const getAuthToken = () => localStorage.getItem('zucropay_token');
 
   useEffect(() => {
-    const currentConfig = getSystemConfig();
-    setConfig(currentConfig);
-    setCustomBackendUrl(currentConfig.backendUrl);
-    setCustomFrontendUrl(currentConfig.frontendUrl);
+    loadUserData();
   }, []);
 
-  const handleModeChange = (mode: EnvironmentMode) => {
-    changeEnvironmentMode(mode);
-    const newConfig = PREDEFINED_CONFIGS[mode];
-    setConfig(newConfig);
-    setCustomBackendUrl(newConfig.backendUrl);
-    setCustomFrontendUrl(newConfig.frontendUrl);
-    setShowCustomFields(false);
-    showSuccessMessage();
-  };
-
-  const handleSaveCustomUrls = () => {
-    updateCustomUrls(customBackendUrl, customFrontendUrl);
-    const updatedConfig = getSystemConfig();
-    setConfig(updatedConfig);
-    setShowCustomFields(false);
-    showSuccessMessage();
-  };
-
-  const handleReset = () => {
-    resetToDefault();
-    const defaultConfig = getSystemConfig();
-    setConfig(defaultConfig);
-    setCustomBackendUrl(defaultConfig.backendUrl);
-    setCustomFrontendUrl(defaultConfig.frontendUrl);
-    setShowCustomFields(false);
-    showSuccessMessage();
-  };
-
-  const showSuccessMessage = () => {
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-  };
-
-  const getIconForMode = (mode: EnvironmentMode) => {
-    switch (mode) {
-      case 'localhost':
-        return <LocalhostIcon sx={{ fontSize: 40 }} />;
-      case 'ngrok':
-        return <NgrokIcon sx={{ fontSize: 40 }} />;
-      case 'vps':
-        return <VpsIcon sx={{ fontSize: 40 }} />;
+  const loadUserData = async () => {
+    setLoading(true);
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_URL}/api/user-verification`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      const data = await response.json();
+      
+      if (data.user) {
+        setUserData(data.user);
+        setFormData({
+          name: data.user.name || '',
+          phone: data.user.phone || '',
+          cpf_cnpj: data.user.cpf_cnpj || '',
+        });
+        setVerificationForm(prev => ({
+          ...prev,
+          full_name: data.user.name || '',
+          document_number: data.user.cpf_cnpj || '',
+        }));
+      }
+      
+      if (data.verification) {
+        setVerificationData(data.verification);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+      setSnackbar({ open: true, message: 'Erro ao carregar dados do usuário', severity: 'error' });
+    } finally {
+      setLoading(false);
     }
   };
 
-  return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" gutterBottom sx={{ fontWeight: 600 }}>
-          ⚙️ Configurações do Sistema
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          Configure o modo de operação e URLs do sistema
-        </Typography>
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      const token = getAuthToken();
+      const response = await fetch(`${API_URL}/api/user-verification`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setSnackbar({ open: true, message: 'Dados salvos com sucesso!', severity: 'success' });
+        loadUserData();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error: any) {
+      setSnackbar({ open: true, message: error.message || 'Erro ao salvar dados', severity: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFileChange = (type: 'front' | 'back' | 'selfie', file: File | null) => {
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const preview = e.target?.result as string;
+      if (type === 'front') {
+        setDocumentFront(file);
+        setDocumentFrontPreview(preview);
+      } else if (type === 'back') {
+        setDocumentBack(file);
+        setDocumentBackPreview(preview);
+      } else {
+        setSelfie(file);
+        setSelfiePreview(preview);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const uploadFileToSupabase = async (file: File, folder: string): Promise<string> => {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${userData?.id}/${folder}/${Date.now()}.${fileExt}`;
+    
+    const { data, error } = await supabase.storage
+      .from('verifications')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+    
+    if (error) {
+      console.error('Erro no upload:', error);
+      throw new Error('Erro ao fazer upload da imagem');
+    }
+    
+    const { data: urlData } = supabase.storage
+      .from('verifications')
+      .getPublicUrl(fileName);
+    
+    return urlData.publicUrl;
+  };
+
+  const handleSubmitVerification = async () => {
+    // Validações
+    if (!documentFront) {
+      setSnackbar({ open: true, message: 'Envie a foto do documento (frente)', severity: 'error' });
+      return;
+    }
+    if (!selfie) {
+      setSnackbar({ open: true, message: 'Envie sua selfie com o documento', severity: 'error' });
+      return;
+    }
+    if (!verificationForm.full_name || !verificationForm.birth_date || !verificationForm.document_number) {
+      setSnackbar({ open: true, message: 'Preencha todos os campos obrigatórios', severity: 'error' });
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Upload dos arquivos
+      const documentFrontUrl = await uploadFileToSupabase(documentFront, 'documents');
+      const documentBackUrl = documentBack ? await uploadFileToSupabase(documentBack, 'documents') : null;
+      const selfieUrl = await uploadFileToSupabase(selfie, 'selfies');
+
+      // Enviar verificação
+      const token = getAuthToken();
+      const response = await fetch(`${API_URL}/api/user-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          document_type: verificationForm.document_type,
+          document_front_url: documentFrontUrl,
+          document_back_url: documentBackUrl,
+          selfie_url: selfieUrl,
+          full_name: verificationForm.full_name,
+          birth_date: verificationForm.birth_date,
+          document_number: verificationForm.document_number
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSnackbar({ open: true, message: 'Documentos enviados com sucesso! Aguarde a análise.', severity: 'success' });
+        loadUserData();
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (error: any) {
+      console.error('Erro no upload:', error);
+      setSnackbar({ open: true, message: error.message || 'Erro ao enviar documentos', severity: 'error' });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const getStatusChip = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return <Chip icon={<CheckCircleIcon />} label="Verificado" color="success" />;
+      case 'submitted':
+        return <Chip icon={<PendingIcon />} label="Em Análise" color="warning" />;
+      case 'rejected':
+        return <Chip icon={<CancelIcon />} label="Rejeitado" color="error" />;
+      default:
+        return <Chip icon={<WarningIcon />} label="Pendente" color="default" />;
+    }
+  };
+
+  if (loading) {
+    return (
+      <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa' }}>
+        <Header />
+        <Container maxWidth="lg" sx={{ py: 4 }}>
+          <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+            <CircularProgress />
+          </Box>
+        </Container>
       </Box>
+    );
+  }
 
-      {saveSuccess && (
-        <Alert severity="success" sx={{ mb: 3 }}>
-          ✅ Configuração salva com sucesso! As mudanças já estão ativas.
-        </Alert>
-      )}
+  const isVerified = userData?.verification_status === 'approved';
+  const isPending = userData?.verification_status === 'submitted';
+  const isRejected = userData?.verification_status === 'rejected';
+  const canSubmitVerification = !isVerified && !isPending;
 
-      {/* Configuração Atual */}
-      <Paper sx={{ p: 3, mb: 3, bgcolor: '#f5f5f5' }}>
-        <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <CheckCircle color="success" />
-          Configuração Atual
+  return (
+    <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa' }}>
+      <Header />
+      <Container maxWidth="lg" sx={{ py: 4 }}>
+        <Typography variant="h4" fontWeight="bold" mb={4} sx={{ color: '#1e293b' }}>
+          Configurações
         </Typography>
-        <Divider sx={{ my: 2 }} />
-        <Stack spacing={2}>
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              Modo Ativo:
-            </Typography>
-            <Chip
-              label={config.mode.toUpperCase()}
-              color="primary"
-              icon={getIconForMode(config.mode)}
-              sx={{ mt: 1 }}
-            />
-          </Box>
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              URL do Backend:
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-              <TextField
-                value={config.backendUrl}
-                size="small"
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <Tooltip title="Copiar">
-                <IconButton onClick={() => copyToClipboard(config.backendUrl)}>
-                  <ContentCopy />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
-          <Box>
-            <Typography variant="subtitle2" color="text.secondary">
-              URL do Frontend:
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-              <TextField
-                value={config.frontendUrl}
-                size="small"
-                fullWidth
-                InputProps={{ readOnly: true }}
-              />
-              <Tooltip title="Copiar">
-                <IconButton onClick={() => copyToClipboard(config.frontendUrl)}>
-                  <ContentCopy />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          </Box>
-        </Stack>
-      </Paper>
 
-      {/* Modos Pré-Configurados */}
-      <Typography variant="h6" gutterBottom sx={{ mt: 4, mb: 2 }}>
-        Escolher Modo de Operação
-      </Typography>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} sx={{ mb: 3 }}>
-        {/* Localhost */}
-        <Card
-          sx={{
-            flex: 1,
-            border: config.mode === 'localhost' ? '2px solid #1976d2' : '1px solid #e0e0e0',
-            cursor: 'pointer',
-            transition: 'all 0.3s',
-            '&:hover': {
-              boxShadow: 4,
-              transform: 'translateY(-4px)',
-            },
-          }}
-          onClick={() => handleModeChange('localhost')}
+        <Grid container spacing={3}>
+          {/* Dados Pessoais */}
+          <Grid item xs={12} md={6}>
+            <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid #e2e8f0' }}>
+              <CardContent sx={{ p: 4 }}>
+                <Box display="flex" alignItems="center" gap={2} mb={3}>
+                  <Avatar sx={{ bgcolor: '#5818C8', width: 48, height: 48 }}>
+                    <PersonIcon />
+                  </Avatar>
+                  <Box>
+                    <Typography variant="h6" fontWeight="bold">
+                      Dados Pessoais
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Gerencie suas informações pessoais
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <Divider sx={{ my: 3 }} />
+
+                <Grid container spacing={2}>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="Nome Completo"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    />
+                  </Grid>
+                  <Grid item xs={12}>
+                    <TextField
+                      fullWidth
+                      label="E-mail"
+                      value={userData?.email || ''}
+                      disabled
+                      helperText="O e-mail não pode ser alterado"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="CPF/CNPJ"
+                      value={formData.cpf_cnpj}
+                      onChange={(e) => setFormData({ ...formData, cpf_cnpj: e.target.value })}
+                      placeholder="000.000.000-00"
+                    />
+                  </Grid>
+                  <Grid item xs={12} sm={6}>
+                    <TextField
+                      fullWidth
+                      label="Telefone"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="(11) 99999-9999"
+                    />
+                  </Grid>
+                </Grid>
+
+                <Button
+                  variant="contained"
+                  fullWidth
+                  onClick={handleSaveProfile}
+                  disabled={saving}
+                  sx={{ 
+                    mt: 3, 
+                    py: 1.5, 
+                    bgcolor: '#5818C8',
+                    '&:hover': { bgcolor: '#4a14a8' }
+                  }}
+                >
+                  {saving ? <CircularProgress size={24} color="inherit" /> : 'Salvar Alterações'}
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Status de Verificação */}
+          <Grid item xs={12} md={6}>
+            <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid #e2e8f0' }}>
+              <CardContent sx={{ p: 4 }}>
+                <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+                  <Box display="flex" alignItems="center" gap={2}>
+                    <Avatar sx={{ bgcolor: isVerified ? '#10b981' : '#f59e0b', width: 48, height: 48 }}>
+                      <VerifiedIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="h6" fontWeight="bold">
+                        Verificação de Conta
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Status da sua verificação
+                      </Typography>
+                    </Box>
+                  </Box>
+                  {getStatusChip(userData?.verification_status || 'pending')}
+                </Box>
+
+                <Divider sx={{ my: 3 }} />
+
+                {isVerified && (
+                  <Alert severity="success" icon={<CheckCircleIcon />} sx={{ mb: 2 }}>
+                    <Typography fontWeight="bold">Conta Verificada!</Typography>
+                    <Typography variant="body2">
+                      Sua conta foi verificada com sucesso. Você tem acesso a todos os recursos da plataforma.
+                    </Typography>
+                  </Alert>
+                )}
+
+                {isPending && (
+                  <Alert severity="info" icon={<PendingIcon />} sx={{ mb: 2 }}>
+                    <Typography fontWeight="bold">Em Análise</Typography>
+                    <Typography variant="body2">
+                      Seus documentos estão sendo analisados. Aguarde a aprovação para ter acesso completo.
+                    </Typography>
+                  </Alert>
+                )}
+
+                {isRejected && (
+                  <Alert severity="error" icon={<CancelIcon />} sx={{ mb: 2 }}>
+                    <Typography fontWeight="bold">Verificação Rejeitada</Typography>
+                    <Typography variant="body2">
+                      Motivo: {userData?.verification_rejection_reason || 'Documentos inválidos'}
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 1 }}>
+                      Você pode enviar novamente os documentos corrigidos.
+                    </Typography>
+                  </Alert>
+                )}
+
+                {!isVerified && !isPending && (
+                  <Alert severity="warning" icon={<WarningIcon />} sx={{ mb: 2 }}>
+                    <Typography fontWeight="bold">Verificação Necessária</Typography>
+                    <Typography variant="body2">
+                      Para criar produtos e usar a plataforma, você precisa verificar sua identidade.
+                    </Typography>
+                  </Alert>
+                )}
+
+                <Box sx={{ mt: 2, p: 2, bgcolor: '#f8f9fa', borderRadius: 2 }}>
+                  <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                    Benefícios da verificação:
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    • Criar e vender produtos<br />
+                    • Receber pagamentos<br />
+                    • Solicitar saques<br />
+                    • Acesso ao marketplace
+                  </Typography>
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Formulário de Verificação */}
+          {canSubmitVerification && (
+            <Grid item xs={12}>
+              <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid #e2e8f0' }}>
+                <CardContent sx={{ p: 4 }}>
+                  <Box display="flex" alignItems="center" gap={2} mb={3}>
+                    <Avatar sx={{ bgcolor: '#5818C8', width: 48, height: 48 }}>
+                      <BadgeIcon />
+                    </Avatar>
+                    <Box>
+                      <Typography variant="h6" fontWeight="bold">
+                        Enviar Documentos para Verificação
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Envie sua CNH ou RG + uma selfie segurando o documento
+                      </Typography>
+                    </Box>
+                  </Box>
+
+                  <Divider sx={{ my: 3 }} />
+
+                  <Grid container spacing={3}>
+                    {/* Dados do Documento */}
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+                        Informações Pessoais
+                      </Typography>
+                      
+                      <Grid container spacing={2}>
+                        <Grid item xs={12}>
+                          <FormControl fullWidth>
+                            <InputLabel>Tipo de Documento</InputLabel>
+                            <Select
+                              value={verificationForm.document_type}
+                              label="Tipo de Documento"
+                              onChange={(e) => setVerificationForm({ ...verificationForm, document_type: e.target.value })}
+                            >
+                              <MenuItem value="cnh">CNH (Carteira de Motorista)</MenuItem>
+                              <MenuItem value="rg">RG (Carteira de Identidade)</MenuItem>
+                              <MenuItem value="passport">Passaporte</MenuItem>
+                            </Select>
+                          </FormControl>
+                        </Grid>
+                        <Grid item xs={12}>
+                          <TextField
+                            fullWidth
+                            label="Nome Completo (como no documento)"
+                            value={verificationForm.full_name}
+                            onChange={(e) => setVerificationForm({ ...verificationForm, full_name: e.target.value })}
+                            required
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            fullWidth
+                            label="Data de Nascimento"
+                            type="date"
+                            value={verificationForm.birth_date}
+                            onChange={(e) => setVerificationForm({ ...verificationForm, birth_date: e.target.value })}
+                            InputLabelProps={{ shrink: true }}
+                            required
+                          />
+                        </Grid>
+                        <Grid item xs={12} sm={6}>
+                          <TextField
+                            fullWidth
+                            label="CPF"
+                            value={verificationForm.document_number}
+                            onChange={(e) => setVerificationForm({ ...verificationForm, document_number: e.target.value })}
+                            placeholder="000.000.000-00"
+                            required
+                          />
+                        </Grid>
+                      </Grid>
+                    </Grid>
+
+                    {/* Upload de Documentos */}
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle1" fontWeight="bold" mb={2}>
+                        Upload de Documentos
+                      </Typography>
+                      
+                      <Grid container spacing={2}>
+                        {/* Frente do Documento */}
+                        <Grid item xs={12} sm={6}>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            ref={frontInputRef}
+                            style={{ display: 'none' }}
+                            onChange={(e) => handleFileChange('front', e.target.files?.[0] || null)}
+                          />
+                          <UploadBox onClick={() => frontInputRef.current?.click()}>
+                            {documentFrontPreview ? (
+                              <PreviewImage src={documentFrontPreview} alt="Frente do documento" />
+                            ) : (
+                              <>
+                                <DocumentIcon sx={{ fontSize: 48, color: '#9ca3af', mb: 1 }} />
+                                <Typography variant="body2" fontWeight="bold">
+                                  Frente do Documento *
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  Clique para enviar
+                                </Typography>
+                              </>
+                            )}
+                          </UploadBox>
+                        </Grid>
+
+                        {/* Verso do Documento */}
+                        <Grid item xs={12} sm={6}>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            ref={backInputRef}
+                            style={{ display: 'none' }}
+                            onChange={(e) => handleFileChange('back', e.target.files?.[0] || null)}
+                          />
+                          <UploadBox onClick={() => backInputRef.current?.click()}>
+                            {documentBackPreview ? (
+                              <PreviewImage src={documentBackPreview} alt="Verso do documento" />
+                            ) : (
+                              <>
+                                <DocumentIcon sx={{ fontSize: 48, color: '#9ca3af', mb: 1 }} />
+                                <Typography variant="body2" fontWeight="bold">
+                                  Verso do Documento
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  Opcional para CNH
+                                </Typography>
+                              </>
+                            )}
+                          </UploadBox>
+                        </Grid>
+
+                        {/* Selfie */}
+                        <Grid item xs={12}>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            ref={selfieInputRef}
+                            style={{ display: 'none' }}
+                            onChange={(e) => handleFileChange('selfie', e.target.files?.[0] || null)}
+                          />
+                          <UploadBox onClick={() => selfieInputRef.current?.click()}>
+                            {selfiePreview ? (
+                              <PreviewImage src={selfiePreview} alt="Selfie" />
+                            ) : (
+                              <>
+                                <PhotoCameraIcon sx={{ fontSize: 48, color: '#9ca3af', mb: 1 }} />
+                                <Typography variant="body2" fontWeight="bold">
+                                  Selfie segurando o documento *
+                                </Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  Tire uma foto sua segurando o documento ao lado do rosto
+                                </Typography>
+                              </>
+                            )}
+                          </UploadBox>
+                        </Grid>
+                      </Grid>
+                    </Grid>
+                  </Grid>
+
+                  <Alert severity="info" sx={{ mt: 3 }}>
+                    <Typography variant="body2">
+                      <strong>Dicas para uma boa verificação:</strong><br />
+                      • Certifique-se de que as fotos estejam nítidas e legíveis<br />
+                      • Na selfie, segure o documento ao lado do rosto em um local bem iluminado<br />
+                      • Todas as informações do documento devem estar visíveis
+                    </Typography>
+                  </Alert>
+
+                  <Button
+                    variant="contained"
+                    fullWidth
+                    onClick={handleSubmitVerification}
+                    disabled={uploading}
+                    startIcon={uploading ? <CircularProgress size={20} color="inherit" /> : <UploadIcon />}
+                    sx={{ 
+                      mt: 3, 
+                      py: 1.5, 
+                      bgcolor: '#5818C8',
+                      '&:hover': { bgcolor: '#4a14a8' }
+                    }}
+                  >
+                    {uploading ? 'Enviando documentos...' : 'Enviar para Verificação'}
+                  </Button>
+                </CardContent>
+              </Card>
+            </Grid>
+          )}
+        </Grid>
+
+        <Snackbar
+          open={snackbar.open}
+          autoHideDuration={6000}
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
         >
-          <CardContent sx={{ textAlign: 'center' }}>
-            <LocalhostIcon sx={{ fontSize: 60, color: '#1976d2', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              Localhost
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Desenvolvimento local
-            </Typography>
-            <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace' }}>
-              Backend: localhost:8000
-            </Typography>
-            <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace' }}>
-              Frontend: localhost:5173
-            </Typography>
-            {config.mode === 'localhost' && (
-              <Chip label="Ativo" color="primary" size="small" sx={{ mt: 2 }} />
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Ngrok */}
-        <Card
-          sx={{
-            flex: 1,
-            border: config.mode === 'ngrok' ? '2px solid #1976d2' : '1px solid #e0e0e0',
-            cursor: 'pointer',
-            transition: 'all 0.3s',
-            '&:hover': {
-              boxShadow: 4,
-              transform: 'translateY(-4px)',
-            },
-          }}
-          onClick={() => handleModeChange('ngrok')}
-        >
-          <CardContent sx={{ textAlign: 'center' }}>
-            <NgrokIcon sx={{ fontSize: 60, color: '#00c853', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              Ngrok
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Testes externos via túneis
-            </Typography>
-            <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace', fontSize: '0.7rem' }}>
-              *.ngrok-free.app
-            </Typography>
-            {config.mode === 'ngrok' && (
-              <Chip label="Ativo" color="primary" size="small" sx={{ mt: 2 }} />
-            )}
-          </CardContent>
-        </Card>
-
-        {/* VPS */}
-        <Card
-          sx={{
-            flex: 1,
-            border: config.mode === 'vps' ? '2px solid #1976d2' : '1px solid #e0e0e0',
-            cursor: 'pointer',
-            transition: 'all 0.3s',
-            '&:hover': {
-              boxShadow: 4,
-              transform: 'translateY(-4px)',
-            },
-          }}
-          onClick={() => handleModeChange('vps')}
-        >
-          <CardContent sx={{ textAlign: 'center' }}>
-            <VpsIcon sx={{ fontSize: 60, color: '#ff6f00', mb: 2 }} />
-            <Typography variant="h6" gutterBottom>
-              VPS / Servidor
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Produção em servidor dedicado
-            </Typography>
-            <Typography variant="caption" sx={{ display: 'block', fontFamily: 'monospace' }}>
-              IP ou domínio próprio
-            </Typography>
-            {config.mode === 'vps' && (
-              <Chip label="Ativo" color="primary" size="small" sx={{ mt: 2 }} />
-            )}
-          </CardContent>
-        </Card>
-      </Stack>
-
-      {/* URLs Customizadas */}
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-          <Typography variant="h6">
-            URLs Customizadas
-          </Typography>
-          <Button
-            startIcon={<EditIcon />}
-            onClick={() => setShowCustomFields(!showCustomFields)}
-            variant="outlined"
-            size="small"
+          <Alert 
+            onClose={() => setSnackbar({ ...snackbar, open: false })} 
+            severity={snackbar.severity}
+            sx={{ width: '100%' }}
           >
-            {showCustomFields ? 'Cancelar' : 'Editar URLs'}
-          </Button>
-        </Box>
-
-        {showCustomFields && (
-          <>
-            <Alert severity="info" sx={{ mb: 2 }}>
-              Configure URLs personalizadas para VPS, ngrok customizado ou outros ambientes.
-            </Alert>
-            <Stack spacing={2}>
-              <TextField
-                label="URL do Backend"
-                value={customBackendUrl}
-                onChange={(e) => setCustomBackendUrl(e.target.value)}
-                fullWidth
-                placeholder="https://seu-backend.com"
-                helperText="Ex: https://api.zucropay.com ou http://123.456.789.0:8000"
-              />
-              <TextField
-                label="URL do Frontend"
-                value={customFrontendUrl}
-                onChange={(e) => setCustomFrontendUrl(e.target.value)}
-                fullWidth
-                placeholder="https://seu-frontend.com"
-                helperText="Ex: https://zucropay.com ou http://123.456.789.0"
-              />
-              <Button
-                variant="contained"
-                startIcon={<SaveIcon />}
-                onClick={handleSaveCustomUrls}
-                fullWidth
-                size="large"
-              >
-                Salvar URLs Customizadas
-              </Button>
-            </Stack>
-          </>
-        )}
-      </Paper>
-
-      {/* Ações */}
-      <Stack direction="row" spacing={2}>
-        <Button
-          variant="outlined"
-          startIcon={<ResetIcon />}
-          onClick={handleReset}
-          color="warning"
-        >
-          Resetar para Padrão (Localhost)
-        </Button>
-      </Stack>
-
-      {/* Informações */}
-      <Paper sx={{ p: 3, mt: 3, bgcolor: '#f9f9f9' }}>
-        <Typography variant="h6" gutterBottom>
-          ℹ️ Como Funciona
-        </Typography>
-        <Divider sx={{ my: 2 }} />
-        <Stack spacing={1}>
-          <Typography variant="body2">
-            • <strong>Localhost:</strong> Para desenvolvimento local. Backend em http://localhost:8000 e frontend em http://localhost:5173
-          </Typography>
-          <Typography variant="body2">
-            • <strong>Ngrok:</strong> Para testes com clientes externos. Usa túneis ngrok temporários. Adiciona automaticamente headers especiais.
-          </Typography>
-          <Typography variant="body2">
-            • <strong>VPS:</strong> Para produção em servidor dedicado. Configure o IP ou domínio do seu servidor.
-          </Typography>
-          <Typography variant="body2" sx={{ mt: 2, color: 'warning.main' }}>
-            ⚠️ <strong>Importante:</strong> Após mudar o modo, o sistema usará automaticamente as novas URLs em todas as requisições.
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'info.main' }}>
-            💡 <strong>Dica:</strong> Se usar ngrok, atualize as URLs customizadas cada vez que reiniciar os túneis (eles geram URLs novas).
-          </Typography>
-        </Stack>
-      </Paper>
-    </Container>
+            {snackbar.message}
+          </Alert>
+        </Snackbar>
+      </Container>
+    </Box>
   );
 };
 

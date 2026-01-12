@@ -17,6 +17,7 @@ import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import Indique from './pages/Indique/Indique';
 import Admin from './pages/Admin/Admin';
+import Settings from './pages/Settings/Settings';
 
 // Componente de proteção de rota
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
@@ -48,6 +49,7 @@ const App = () => {
           <Route path="/suporte" element={<PrivateRoute><Support /></PrivateRoute>} />
           <Route path="/indique" element={<PrivateRoute><Indique /></PrivateRoute>} />
           <Route path="/admin" element={<PrivateRoute><Admin /></PrivateRoute>} />
+          <Route path="/configuracoes" element={<PrivateRoute><Settings /></PrivateRoute>} />
         </Routes>
       </Router>
     </ThemeProvider>

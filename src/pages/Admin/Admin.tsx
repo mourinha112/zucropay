@@ -1187,17 +1187,25 @@ const Admin = () => {
                     <Typography color="text.secondary">Nenhuma verificação pendente</Typography>
                   </Box>
                 ) : (
-                  <Box sx={{ display: 'grid', gap: 2 }}>
+                  <Box sx={{ display: 'grid', gap: 3 }}>
                     {verifications.map((v) => (
-                      <Card key={v.id} variant="outlined" sx={{ '&:hover': { borderColor: '#5818C8' } }}>
+                      <Card key={v.id} variant="outlined" sx={{ '&:hover': { borderColor: '#5818C8' }, overflow: 'visible' }}>
                         <CardContent>
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                          {/* Header com dados do usuário */}
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 3 }}>
                             <Box sx={{ display: 'flex', gap: 2 }}>
-                              <Avatar sx={{ bgcolor: '#5818C8', width: 48, height: 48 }}>{v.users?.name?.charAt(0)?.toUpperCase()}</Avatar>
+                              <Avatar sx={{ bgcolor: '#5818C8', width: 56, height: 56 }}>{v.users?.name?.charAt(0)?.toUpperCase()}</Avatar>
                               <Box>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{v.users?.name}</Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 600 }}>{v.full_name || v.users?.name}</Typography>
                                 <Typography variant="body2" color="text.secondary">{v.users?.email}</Typography>
-                                <Typography variant="caption" color="text.secondary">Documento: {v.document_type?.toUpperCase()} • Enviado em {formatDate(v.created_at)}</Typography>
+                                <Box sx={{ display: 'flex', gap: 1, mt: 1, flexWrap: 'wrap' }}>
+                                  <Chip label={v.document_type?.toUpperCase()} size="small" color="primary" variant="outlined" />
+                                  <Chip label={`CPF: ${v.document_number || '-'}`} size="small" variant="outlined" />
+                                  <Chip label={`Nasc: ${v.birth_date ? new Date(v.birth_date).toLocaleDateString('pt-BR') : '-'}`} size="small" variant="outlined" />
+                                </Box>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
+                                  Enviado em {formatDate(v.created_at)}
+                                </Typography>
                               </Box>
                             </Box>
                             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -1205,6 +1213,96 @@ const Admin = () => {
                               <Button variant="outlined" size="small" startIcon={<CancelIcon />} onClick={() => setActionDialog({ open: true, type: 'rejectVerification', item: v, reason: '' })} sx={{ borderColor: '#ef4444', color: '#ef4444' }}>Rejeitar</Button>
                             </Box>
                           </Box>
+
+                          {/* Grid de imagens */}
+                          <Grid container spacing={2}>
+                            {/* Documento Frente */}
+                            <Grid item xs={12} sm={4}>
+                              <Paper variant="outlined" sx={{ p: 1, textAlign: 'center' }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 600 }}>
+                                  📄 Documento (Frente)
+                                </Typography>
+                                {v.document_front_url ? (
+                                  <Box
+                                    component="img"
+                                    src={v.document_front_url}
+                                    alt="Documento Frente"
+                                    sx={{
+                                      width: '100%',
+                                      maxHeight: 200,
+                                      objectFit: 'contain',
+                                      borderRadius: 1,
+                                      cursor: 'pointer',
+                                      '&:hover': { opacity: 0.8 }
+                                    }}
+                                    onClick={() => window.open(v.document_front_url, '_blank')}
+                                  />
+                                ) : (
+                                  <Box sx={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                                    <Typography color="text.secondary" variant="caption">Não enviado</Typography>
+                                  </Box>
+                                )}
+                              </Paper>
+                            </Grid>
+
+                            {/* Documento Verso */}
+                            <Grid item xs={12} sm={4}>
+                              <Paper variant="outlined" sx={{ p: 1, textAlign: 'center' }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 600 }}>
+                                  📄 Documento (Verso)
+                                </Typography>
+                                {v.document_back_url ? (
+                                  <Box
+                                    component="img"
+                                    src={v.document_back_url}
+                                    alt="Documento Verso"
+                                    sx={{
+                                      width: '100%',
+                                      maxHeight: 200,
+                                      objectFit: 'contain',
+                                      borderRadius: 1,
+                                      cursor: 'pointer',
+                                      '&:hover': { opacity: 0.8 }
+                                    }}
+                                    onClick={() => window.open(v.document_back_url, '_blank')}
+                                  />
+                                ) : (
+                                  <Box sx={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                                    <Typography color="text.secondary" variant="caption">Não enviado</Typography>
+                                  </Box>
+                                )}
+                              </Paper>
+                            </Grid>
+
+                            {/* Selfie */}
+                            <Grid item xs={12} sm={4}>
+                              <Paper variant="outlined" sx={{ p: 1, textAlign: 'center' }}>
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 600 }}>
+                                  🤳 Selfie com Documento
+                                </Typography>
+                                {v.selfie_url ? (
+                                  <Box
+                                    component="img"
+                                    src={v.selfie_url}
+                                    alt="Selfie"
+                                    sx={{
+                                      width: '100%',
+                                      maxHeight: 200,
+                                      objectFit: 'contain',
+                                      borderRadius: 1,
+                                      cursor: 'pointer',
+                                      '&:hover': { opacity: 0.8 }
+                                    }}
+                                    onClick={() => window.open(v.selfie_url, '_blank')}
+                                  />
+                                ) : (
+                                  <Box sx={{ height: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: '#f5f5f5', borderRadius: 1 }}>
+                                    <Typography color="text.secondary" variant="caption">Não enviado</Typography>
+                                  </Box>
+                                )}
+                              </Paper>
+                            </Grid>
+                          </Grid>
                         </CardContent>
                       </Card>
                     ))}

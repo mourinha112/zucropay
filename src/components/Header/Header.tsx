@@ -141,6 +141,9 @@ const Header = () => {
               <Link to="/suporte" style={{ textDecoration: 'none', color: 'text.primary', display: 'flex', alignItems: 'center', gap: 1 }}>
                 Suporte
               </Link>
+              <Link to="/configuracoes" style={{ textDecoration: 'none', color: 'text.primary', display: 'flex', alignItems: 'center', gap: 1 }}>
+                Configurações
+              </Link>
             </Box>
           </Box>
 

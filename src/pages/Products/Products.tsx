@@ -28,6 +28,8 @@ import {
   ContentCopy as CopyIcon,
   ShoppingCart as ShoppingCartIcon,
   Settings as SettingsIcon,
+  Warning as WarningIcon,
+  VerifiedUser as VerifiedUserIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
@@ -74,6 +76,7 @@ const Products: React.FC = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string>('');
+  const [verificationStatus, setVerificationStatus] = useState<string>('pending');
   
   const [formData, setFormData] = useState<Product>({
     name: '',
@@ -88,9 +91,30 @@ const Products: React.FC = () => {
     billingType: 'UNDEFINED' as 'BOLETO' | 'CREDIT_CARD' | 'PIX' | 'UNDEFINED',
   });
 
+  const isVerified = verificationStatus === 'approved';
+
   useEffect(() => {
     loadData();
+    loadVerificationStatus();
   }, []);
+
+  // Carregar status de verificação
+  const loadVerificationStatus = async () => {
+    try {
+      const token = localStorage.getItem('zucropay_token');
+      const response = await fetch(`${API_URL}/api/user-verification`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (data.user?.verification_status) {
+        setVerificationStatus(data.user.verification_status);
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status:', error);
+    }
+  };
 
   // Carregar tudo de uma vez via API otimizada
   const loadData = async () => {
@@ -126,6 +150,12 @@ const Products: React.FC = () => {
   };
 
   const handleOpenProductDialog = (product?: Product) => {
+    // Se não está verificado e não está editando, mostrar aviso
+    if (!isVerified && !product) {
+      showSnackbar('Você precisa verificar sua conta para criar produtos. Acesse Configurações.', 'error');
+      return;
+    }
+    
     if (product) {
       setEditingProduct(product);
       setFormData(product);
@@ -261,6 +291,36 @@ const Products: React.FC = () => {
       <Header />
       <Box sx={{ minHeight: '100vh', backgroundColor: '#fafafa', py: 4 }}>
         <Container maxWidth="lg">
+          {/* Alerta de Verificação */}
+          {!isVerified && (
+            <Alert 
+              severity={verificationStatus === 'submitted' ? 'info' : 'warning'}
+              icon={verificationStatus === 'submitted' ? <VerifiedUserIcon /> : <WarningIcon />}
+              sx={{ mb: 3, borderRadius: 2 }}
+              action={
+                verificationStatus !== 'submitted' && (
+                  <Button color="inherit" size="small" onClick={() => navigate('/configuracoes')}>
+                    Verificar Agora
+                  </Button>
+                )
+              }
+            >
+              {verificationStatus === 'submitted' ? (
+                <>
+                  <strong>Verificação em análise!</strong> Aguarde a aprovação para criar produtos.
+                </>
+              ) : verificationStatus === 'rejected' ? (
+                <>
+                  <strong>Verificação rejeitada.</strong> Acesse as configurações para enviar novamente.
+                </>
+              ) : (
+                <>
+                  <strong>Conta não verificada.</strong> Para criar produtos e receber pagamentos, você precisa verificar sua identidade.
+                </>
+              )}
+            </Alert>
+          )}
+
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4 }}>
             <Box>
               <Typography variant="h4" component="h1" gutterBottom>
@@ -274,10 +334,15 @@ const Products: React.FC = () => {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() => handleOpenProductDialog()}
+              disabled={!isVerified}
               sx={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: isVerified 
+                  ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' 
+                  : '#e0e0e0',
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)',
+                  background: isVerified 
+                    ? 'linear-gradient(135deg, #764ba2 0%, #667eea 100%)'
+                    : '#e0e0e0',
                 },
               }}
             >
@@ -392,14 +457,16 @@ const Products: React.FC = () => {
                 Nenhum produto cadastrado
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Comece criando seu primeiro produto
+                {isVerified 
+                  ? 'Comece criando seu primeiro produto' 
+                  : 'Verifique sua conta para começar a criar produtos'}
               </Typography>
               <Button
                 variant="contained"
-                startIcon={<AddIcon />}
-                onClick={() => handleOpenProductDialog()}
+                startIcon={isVerified ? <AddIcon /> : <VerifiedUserIcon />}
+                onClick={() => isVerified ? handleOpenProductDialog() : navigate('/configuracoes')}
               >
-                Criar Produto
+                {isVerified ? 'Criar Produto' : 'Verificar Conta'}
               </Button>
             </Box>
           )}

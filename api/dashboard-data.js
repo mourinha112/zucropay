@@ -58,10 +58,10 @@ export default async function handler(req, res) {
     
     // Buscar dados em paralelo (muito mais rápido!)
     const [userResult, paymentsResult, linksResult, reservesResult, transactionsResult] = await Promise.all([
-      // Saldo do usuário
+      // Saldo do usuário e status de verificação
       supabase
         .from('users')
-        .select('balance, reserved_balance, name, email')
+        .select('balance, reserved_balance, name, email, verification_status, verification_rejection_reason')
         .eq('id', userId)
         .single(),
       
@@ -176,6 +176,8 @@ export default async function handler(req, res) {
           email: user?.email,
           balance: parseFloat(user?.balance || 0),
           reservedBalance: parseFloat(user?.reserved_balance || 0),
+          verificationStatus: user?.verification_status || 'pending',
+          verificationRejectionReason: user?.verification_rejection_reason,
         },
         stats: {
           todayTotal: todaySales.reduce((sum, p) => sum + parseFloat(p.value || 0), 0),

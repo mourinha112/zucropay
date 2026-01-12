@@ -465,11 +465,16 @@ async function updateVerificationStatus(supabase, adminId, verificationId, statu
 
     if (error) throw error;
 
-    // Se aprovado, atualizar usuário como verificado
-    if (status === 'approved' && verification) {
+    // Atualizar status de verificação do usuário
+    if (verification) {
       await supabase
         .from('users')
-        .update({ identity_verified: true })
+        .update({ 
+          verification_status: status,
+          verification_reviewed_at: new Date().toISOString(),
+          verification_reviewed_by: adminId,
+          verification_rejection_reason: status === 'rejected' ? reason : null
+        })
         .eq('id', verification.user_id);
     }
 
