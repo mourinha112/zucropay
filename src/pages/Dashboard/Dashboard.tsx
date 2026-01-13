@@ -7,6 +7,9 @@ import {
   Tabs,
   Tab,
   LinearProgress,
+  Button,
+  Snackbar,
+  Alert,
 } from '@mui/material';
 import {
   CalendarToday as CalendarIcon,
@@ -21,6 +24,7 @@ import {
   Event as EventIcon,
   Lock as LockIcon,
   Schedule as ScheduleIcon,
+  GetApp as GetAppIcon,
 } from '@mui/icons-material';
 import {
   LineChart,
@@ -45,6 +49,11 @@ interface ReserveData {
   } | null;
 }
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
 const Dashboard = () => {
   const [timeRange, setTimeRange] = useState(1);
   const [todayTotal, setTodayTotal] = useState(0);
@@ -54,10 +63,68 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<any[]>([]);
   const [fullChartData, setFullChartData] = useState<any[]>([]);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [showInstallButton, setShowInstallButton] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'info' | 'warning' });
 
   useEffect(() => {
     loadDashboardData();
+    setupPWAInstall();
   }, []);
+
+  const setupPWAInstall = () => {
+    // Verificar se já está instalado
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsInstalled(true);
+      return;
+    }
+
+    // Detectar evento beforeinstallprompt
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      setShowInstallButton(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Detectar se foi instalado após o evento
+    window.addEventListener('appinstalled', () => {
+      setIsInstalled(true);
+      setShowInstallButton(false);
+      setDeferredPrompt(null);
+      setSnackbar({ open: true, message: 'App instalado com sucesso!', severity: 'success' });
+    });
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  };
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) {
+      setSnackbar({ open: true, message: 'Instalação não disponível no momento', severity: 'info' });
+      return;
+    }
+
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      if (outcome === 'accepted') {
+        setSnackbar({ open: true, message: 'Instalação iniciada!', severity: 'success' });
+      } else {
+        setSnackbar({ open: true, message: 'Instalação cancelada', severity: 'info' });
+      }
+      
+      setDeferredPrompt(null);
+      setShowInstallButton(false);
+    } catch (error) {
+      console.error('Erro ao instalar app:', error);
+      setSnackbar({ open: true, message: 'Erro ao instalar o app', severity: 'error' });
+    }
+  };
 
   // Filtrar dados do gráfico baseado no timeRange (sem nova requisição!)
   useEffect(() => {
@@ -146,12 +213,69 @@ const Dashboard = () => {
             p: { xs: 2, sm: 3 },
           }}
         >
+          {/* Botão Instalar App PWA */}
+          {showInstallButton && !isInstalled && (
+            <Card
+              sx={{
+                mb: 3,
+                background: 'linear-gradient(135deg, #5818C8 0%, #7c3aed 100%)',
+                color: 'white',
+                border: 'none',
+              }}
+            >
+              <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+                <Box sx={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between', 
+                  flexWrap: 'wrap', 
+                  gap: 2,
+                  flexDirection: { xs: 'column', sm: 'row' }
+                }}>
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    gap: { xs: 1.5, md: 2 },
+                    flex: 1
+                  }}>
+                    <GetAppIcon sx={{ fontSize: { xs: 24, md: 32 } }} />
+                    <Box>
+                      <Typography variant="h6" sx={{ fontWeight: 600, fontSize: { xs: '1rem', md: '1.25rem' } }}>
+                        Instalar App ZucroPay
+                      </Typography>
+                      <Typography variant="body2" sx={{ opacity: 0.9, fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
+                        Instale o app para acesso rápido e melhor experiência
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Button
+                    variant="contained"
+                    startIcon={<GetAppIcon />}
+                    onClick={handleInstallClick}
+                    fullWidth={false}
+                    sx={{
+                      backgroundColor: 'white',
+                      color: '#5818C8',
+                      fontWeight: 600,
+                      width: { xs: '100%', sm: 'auto' },
+                      '&:hover': {
+                        backgroundColor: '#f3f4f6',
+                      },
+                    }}
+                  >
+                    Instalar App
+                  </Button>
+                </Box>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Metric Cards */}
           <Box
             sx={{
               display: 'grid',
               gap: 2,
-              gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+              gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: 'repeat(3, 1fr)' },
               mb: 4,
             }}
           >
@@ -183,17 +307,24 @@ const Dashboard = () => {
                   },
                 }}
               >
-                <CardContent>
+                <CardContent sx={{ p: { xs: 2, md: 3 } }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                     {item.icon}
-                    <Typography color="textSecondary" variant="body2">
+                    <Typography 
+                      color="textSecondary" 
+                      variant="body2"
+                      sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}
+                    >
                       {item.title}
                     </Typography>
                   </Box>
                   <Typography
                     variant="h4"
                     component="div"
-                    sx={{ color: '#5818C8' }}
+                    sx={{ 
+                      color: '#5818C8',
+                      fontSize: { xs: '1.5rem', md: '2.125rem' }
+                    }}
                   >
                     {item.value}
                   </Typography>
@@ -222,11 +353,11 @@ const Dashboard = () => {
                   },
                 }}
               >
-                <CardContent>
-                  <Typography variant="h6" color="primary" gutterBottom>
+                <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+                  <Typography variant="h6" color="primary" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
                     Visão Geral de Vendas
                   </Typography>
-                  <Typography variant="body2" color="textSecondary" gutterBottom>
+                  <Typography variant="body2" color="textSecondary" gutterBottom sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
                     Acompanhe o desempenho das suas vendas ao longo do tempo
                   </Typography>
 
@@ -234,14 +365,17 @@ const Dashboard = () => {
                     value={timeRange}
                     onChange={handleTimeRangeChange}
                     sx={{ mb: 2 }}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                    allowScrollButtonsMobile
                   >
-                    <Tab label="Hoje" />
-                    <Tab label="7 dias" />
-                    <Tab label="14 dias" />
-                    <Tab label="30 dias" />
+                    <Tab label="Hoje" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }} />
+                    <Tab label="7 dias" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }} />
+                    <Tab label="14 dias" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }} />
+                    <Tab label="30 dias" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }} />
                   </Tabs>
 
-                  <Box sx={{ height: 250, width: '100%' }}>
+                  <Box sx={{ height: { xs: 200, md: 250 }, width: '100%' }}>
                     <ResponsiveContainer>
                       <LineChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -270,25 +404,25 @@ const Dashboard = () => {
                   },
                 }}
               >
-                <CardContent>
+                <CardContent sx={{ p: { xs: 2, md: 3 } }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                    <TrophyIcon sx={{ color: '#5818C8' }} />
-                    <Typography variant="h6" color="primary">
+                    <TrophyIcon sx={{ color: '#5818C8', fontSize: { xs: 20, md: 24 } }} />
+                    <Typography variant="h6" color="primary" sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
                       Programa de Recompensas
                     </Typography>
                   </Box>
-                  <Typography variant="body2" color="textSecondary">
+                  <Typography variant="body2" color="textSecondary" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
                     Acompanhe seu progresso e resgate suas recompensas
                   </Typography>
 
-                  <Box
-                    sx={{
-                      display: 'grid',
-                      gridTemplateColumns: { xs: '1fr', sm: '240px 1fr' },
-                      gap: 3,
-                      mt: 2,
-                    }}
-                  >
+                    <Box
+                      sx={{
+                        display: 'grid',
+                        gridTemplateColumns: { xs: '1fr', sm: '240px 1fr' },
+                        gap: { xs: 2, md: 3 },
+                        mt: 2,
+                      }}
+                    >
                     {/* Imagem */}
                     <Box
                       sx={{
@@ -407,11 +541,11 @@ const Dashboard = () => {
                 },
               }}
             >
-              <CardContent>
-                <Typography variant="h6" sx={{ color: '#5818C8', mb: 1 }}>
+              <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+                <Typography variant="h6" sx={{ color: '#5818C8', mb: 1, fontSize: { xs: '1rem', md: '1.25rem' } }}>
                   Métodos de Pagamento
                 </Typography>
-                <Typography variant="body2" color="textSecondary">
+                <Typography variant="body2" color="textSecondary" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
                   Estatísticas por método de pagamento
                 </Typography>
 
@@ -506,15 +640,15 @@ const Dashboard = () => {
                 },
               }}
             >
-              <CardContent>
+              <CardContent sx={{ p: { xs: 2, md: 3 } }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <LockIcon sx={{ color: '#d97706', fontSize: 24 }} />
-                  <Typography variant="h6" sx={{ color: '#92400e' }}>
+                  <LockIcon sx={{ color: '#d97706', fontSize: { xs: 20, md: 24 } }} />
+                  <Typography variant="h6" sx={{ color: '#92400e', fontSize: { xs: '1rem', md: '1.25rem' } }}>
                     Reserva de Saldo
                   </Typography>
                 </Box>
                 
-                <Typography variant="body2" sx={{ color: '#78350f', mb: 2 }}>
+                <Typography variant="body2" sx={{ color: '#78350f', mb: 2, fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
                   Retenção de 5% por 30 dias para cobrir reembolsos e chargebacks
                 </Typography>
 
@@ -567,6 +701,22 @@ const Dashboard = () => {
           </Box>
         </Box>
       </Box>
+
+      {/* Snackbar para feedback */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert
+          onClose={() => setSnackbar({ ...snackbar, open: false })}
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </>
   );
 };
