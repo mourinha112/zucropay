@@ -77,17 +77,23 @@ const Dashboard = () => {
     // Verificar se já está instalado
     if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
       setIsInstalled(true);
+      setShowInstallButton(false);
       return;
     }
 
     // Detectar evento beforeinstallprompt
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+      const promptEvent = e as BeforeInstallPromptEvent;
+      setDeferredPrompt(promptEvent);
       setShowInstallButton(true);
+      console.log('PWA: beforeinstallprompt event captured');
     };
 
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    // Verificar se o evento já foi disparado antes do listener ser adicionado
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    }
 
     // Detectar se foi instalado após o evento
     window.addEventListener('appinstalled', () => {
@@ -95,8 +101,10 @@ const Dashboard = () => {
       setShowInstallButton(false);
       setDeferredPrompt(null);
       setSnackbar({ open: true, message: 'App instalado com sucesso!', severity: 'success' });
+      console.log('PWA: App installed');
     });
 
+    // Cleanup function
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
