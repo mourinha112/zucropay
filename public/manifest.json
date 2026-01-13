@@ -1,0 +1,55 @@
+{
+    "name": "ZucroPay - Plataforma de Pagamentos",
+    "short_name": "ZucroPay",
+    "description": "Plataforma completa de pagamentos e gestão de vendas",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#ffffff",
+    "theme_color": "#5818C8",
+    "orientation": "portrait-primary",
+    "icons": [
+      {
+        "src": "/logo.svg",
+        "sizes": "any",
+        "type": "image/svg+xml",
+        "purpose": "any maskable"
+      },
+      {
+        "src": "/logotipo.png",
+        "sizes": "192x192",
+        "type": "image/png",
+        "purpose": "any maskable"
+      },
+      {
+        "src": "/logotipo.png",
+        "sizes": "512x512",
+        "type": "image/png",
+        "purpose": "any maskable"
+      }
+    ],
+    "categories": ["finance", "business", "productivity"],
+    "shortcuts": [
+      {
+        "name": "Dashboard",
+        "short_name": "Dashboard",
+        "description": "Acesse o dashboard principal",
+        "url": "/dashboard",
+        "icons": [{ "src": "/logo.svg", "sizes": "96x96" }]
+      },
+      {
+        "name": "Produtos",
+        "short_name": "Produtos",
+        "description": "Gerencie seus produtos",
+        "url": "/produtos",
+        "icons": [{ "src": "/logo.svg", "sizes": "96x96" }]
+      },
+      {
+        "name": "Vendas",
+        "short_name": "Vendas",
+        "description": "Visualize suas vendas",
+        "url": "/vendas",
+        "icons": [{ "src": "/logo.svg", "sizes": "96x96" }]
+      }
+    ]
+  }
+  

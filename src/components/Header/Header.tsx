@@ -32,8 +32,14 @@ import {
   CardGiftcard as GiftIcon,
   HelpOutline as HelpIcon,
   Settings as SettingsIcon,
+  GetApp as GetAppIcon,
 } from '@mui/icons-material';
 import { Link, useNavigate } from 'react-router-dom';
+
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
 
 const Header = () => {
   const navigate = useNavigate();
@@ -43,6 +49,9 @@ const Header = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userName, setUserName] = useState('Usuário');
   const [userEmail, setUserEmail] = useState('');
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [showInstallButton, setShowInstallButton] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
     // Pegar dados do usuário do localStorage ou API
@@ -57,7 +66,62 @@ const Header = () => {
         console.error('Erro ao decodificar token:', error);
       }
     }
+
+    // Setup PWA Install
+    setupPWAInstall();
   }, []);
+
+  const setupPWAInstall = () => {
+    // Verificar se já está instalado
+    if (window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone) {
+      setIsInstalled(true);
+      setShowInstallButton(false);
+      return;
+    }
+
+    // Detectar evento beforeinstallprompt
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      const promptEvent = e as BeforeInstallPromptEvent;
+      setDeferredPrompt(promptEvent);
+      setShowInstallButton(true);
+    };
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    }
+
+    // Detectar se foi instalado
+    window.addEventListener('appinstalled', () => {
+      setIsInstalled(true);
+      setShowInstallButton(false);
+      setDeferredPrompt(null);
+    });
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  };
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) {
+      return;
+    }
+
+    try {
+      await deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      
+      if (outcome === 'accepted') {
+        console.log('PWA instalado com sucesso');
+      }
+      
+      setDeferredPrompt(null);
+      setShowInstallButton(false);
+    } catch (error) {
+      console.error('Erro ao instalar app:', error);
+    }
+  };
 
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -334,6 +398,42 @@ const Header = () => {
       </List>
 
       <Divider sx={{ my: 1 }} />
+
+      {/* PWA Install Button */}
+      {showInstallButton && !isInstalled && (
+        <>
+          <List>
+            <ListItem
+              onClick={handleInstallClick}
+              sx={{
+                cursor: 'pointer',
+                backgroundColor: '#5818C8',
+                color: 'white',
+                mx: 1,
+                borderRadius: 1,
+                mb: 1,
+                '&:hover': {
+                  backgroundColor: '#7c3aed',
+                },
+              }}
+            >
+              <ListItemIcon sx={{ minWidth: 40, color: 'white' }}>
+                <GetAppIcon />
+              </ListItemIcon>
+              <ListItemText 
+                primary="Instalar App" 
+                primaryTypographyProps={{
+                  sx: {
+                    fontWeight: 600,
+                    color: 'white',
+                  },
+                }}
+              />
+            </ListItem>
+          </List>
+          <Divider sx={{ my: 1 }} />
+        </>
+      )}
 
       {/* Logout in Drawer */}
       <List>
