@@ -87,17 +87,23 @@ export async function subscribe(): Promise<PushSubscription | null> {
     // Registrar service worker se necessário
     const registration = await navigator.serviceWorker.ready;
 
-    // Verificar se já tem subscription
-    let subscription = await registration.pushManager.getSubscription();
-    
-    if (!subscription) {
-      // Criar nova subscription
-      subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
-      });
-      console.log('[Push] Nova subscription criada');
+    // Sempre cancelar subscription antiga (pode ter chave diferente)
+    const oldSubscription = await registration.pushManager.getSubscription();
+    if (oldSubscription) {
+      try {
+        await oldSubscription.unsubscribe();
+        console.log('[Push] Subscription antiga removida');
+      } catch (e) {
+        console.warn('[Push] Erro ao remover subscription antiga:', e);
+      }
     }
+    
+    // Criar nova subscription com a chave atual
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+    });
+    console.log('[Push] Nova subscription criada');
 
     // Salvar no servidor
     await saveSubscription(subscription);

@@ -89,37 +89,31 @@ const Dashboard = () => {
   }, []);
 
   const initializePushNotifications = async () => {
-    try {
-      // Verificar se push é suportado
-      if (!pushNotifications.isPushSupported()) {
-        console.log('[Push] Não suportado neste dispositivo');
-        return;
-      }
+    // Aguardar um pouco para não bloquear o carregamento inicial
+    setTimeout(async () => {
+      try {
+        // Verificar se push é suportado
+        if (!pushNotifications.isPushSupported()) {
+          console.log('[Push] Não suportado neste dispositivo');
+          return;
+        }
 
-      // Registrar service worker
-      await pushNotifications.registerServiceWorker();
+        // Registrar service worker
+        await pushNotifications.registerServiceWorker();
 
-      // Se já tem permissão, ativar automaticamente
-      if (pushNotifications.getNotificationPermission() === 'granted') {
-        await pushNotifications.subscribe();
-        console.log('[Push] Notificações ativadas automaticamente');
-      } else if (pushNotifications.getNotificationPermission() === 'default') {
-        // Perguntar ao usuário após 5 segundos
-        setTimeout(async () => {
-          const permission = await pushNotifications.requestPermission();
-          if (permission === 'granted') {
+        // Se já tem permissão, ativar automaticamente
+        if (pushNotifications.getNotificationPermission() === 'granted') {
+          try {
             await pushNotifications.subscribe();
-            setSnackbar({ 
-              open: true, 
-              message: 'Notificações de vendas ativadas!', 
-              severity: 'success' 
-            });
+            console.log('[Push] Notificações ativadas automaticamente');
+          } catch (subError) {
+            console.error('[Push] Erro ao re-inscrever:', subError);
           }
-        }, 5000);
+        }
+      } catch (error) {
+        console.error('[Push] Erro ao inicializar:', error);
       }
-    } catch (error) {
-      console.error('[Push] Erro ao inicializar:', error);
-    }
+    }, 3000);
   };
 
   const setupPWAInstall = () => {
