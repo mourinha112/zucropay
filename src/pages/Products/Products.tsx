@@ -18,8 +18,6 @@ import {
   CardActions,
   Alert,
   Snackbar,
-  Skeleton,
-  Grid,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -134,7 +132,7 @@ const Products: React.FC = () => {
 
     setLoading(true);
     try {
-      const result = await dataCache.getProducts();
+      const result = await dataCache.getProducts() as any;
       
       if (result.success) {
         setProducts(result.products || []);
