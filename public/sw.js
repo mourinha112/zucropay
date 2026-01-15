@@ -1,5 +1,6 @@
 // Service Worker para Push Notifications - ZucroPay
-const CACHE_NAME = 'zucropay-v1';
+// Atualizar versão para forçar atualização do cache
+const CACHE_NAME = 'zucropay-v2';
 
 // Arquivos para cache offline
 const urlsToCache = [
@@ -43,20 +44,66 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Fetch com cache
+// Fetch com cache - Network First para HTML, Cache First para assets
 self.addEventListener('fetch', (event) => {
+  const { request } = event;
+  const url = new URL(request.url);
+
   // Ignorar requisições de API (não cachear)
-  if (event.request.url.includes('/api/')) {
+  if (url.pathname.startsWith('/api/')) {
     return;
   }
 
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        if (response) {
+  // Ignorar service worker
+  if (url.pathname.includes('/sw.js')) {
+    return;
+  }
+
+  // Para requisições de navegação (HTML), sempre servir index.html (SPA)
+  if (request.mode === 'navigate' || (request.headers.get('accept')?.includes('text/html'))) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          // Se a resposta é HTML, sempre cachear index.html atualizado
+          if (response && response.status === 200) {
+            const responseToCache = response.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              // Cachear como index.html para todas as rotas SPA
+              cache.put('/index.html', responseToCache);
+            });
+          }
           return response;
+        })
+        .catch(() => {
+          // Se network falhar, sempre retornar index.html do cache
+          return caches.match('/index.html').then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // Fallback: tentar buscar index.html do network
+            return fetch('/index.html');
+          });
+        })
+    );
+    return;
+  }
+
+  // Para assets estáticos (JS, CSS, imagens), Network First com cache
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        // Cachear resposta válida
+        if (response && response.status === 200) {
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(request, responseToCache);
+          });
         }
-        return fetch(event.request);
+        return response;
+      })
+      .catch(() => {
+        // Se network falhar, usar cache
+        return caches.match(request);
       })
   );
 });

@@ -3,6 +3,7 @@
   "short_name": "ZucroPay",
   "description": "Plataforma completa de pagamentos e gestão de vendas",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#5818C8",
