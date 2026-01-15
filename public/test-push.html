@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Teste Push - ZucroPay</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #5818C8;
+      margin: 0 0 10px;
+      font-size: 24px;
+    }
+    p {
+      color: #666;
+      margin: 0 0 30px;
+      line-height: 1.5;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 16px 24px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-bottom: 12px;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #5818C8 0%, #7c3aed 100%);
+      color: white;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(88,24,200,0.4); }
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #333;
+    }
+    .btn-secondary:hover { background: #e0e0e0; }
+    .status {
+      padding: 16px;
+      border-radius: 8px;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+    .status.success { background: #d4edda; color: #155724; }
+    .status.error { background: #f8d7da; color: #721c24; }
+    .status.info { background: #d1ecf1; color: #0c5460; }
+    .status.warning { background: #fff3cd; color: #856404; }
+    #log {
+      margin-top: 20px;
+      padding: 16px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      display: none;
+    }
+    .emoji { font-size: 48px; margin-bottom: 20px; display: block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <span class="emoji">🔔</span>
+    <h1>Teste de Notificações Push</h1>
+    <p>Página secreta para testar as notificações de venda do ZucroPay.</p>
+    
+    <button class="btn btn-primary" onclick="requestPermission()">
+      1. Permitir Notificações
+    </button>
+    
+    <button class="btn btn-primary" onclick="subscribe()">
+      2. Ativar Push
+    </button>
+    
+    <button class="btn btn-secondary" onclick="testLocal()">
+      3. Testar Notificação Local
+    </button>
+    
+    <button class="btn btn-secondary" onclick="checkStatus()">
+      Verificar Status
+    </button>
+    
+    <div id="status"></div>
+    <div id="log"></div>
+  </div>
+
+  <script>
+    const VAPID_PUBLIC_KEY = 'BLDL2Izhy0W6zhF1LpcrNRJ4IhjP6j1j_nWT-oSj8ZUIHjn1w7wMFac8E2AbX_ACm3kpkrm6Kj3FnaCLhqa6n3I';
+    
+    function showStatus(message, type = 'info') {
+      const el = document.getElementById('status');
+      el.className = 'status ' + type;
+      el.innerHTML = message;
+    }
+    
+    function log(msg) {
+      const el = document.getElementById('log');
+      el.style.display = 'block';
+      el.innerHTML += new Date().toLocaleTimeString() + ': ' + msg + '\n';
+      el.scrollTop = el.scrollHeight;
+    }
+    
+    function urlBase64ToUint8Array(base64String) {
+      const padding = '='.repeat((4 - base64String.length % 4) % 4);
+      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const rawData = window.atob(base64);
+      const outputArray = new Uint8Array(rawData.length);
+      for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+      }
+      return outputArray;
+    }
+    
+    async function requestPermission() {
+      try {
+        log('Solicitando permissão...');
+        const permission = await Notification.requestPermission();
+        log('Permissão: ' + permission);
+        
+        if (permission === 'granted') {
+          showStatus('✅ Permissão concedida!', 'success');
+        } else {
+          showStatus('❌ Permissão negada', 'error');
+        }
+      } catch (error) {
+        log('Erro: ' + error.message);
+        showStatus('❌ Erro: ' + error.message, 'error');
+      }
+    }
+    
+    async function subscribe() {
+      try {
+        log('Registrando service worker...');
+        const registration = await navigator.serviceWorker.register('/sw.js');
+        log('SW registrado: ' + registration.scope);
+        
+        await navigator.serviceWorker.ready;
+        log('SW pronto');
+        
+        // Remover subscription antiga
+        const oldSub = await registration.pushManager.getSubscription();
+        if (oldSub) {
+          await oldSub.unsubscribe();
+          log('Subscription antiga removida');
+        }
+        
+        // Criar nova
+        log('Criando nova subscription...');
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        });
+        log('Subscription criada!');
+        log('Endpoint: ' + subscription.endpoint.substring(0, 50) + '...');
+        
+        // Salvar no servidor
+        const token = localStorage.getItem('zucropay_token');
+        if (!token) {
+          showStatus('⚠️ Faça login primeiro no app principal', 'warning');
+          return;
+        }
+        
+        log('Salvando no servidor...');
+        const response = await fetch('/api/dashboard-data?type=push', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+          },
+          body: JSON.stringify({
+            action: 'subscribe',
+            subscription: subscription.toJSON(),
+          }),
+        });
+        
+        const result = await response.json();
+        log('Resposta: ' + JSON.stringify(result));
+        
+        if (result.success) {
+          showStatus('✅ Push ativado com sucesso! Agora faça uma venda para testar.', 'success');
+        } else {
+          showStatus('❌ Erro: ' + result.error, 'error');
+        }
+      } catch (error) {
+        log('Erro: ' + error.message);
+        showStatus('❌ Erro: ' + error.message, 'error');
+      }
+    }
+    
+    function testLocal() {
+      if (Notification.permission !== 'granted') {
+        showStatus('⚠️ Permita notificações primeiro!', 'warning');
+        return;
+      }
+      
+      new Notification('💰 Nova Venda Confirmada!', {
+        body: 'R$ 150,00 recebido - Teste de notificação',
+        icon: '/logotipo.png',
+        badge: '/logotipo.png',
+        tag: 'test-' + Date.now(),
+      });
+      
+      showStatus('✅ Notificação enviada! Verifique.', 'success');
+      log('Notificação local enviada');
+    }
+    
+    async function checkStatus() {
+      log('Verificando status...');
+      
+      // Permissão
+      const permission = Notification.permission;
+      log('Permissão: ' + permission);
+      
+      // Service Worker
+      const registration = await navigator.serviceWorker.getRegistration();
+      log('SW: ' + (registration ? 'Registrado' : 'Não registrado'));
+      
+      // Subscription
+      if (registration) {
+        const sub = await registration.pushManager.getSubscription();
+        log('Subscription: ' + (sub ? 'Ativa' : 'Não ativa'));
+        if (sub) {
+          log('Endpoint: ' + sub.endpoint.substring(0, 50) + '...');
+        }
+      }
+      
+      // Token
+      const token = localStorage.getItem('zucropay_token');
+      log('Token: ' + (token ? 'Presente' : 'Ausente'));
+      
+      let statusMsg = '<strong>Status:</strong><br>';
+      statusMsg += '• Permissão: ' + permission + '<br>';
+      statusMsg += '• Service Worker: ' + (registration ? '✅' : '❌') + '<br>';
+      statusMsg += '• Token: ' + (token ? '✅' : '❌');
+      
+      showStatus(statusMsg, permission === 'granted' ? 'success' : 'warning');
+    }
+    
+    // Auto check on load
+    checkStatus();
+  </script>
+</body>
+</html>
