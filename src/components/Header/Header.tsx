@@ -34,7 +34,7 @@ import {
   Settings as SettingsIcon,
   GetApp as GetAppIcon,
 } from '@mui/icons-material';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -43,6 +43,7 @@ interface BeforeInstallPromptEvent extends Event {
 
 const Header = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -255,22 +256,31 @@ const Header = () => {
                 </Box>
 
                 {/* Navigation Links */}
-                <Box sx={{ display: 'flex', gap: 4 }}>
-                  {menuItems.map((item) => (
-                    <Link
-                      key={item.path}
-                      to={item.path}
-                      style={{
-                        textDecoration: 'none',
-                        color: item.path === '/dashboard' ? '#5818C8' : 'inherit',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1,
-                      }}
-                    >
-                      {item.label}
-                    </Link>
-                  ))}
+                <Box sx={{ display: 'flex', gap: 3 }}>
+                  {menuItems.map((item) => {
+                    const isActive = location.pathname === item.path || 
+                      (item.path === '/dashboard' && location.pathname === '/');
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        style={{
+                          textDecoration: 'none',
+                          color: isActive ? '#5818C8' : '#64748b',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          fontWeight: isActive ? 600 : 400,
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          backgroundColor: isActive ? 'rgba(88, 24, 200, 0.1)' : 'transparent',
+                          transition: 'all 0.2s ease',
+                        }}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
                 </Box>
               </Box>
             )}
@@ -367,34 +377,42 @@ const Header = () => {
 
       {/* Menu Items */}
       <List sx={{ pt: 1 }}>
-        {menuItems.map((item) => (
-          <ListItem
-            key={item.path}
-            component={Link}
-            to={item.path}
-            onClick={handleMobileMenuClose}
-            sx={{
-              color: 'inherit',
-              textDecoration: 'none',
-              '&:hover': {
-                backgroundColor: '#f5f5f5',
-              },
-            }}
-          >
-            <ListItemIcon sx={{ color: item.path === '/dashboard' ? '#5818C8' : 'inherit', minWidth: 40 }}>
-              {item.icon}
-            </ListItemIcon>
-            <ListItemText 
-              primary={item.label}
-              primaryTypographyProps={{
-                sx: {
-                  fontWeight: item.path === '/dashboard' ? 600 : 400,
-                  color: item.path === '/dashboard' ? '#5818C8' : 'inherit',
+        {menuItems.map((item) => {
+          const isActive = location.pathname === item.path || 
+            (item.path === '/dashboard' && location.pathname === '/');
+          return (
+            <ListItem
+              key={item.path}
+              component={Link}
+              to={item.path}
+              onClick={handleMobileMenuClose}
+              sx={{
+                color: 'inherit',
+                textDecoration: 'none',
+                mx: 1,
+                borderRadius: 1,
+                mb: 0.5,
+                backgroundColor: isActive ? 'rgba(88, 24, 200, 0.1)' : 'transparent',
+                '&:hover': {
+                  backgroundColor: isActive ? 'rgba(88, 24, 200, 0.15)' : '#f5f5f5',
                 },
               }}
-            />
-          </ListItem>
-        ))}
+            >
+              <ListItemIcon sx={{ color: isActive ? '#5818C8' : 'inherit', minWidth: 40 }}>
+                {item.icon}
+              </ListItemIcon>
+              <ListItemText 
+                primary={item.label}
+                primaryTypographyProps={{
+                  sx: {
+                    fontWeight: isActive ? 600 : 400,
+                    color: isActive ? '#5818C8' : 'inherit',
+                  },
+                }}
+              />
+            </ListItem>
+          );
+        })}
       </List>
 
       <Divider sx={{ my: 1 }} />

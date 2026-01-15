@@ -54,12 +54,23 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
+interface PaymentMethodStats {
+  PIX: { count: number; total: number };
+  CREDIT_CARD: { count: number; total: number };
+  BOLETO: { count: number; total: number };
+}
+
 const Dashboard = () => {
   const [timeRange, setTimeRange] = useState(1);
   const [todayTotal, setTodayTotal] = useState(0);
   const [monthTotal, setMonthTotal] = useState(0);
   const [balance, setBalance] = useState(0);
   const [reserveData, setReserveData] = useState<ReserveData>({ totalReserved: 0, reservesCount: 0, nextRelease: null });
+  const [paymentMethods, setPaymentMethods] = useState<PaymentMethodStats>({
+    PIX: { count: 0, total: 0 },
+    CREDIT_CARD: { count: 0, total: 0 },
+    BOLETO: { count: 0, total: 0 },
+  });
   const [loading, setLoading] = useState(true);
   const [chartData, setChartData] = useState<any[]>([]);
   const [fullChartData, setFullChartData] = useState<any[]>([]);
@@ -167,7 +178,7 @@ const Dashboard = () => {
       const result = await response.json();
       
       if (result.success && result.data) {
-        const { stats, chartData: apiChartData, user, reserves } = result.data;
+        const { stats, chartData: apiChartData, user, reserves, paymentMethods: apiPaymentMethods } = result.data;
         
         setTodayTotal(stats.todayTotal || 0);
         setMonthTotal(stats.monthTotal || 0);
@@ -180,6 +191,15 @@ const Dashboard = () => {
             totalReserved: reserves.totalReserved || 0,
             reservesCount: reserves.reservesCount || 0,
             nextRelease: reserves.nextRelease || null,
+          });
+        }
+        
+        // Dados de métodos de pagamento
+        if (apiPaymentMethods) {
+          setPaymentMethods({
+            PIX: apiPaymentMethods.PIX || { count: 0, total: 0 },
+            CREDIT_CARD: apiPaymentMethods.CREDIT_CARD || { count: 0, total: 0 },
+            BOLETO: apiPaymentMethods.BOLETO || { count: 0, total: 0 },
           });
         }
         
@@ -431,22 +451,24 @@ const Dashboard = () => {
                         mt: 2,
                       }}
                     >
-                    {/* Imagem */}
+                    {/* Imagem da Placa de Recompensa */}
                     <Box
                       sx={{
                         position: 'relative',
                         cursor: 'pointer',
+                        transition: 'transform 0.3s',
                         '&:hover': { transform: 'scale(1.05)' },
                       }}
                     >
                       <Box
                         component="img"
-                        src="plca.png"
-                        alt="Recompensa"
+                        src="/plca.png"
+                        alt="Placa de Recompensa"
                         sx={{
                           width: '100%',
-                          borderRadius: '8px',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                          maxWidth: 240,
+                          borderRadius: '12px',
+                          boxShadow: '0 8px 32px rgba(88, 24, 200, 0.3)',
                         }}
                       />
                     </Box>
@@ -461,8 +483,8 @@ const Dashboard = () => {
                         }}
                       >
                         <Typography variant="subtitle1">Sua próxima meta</Typography>
-                        <Typography variant="subtitle1" sx={{ color: '#5818C8' }}>
-                          0% completo
+                        <Typography variant="subtitle1" sx={{ color: '#5818C8', fontWeight: 600 }}>
+                          {Math.min(100, Math.round((monthTotal / 10000) * 100))}% completo
                         </Typography>
                       </Box>
                       <Typography
@@ -470,7 +492,7 @@ const Dashboard = () => {
                         color="textSecondary"
                         gutterBottom
                       >
-                        Progresso atual
+                        Progresso atual - Meta: R$ 10.000,00
                       </Typography>
 
                       <Box sx={{ mt: 2, mb: 3 }}>
@@ -490,18 +512,23 @@ const Dashboard = () => {
                         </Box>
                         <LinearProgress
                           variant="determinate"
-                          value={0}
+                          value={Math.min(100, (monthTotal / 10000) * 100)}
                           sx={{
-                            height: 8,
-                            borderRadius: 4,
+                            height: 10,
+                            borderRadius: 5,
+                            bgcolor: '#e9d5ff',
                             '& .MuiLinearProgress-bar': {
                               backgroundColor: '#5818C8',
+                              borderRadius: 5,
                             },
                           }}
                         />
-                        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                          <Typography variant="body2" sx={{ color: '#5818C8', fontWeight: 600 }}>
+                            {formatCurrency(monthTotal)}
+                          </Typography>
                           <Typography variant="body2" sx={{ color: '#5818C8' }}>
-                            R$ 0,00 / 10K
+                            / R$ 10.000,00
                           </Typography>
                         </Box>
                       </Box>
@@ -560,31 +587,41 @@ const Dashboard = () => {
                 <Box sx={{ mt: 2 }}>
                   {[
                     {
+                      key: 'CREDIT_CARD',
                       icon: <CreditCardIcon sx={{ color: '#5818C8', fontSize: 20 }} />,
                       bg: '#EBE5FC',
                       title: 'Cartão',
                       subtitle: 'Pagamentos com cartão de crédito e débito',
+                      count: paymentMethods.CREDIT_CARD.count,
+                      total: paymentMethods.CREDIT_CARD.total,
                     },
                     {
+                      key: 'PIX',
                       icon: <QrCodeIcon sx={{ color: '#2E7D32', fontSize: 20 }} />,
                       bg: '#E8F5E9',
                       title: 'PIX',
                       subtitle: 'Transferências instantâneas via PIX',
+                      count: paymentMethods.PIX.count,
+                      total: paymentMethods.PIX.total,
                     },
                     {
+                      key: 'BOLETO',
                       icon: <ReceiptIcon sx={{ color: '#E65100', fontSize: 20 }} />,
                       bg: '#FFF3E0',
                       title: 'Boleto',
                       subtitle: 'Pagamentos via boleto bancário',
+                      count: paymentMethods.BOLETO.count,
+                      total: paymentMethods.BOLETO.total,
                     },
-                  ].map((method, i) => (
+                  ].map((method) => (
                     <Box
-                      key={i}
+                      key={method.key}
                       sx={{
                         p: 2,
                         borderRadius: 2,
                         mb: 2,
                         border: '1px solid #f0f0f0',
+                        transition: 'all 0.2s',
                         '&:hover': {
                           backgroundColor: '#fafafa',
                           transform: 'translateX(4px)',
@@ -605,7 +642,7 @@ const Dashboard = () => {
                         >
                           {method.icon}
                         </Box>
-                        <Box>
+                        <Box sx={{ flex: 1 }}>
                           <Typography variant="subtitle1">{method.title}</Typography>
                           <Typography
                             variant="body2"
@@ -614,16 +651,15 @@ const Dashboard = () => {
                           >
                             {method.subtitle}
                           </Typography>
-                          <Box sx={{ display: 'flex', gap: 2 }}>
+                          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                             <Typography variant="body2" color="textSecondary">
-                              0 transações
+                              {method.count} {method.count === 1 ? 'transação' : 'transações'}
                             </Typography>
                             <Typography
                               variant="body2"
-                              sx={{ color: '#5818C8' }}
-                              fontWeight="medium"
+                              sx={{ color: '#5818C8', fontWeight: 600 }}
                             >
-                              R$ 0,00
+                              {formatCurrency(method.total)}
                             </Typography>
                           </Box>
                         </Box>
@@ -640,58 +676,59 @@ const Dashboard = () => {
                 height: 'fit-content',
                 mt: 3,
                 transition: 'transform 0.2s',
-                background: 'linear-gradient(135deg, #fef3c7 0%, #fde68a 100%)',
-                border: '1px solid #f59e0b',
+                background: 'linear-gradient(135deg, #5818C8 0%, #7c3aed 100%)',
+                border: 'none',
                 '&:hover': {
                   transform: 'translateY(-4px)',
-                  boxShadow: 3,
+                  boxShadow: '0 8px 32px rgba(88, 24, 200, 0.4)',
                 },
               }}
             >
               <CardContent sx={{ p: { xs: 2, md: 3 } }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-                  <LockIcon sx={{ color: '#d97706', fontSize: { xs: 20, md: 24 } }} />
-                  <Typography variant="h6" sx={{ color: '#92400e', fontSize: { xs: '1rem', md: '1.25rem' } }}>
+                  <LockIcon sx={{ color: 'white', fontSize: { xs: 20, md: 24 } }} />
+                  <Typography variant="h6" sx={{ color: 'white', fontSize: { xs: '1rem', md: '1.25rem' }, fontWeight: 600 }}>
                     Reserva de Saldo
                   </Typography>
                 </Box>
                 
-                <Typography variant="body2" sx={{ color: '#78350f', mb: 2, fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
+                <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.85)', mb: 2, fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
                   Retenção de 5% por 30 dias para cobrir reembolsos e chargebacks
                 </Typography>
 
                 <Box sx={{ 
-                  backgroundColor: 'rgba(255,255,255,0.7)', 
+                  backgroundColor: 'rgba(255,255,255,0.15)', 
                   borderRadius: 2, 
                   p: 2, 
-                  mb: 2 
+                  mb: 2,
+                  backdropFilter: 'blur(10px)',
                 }}>
-                  <Typography variant="body2" color="textSecondary">
+                  <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.7)' }}>
                     Total em Reserva
                   </Typography>
-                  <Typography variant="h5" sx={{ color: '#d97706', fontWeight: 700 }}>
+                  <Typography variant="h5" sx={{ color: 'white', fontWeight: 700 }}>
                     {loading ? 'Carregando...' : formatCurrency(reserveData.totalReserved)}
                   </Typography>
-                  <Typography variant="caption" color="textSecondary">
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>
                     {reserveData.reservesCount} reserva{reserveData.reservesCount !== 1 ? 's' : ''} ativa{reserveData.reservesCount !== 1 ? 's' : ''}
                   </Typography>
                 </Box>
 
                 {reserveData.nextRelease && (
                   <Box sx={{ 
-                    backgroundColor: 'rgba(255,255,255,0.5)', 
+                    backgroundColor: 'rgba(255,255,255,0.1)', 
                     borderRadius: 2, 
                     p: 2,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 2
                   }}>
-                    <ScheduleIcon sx={{ color: '#92400e', fontSize: 20 }} />
+                    <ScheduleIcon sx={{ color: 'white', fontSize: 20 }} />
                     <Box>
-                      <Typography variant="body2" sx={{ color: '#78350f', fontWeight: 500 }}>
+                      <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 500 }}>
                         Próxima liberação
                       </Typography>
-                      <Typography variant="body2" sx={{ color: '#92400e', fontWeight: 700 }}>
+                      <Typography variant="body2" sx={{ color: 'white', fontWeight: 700 }}>
                         {formatCurrency(reserveData.nextRelease.amount)} em{' '}
                         {new Date(reserveData.nextRelease.releaseDate).toLocaleDateString('pt-BR')}
                       </Typography>
@@ -699,8 +736,8 @@ const Dashboard = () => {
                   </Box>
                 )}
 
-                <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(146, 64, 14, 0.2)' }}>
-                  <Typography variant="caption" sx={{ color: '#78350f' }}>
+                <Box sx={{ mt: 2, pt: 2, borderTop: '1px solid rgba(255, 255, 255, 0.2)' }}>
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)' }}>
                     💡 As reservas são liberadas automaticamente após 30 dias da venda.
                   </Typography>
                 </Box>
