@@ -106,7 +106,14 @@ export default async function handler(req, res) {
 
     const supabase = createSupabaseClient(supabaseUrl, supabaseServiceKey);
     
-    // Verificar autenticação
+    const { action, ...params } = req.body || {};
+
+    // ========== LOGIN DE ADMIN (não requer autenticação prévia) ==========
+    if (action === 'login') {
+      return await handleAdminLogin(supabase, params, res);
+    }
+
+    // Para outras ações, verificar autenticação
     const user = await getUserFromToken(req.headers.authorization);
     if (!user) {
       return res.status(200).json({ success: false, message: 'Não autorizado. Faça login novamente.' });
@@ -121,8 +128,6 @@ export default async function handler(req, res) {
         userId: user.id 
       });
     }
-
-    const { action, ...params } = req.body || {};
 
     switch (action) {
       // ========== DASHBOARD STATS ==========
@@ -1259,6 +1264,82 @@ async function getAdvancedStats(supabase, params, res) {
   } catch (error) {
     console.error('getAdvancedStats error:', error);
     return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ========== LOGIN DE ADMIN ==========
+
+async function handleAdminLogin(supabase, params, res) {
+  try {
+    const { email, password } = params;
+
+    if (!email || !password) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Email e senha são obrigatórios' 
+      });
+    }
+
+    // Buscar admin pelo email na tabela admin_credentials
+    const { data: admin, error } = await supabase
+      .from('admin_credentials')
+      .select('id, email, password_hash, name, role, is_active')
+      .eq('email', email.toLowerCase().trim())
+      .eq('is_active', true)
+      .single();
+
+    if (error || !admin) {
+      console.log('[Admin Login] Admin não encontrado:', email);
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Credenciais inválidas' 
+      });
+    }
+
+    // Verificar senha (comparação simples - em produção usar bcrypt)
+    if (admin.password_hash !== password) {
+      console.log('[Admin Login] Senha incorreta para:', email);
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Credenciais inválidas' 
+      });
+    }
+
+    // Atualizar último login
+    await supabase
+      .from('admin_credentials')
+      .update({ last_login: new Date().toISOString() })
+      .eq('id', admin.id);
+
+    // Gerar token simples (em produção usar JWT real)
+    const token = Buffer.from(JSON.stringify({
+      type: 'admin',
+      adminId: admin.id,
+      email: admin.email,
+      role: admin.role,
+      timestamp: Date.now(),
+      exp: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
+    })).toString('base64');
+
+    console.log('[Admin Login] Login bem sucedido:', admin.email);
+
+    return res.status(200).json({
+      success: true,
+      token,
+      admin: {
+        id: admin.id,
+        email: admin.email,
+        name: admin.name,
+        role: admin.role
+      }
+    });
+
+  } catch (error) {
+    console.error('[Admin Login] Erro:', error);
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Erro interno do servidor' 
+    });
   }
 }
 

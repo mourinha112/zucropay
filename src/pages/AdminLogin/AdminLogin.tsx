@@ -56,13 +56,13 @@ const AdminLogin: React.FC = () => {
     setLoading(true);
 
     try {
-      // Chamar API de login admin
-      const response = await fetch(`${API_BASE_URL}/admin-login`, {
+      // Chamar API de login admin (consolidada em /api/admin)
+      const response = await fetch(`${API_BASE_URL}/admin`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ action: 'login', email, password }),
       });
 
       const data = await response.json();
