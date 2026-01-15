@@ -18,6 +18,8 @@ import {
   CardActions,
   Alert,
   Snackbar,
+  Skeleton,
+  Grid,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -34,6 +36,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import * as api from '../../services/api-supabase';
+import dataCache from '../../services/data-cache';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -116,19 +119,22 @@ const Products: React.FC = () => {
     }
   };
 
-  // Carregar tudo de uma vez via API otimizada
-  const loadData = async () => {
+  // Carregar tudo de uma vez via API otimizada COM CACHE
+  const loadData = async (forceRefresh = false) => {
+    // Primeiro, verificar se tem dados em cache para mostrar instantaneamente
+    const cached = dataCache.getCached<any>('products');
+    if (cached?.success && !forceRefresh) {
+      setProducts(cached.products || []);
+      setPaymentLinks(cached.links || []);
+      setLoading(false);
+      // Revalidar em background
+      revalidateInBackground();
+      return;
+    }
+
     setLoading(true);
     try {
-      const token = localStorage.getItem('zucropay_token');
-      const response = await fetch(`${API_URL}/api/produtos-data`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      const result = await response.json();
+      const result = await dataCache.getProducts();
       
       if (result.success) {
         setProducts(result.products || []);
@@ -138,6 +144,26 @@ const Products: React.FC = () => {
       showSnackbar(error.message || 'Erro ao carregar dados', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Revalidar dados em background sem mostrar loading
+  const revalidateInBackground = async () => {
+    try {
+      const token = localStorage.getItem('zucropay_token');
+      const response = await fetch(`${API_URL}/api/produtos-data`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      const result = await response.json();
+      if (result.success) {
+        setProducts(result.products || []);
+        setPaymentLinks(result.links || []);
+      }
+    } catch (error) {
+      console.error('Background revalidation failed:', error);
     }
   };
 

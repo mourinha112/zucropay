@@ -1,4 +1,18 @@
 import { createClient } from '@supabase/supabase-js';
+import webpush from 'web-push';
+
+// Configurar VAPID para push notifications
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'Dl-lJhF_kE-O8gT-mSLcVxpRdwAY3bxGLTaJNE1Qz2I';
+const VAPID_EMAIL = process.env.VAPID_EMAIL || 'mailto:contato@appzucropay.com';
+
+try {
+  if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  }
+} catch (e) {
+  console.log('[Dashboard] VAPID config error:', e.message);
+}
 
 // Headers CORS
 const corsHeaders = {
@@ -53,9 +67,83 @@ export default async function handler(req, res) {
   }
 
   const supabase = getSupabase();
-  const { type } = req.query; // ?type=verification para dados de verificação
+  const { type } = req.query; // ?type=verification, ?type=push
 
   try {
+    // ========================================
+    // PUSH NOTIFICATIONS (integrado)
+    // ========================================
+    
+    if (type === 'push') {
+      // POST - Subscribe/Unsubscribe
+      if (req.method === 'POST') {
+        const { action, subscription, endpoint } = req.body;
+
+        if (action === 'subscribe' && subscription) {
+          // Verificar se já existe
+          const { data: existing } = await supabase
+            .from('push_subscriptions')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('endpoint', subscription.endpoint)
+            .single();
+
+          if (existing) {
+            await supabase
+              .from('push_subscriptions')
+              .update({
+                p256dh: subscription.keys?.p256dh,
+                auth: subscription.keys?.auth,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', existing.id);
+            return res.status(200).json({ success: true, message: 'Subscription atualizada' });
+          }
+
+          const { error: insertError } = await supabase
+            .from('push_subscriptions')
+            .insert({
+              user_id: userId,
+              endpoint: subscription.endpoint,
+              p256dh: subscription.keys?.p256dh,
+              auth: subscription.keys?.auth,
+              user_agent: req.headers['user-agent'] || 'unknown',
+            });
+
+          if (insertError) throw insertError;
+          console.log(`[Push] Nova subscription criada para user: ${userId}`);
+          return res.status(201).json({ success: true, message: 'Subscription criada' });
+        }
+
+        if (action === 'unsubscribe' && endpoint) {
+          await supabase
+            .from('push_subscriptions')
+            .delete()
+            .eq('user_id', userId)
+            .eq('endpoint', endpoint);
+          return res.status(200).json({ success: true, message: 'Subscription removida' });
+        }
+
+        return res.status(400).json({ success: false, error: 'Ação inválida' });
+      }
+
+      // GET - Listar subscriptions
+      if (req.method === 'GET') {
+        const { data: subscriptions, error } = await supabase
+          .from('push_subscriptions')
+          .select('id, endpoint, created_at, user_agent')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        return res.status(200).json({
+          success: true,
+          subscriptions: subscriptions || [],
+          count: subscriptions?.length || 0,
+        });
+      }
+    }
+
     // ========================================
     // VERIFICAÇÃO DE USUÁRIO (integrado)
     // ========================================

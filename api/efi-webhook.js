@@ -2,6 +2,20 @@
 // Recebe notificações de pagamento da EfiBank
 
 import { createClient } from '@supabase/supabase-js';
+import webpush from 'web-push';
+
+// Configurar VAPID para push notifications
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'Dl-lJhF_kE-O8gT-mSLcVxpRdwAY3bxGLTaJNE1Qz2I';
+const VAPID_EMAIL = process.env.VAPID_EMAIL || 'mailto:contato@appzucropay.com';
+
+try {
+  if (VAPID_PUBLIC_KEY && VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
+  }
+} catch (e) {
+  console.error('[Webhook] Erro ao configurar VAPID:', e);
+}
 
 // Supabase client
 const getSupabase = () => {
@@ -13,6 +27,64 @@ const getSupabase = () => {
   }
   
   return createClient(url, key, { auth: { persistSession: false } });
+};
+
+// ==========================================
+// ENVIAR PUSH NOTIFICATION DE VENDA
+// ==========================================
+const sendSaleNotification = async (supabase, userId, saleValue, description) => {
+  try {
+    // Buscar subscriptions do usuário
+    const { data: subscriptions, error } = await supabase
+      .from('push_subscriptions')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (error || !subscriptions?.length) {
+      console.log(`[Push] Sem subscriptions para user: ${userId}`);
+      return;
+    }
+
+    const formattedValue = new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(saleValue);
+
+    // Payload com estilo bonito roxo/branco
+    const payload = JSON.stringify({
+      title: '💰 Nova Venda Confirmada!',
+      body: `${formattedValue} recebido${description ? ` - ${description}` : ''}`,
+      icon: '/logotipo.png',
+      badge: '/logotipo.png',
+      tag: `sale-${Date.now()}`,
+      data: {
+        type: 'sale',
+        value: saleValue,
+        url: '/vendas',
+        timestamp: new Date().toISOString(),
+      },
+    });
+
+    let sent = 0;
+    for (const sub of subscriptions) {
+      try {
+        await webpush.sendNotification({
+          endpoint: sub.endpoint,
+          keys: { p256dh: sub.p256dh, auth: sub.auth },
+        }, payload);
+        sent++;
+      } catch (err) {
+        console.error(`[Push] Erro:`, err.statusCode || err.message);
+        // Remover subscription inválida
+        if (err.statusCode === 404 || err.statusCode === 410) {
+          await supabase.from('push_subscriptions').delete().eq('id', sub.id);
+        }
+      }
+    }
+    console.log(`[Push] Notificações enviadas: ${sent}/${subscriptions.length}`);
+  } catch (error) {
+    console.error('[Push] Erro ao enviar notificação:', error);
+  }
 };
 
 export default async function handler(req, res) {
@@ -344,6 +416,9 @@ async function processPixPayment(supabase, pixData) {
         });
         
         console.log(`[EfiBank Webhook] Saldo e reserva atualizados`);
+        
+        // ✨ ENVIAR NOTIFICAÇÃO PUSH DE NOVA VENDA
+        await sendSaleNotification(supabase, payment.user_id, paidValue, payment.description);
       }
     }
 
@@ -554,6 +629,9 @@ async function processChargeNotification(supabase, chargeData) {
             fee_fixed: PLATFORM_FEE_FIXED,
           },
         });
+        
+        // ✨ ENVIAR NOTIFICAÇÃO PUSH DE NOVA VENDA
+        await sendSaleNotification(supabase, dbPayment.user_id, paidValue, dbPayment.description);
       }
     }
 

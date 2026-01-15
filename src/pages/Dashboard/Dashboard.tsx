@@ -35,6 +35,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import Header from '../../components/Header/Header';
+import pushNotifications from '../../services/push-notifications';
 
 // API URL
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -82,7 +83,44 @@ const Dashboard = () => {
   useEffect(() => {
     loadDashboardData();
     setupPWAInstall();
+    
+    // Inicializar Push Notifications
+    initializePushNotifications();
   }, []);
+
+  const initializePushNotifications = async () => {
+    try {
+      // Verificar se push é suportado
+      if (!pushNotifications.isPushSupported()) {
+        console.log('[Push] Não suportado neste dispositivo');
+        return;
+      }
+
+      // Registrar service worker
+      await pushNotifications.registerServiceWorker();
+
+      // Se já tem permissão, ativar automaticamente
+      if (pushNotifications.getNotificationPermission() === 'granted') {
+        await pushNotifications.subscribe();
+        console.log('[Push] Notificações ativadas automaticamente');
+      } else if (pushNotifications.getNotificationPermission() === 'default') {
+        // Perguntar ao usuário após 5 segundos
+        setTimeout(async () => {
+          const permission = await pushNotifications.requestPermission();
+          if (permission === 'granted') {
+            await pushNotifications.subscribe();
+            setSnackbar({ 
+              open: true, 
+              message: 'Notificações de vendas ativadas!', 
+              severity: 'success' 
+            });
+          }
+        }, 5000);
+      }
+    } catch (error) {
+      console.error('[Push] Erro ao inicializar:', error);
+    }
+  };
 
   const setupPWAInstall = () => {
     // Verificar se já está instalado

@@ -35,6 +35,15 @@ import {
   GetApp as GetAppIcon,
 } from '@mui/icons-material';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import dataCache from '../../services/data-cache';
+
+// Mapeamento de rotas para chaves de cache
+const routeToCacheKey: Record<string, string> = {
+  '/produtos': 'products',
+  '/dashboard': 'dashboard',
+  '/vendas': 'vendas',
+  '/financas': 'dashboard',
+};
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -63,6 +72,9 @@ const Header = () => {
         const payload = JSON.parse(atob(token.split('.')[1]));
         setUserName(payload.name || payload.email || 'Usuário');
         setUserEmail(payload.email || '');
+        
+        // Prefetch dados iniciais para carregamento mais rápido
+        dataCache.prefetchOnLogin();
       } catch (error) {
         console.error('Erro ao decodificar token:', error);
       }
@@ -71,6 +83,14 @@ const Header = () => {
     // Setup PWA Install
     setupPWAInstall();
   }, []);
+
+  // Prefetch ao passar o mouse sobre menu item
+  const handleMenuHover = (path: string) => {
+    const cacheKey = routeToCacheKey[path];
+    if (cacheKey && !dataCache.hasCache(cacheKey)) {
+      dataCache.prefetch([cacheKey]);
+    }
+  };
 
   const setupPWAInstall = () => {
     // Verificar se já está instalado
@@ -256,7 +276,7 @@ const Header = () => {
                 </Box>
 
                 {/* Navigation Links */}
-                <Box sx={{ display: 'flex', gap: 3 }}>
+                <Box sx={{ display: 'flex', gap: 1 }}>
                   {menuItems.map((item) => {
                     const isActive = location.pathname === item.path || 
                       (item.path === '/dashboard' && location.pathname === '/');
@@ -264,17 +284,20 @@ const Header = () => {
                       <Link
                         key={item.path}
                         to={item.path}
+                        onMouseEnter={() => handleMenuHover(item.path)}
                         style={{
                           textDecoration: 'none',
-                          color: isActive ? '#5818C8' : '#64748b',
+                          color: isActive ? '#5818C8' : '#374151',
                           display: 'flex',
                           alignItems: 'center',
                           gap: 4,
-                          fontWeight: isActive ? 600 : 400,
-                          padding: '8px 12px',
-                          borderRadius: '8px',
-                          backgroundColor: isActive ? 'rgba(88, 24, 200, 0.1)' : 'transparent',
+                          fontWeight: isActive ? 700 : 500,
+                          fontSize: '13px',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          backgroundColor: isActive ? 'rgba(88, 24, 200, 0.08)' : 'transparent',
                           transition: 'all 0.2s ease',
+                          whiteSpace: 'nowrap',
                         }}
                       >
                         {item.label}
