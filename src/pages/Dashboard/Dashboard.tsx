@@ -397,23 +397,25 @@ const Dashboard = () => {
           <Box
             sx={{
               display: 'grid',
-              gridTemplateColumns: { xs: '1fr', md: '3fr 1fr' },
-              gap: 3,
+              gridTemplateColumns: { xs: '1fr', lg: '3fr 1fr' },
+              gap: { xs: 2, md: 3 },
+              overflow: 'visible',
             }}
           >
             {/* Left Column */}
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: { xs: 2, md: 3 }, overflow: 'visible' }}>
               {/* Sales Chart */}
               <Card
                 sx={{
                   transition: 'transform 0.2s',
+                  overflow: 'visible',
                   '&:hover': {
                     transform: 'translateY(-4px)',
                     boxShadow: 3,
                   },
                 }}
               >
-                <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+                <CardContent sx={{ p: { xs: 2, md: 3 }, overflow: 'visible' }}>
                   <Typography variant="h6" color="primary" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
                     Visão Geral de Vendas
                   </Typography>
@@ -435,12 +437,27 @@ const Dashboard = () => {
                     <Tab label="30 dias" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }} />
                   </Tabs>
 
-                  <Box sx={{ height: { xs: 200, md: 250 }, width: '100%' }}>
-                    <ResponsiveContainer>
-                      <LineChart data={chartData}>
+                  <Box sx={{ 
+                    height: { xs: 250, sm: 280, md: 300 }, 
+                    width: '100%',
+                    minHeight: 250,
+                    overflow: 'visible',
+                  }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart 
+                        data={chartData}
+                        margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
+                      >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                        <XAxis dataKey="date" />
-                        <YAxis />
+                        <XAxis 
+                          dataKey="date" 
+                          tick={{ fontSize: 10 }}
+                          interval={2}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 10 }}
+                          width={40}
+                        />
                         <Line
                           type="monotone"
                           dataKey="value"
@@ -458,13 +475,14 @@ const Dashboard = () => {
               <Card
                 sx={{
                   transition: 'transform 0.2s',
+                  overflow: 'visible',
                   '&:hover': {
                     transform: 'translateY(-4px)',
                     boxShadow: 3,
                   },
                 }}
               >
-                <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+                <CardContent sx={{ p: { xs: 2, md: 3 }, overflow: 'visible' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
                     <TrophyIcon sx={{ color: '#5818C8', fontSize: { xs: 20, md: 24 } }} />
                     <Typography variant="h6" color="primary" sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
@@ -477,8 +495,8 @@ const Dashboard = () => {
 
                     <Box
                       sx={{
-                        display: 'grid',
-                        gridTemplateColumns: { xs: '1fr', sm: '240px 1fr' },
+                        display: 'flex',
+                        flexDirection: { xs: 'column', sm: 'row' },
                         gap: { xs: 2, md: 3 },
                         mt: 2,
                       }}
@@ -489,6 +507,9 @@ const Dashboard = () => {
                         position: 'relative',
                         cursor: 'pointer',
                         transition: 'transform 0.3s',
+                        flexShrink: 0,
+                        width: { xs: '100%', sm: 200, md: 240 },
+                        alignSelf: { xs: 'center', sm: 'flex-start' },
                         '&:hover': { transform: 'scale(1.05)' },
                       }}
                     >
@@ -498,7 +519,8 @@ const Dashboard = () => {
                         alt="Placa de Recompensa"
                         sx={{
                           width: '100%',
-                          maxWidth: 240,
+                          maxWidth: '100%',
+                          height: 'auto',
                           borderRadius: '12px',
                           boxShadow: '0 8px 32px rgba(88, 24, 200, 0.3)',
                         }}
@@ -535,10 +557,10 @@ const Dashboard = () => {
                             mb: 1,
                           }}
                         >
-                          <Typography variant="caption" color="textSecondary">
-                            0%
+                          <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
+                            {Math.min(100, Math.round((monthTotal / 10000) * 100))}%
                           </Typography>
-                          <Typography variant="caption" color="textSecondary">
+                          <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
                             100%
                           </Typography>
                         </Box>
@@ -546,7 +568,7 @@ const Dashboard = () => {
                           variant="determinate"
                           value={Math.min(100, (monthTotal / 10000) * 100)}
                           sx={{
-                            height: 10,
+                            height: { xs: 8, md: 10 },
                             borderRadius: 5,
                             bgcolor: '#e9d5ff',
                             '& .MuiLinearProgress-bar': {
@@ -555,11 +577,11 @@ const Dashboard = () => {
                             },
                           }}
                         />
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
-                          <Typography variant="body2" sx={{ color: '#5818C8', fontWeight: 600 }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, flexWrap: 'wrap', gap: 0.5 }}>
+                          <Typography variant="body2" sx={{ color: '#5818C8', fontWeight: 600, fontSize: { xs: '0.875rem', md: '1rem' } }}>
                             {formatCurrency(monthTotal)}
                           </Typography>
-                          <Typography variant="body2" sx={{ color: '#5818C8' }}>
+                          <Typography variant="body2" sx={{ color: '#5818C8', fontSize: { xs: '0.875rem', md: '1rem' } }}>
                             / R$ 10.000,00
                           </Typography>
                         </Box>
@@ -602,21 +624,22 @@ const Dashboard = () => {
               sx={{
                 height: 'fit-content',
                 transition: 'transform 0.2s',
+                overflow: 'visible',
                 '&:hover': {
                   transform: 'translateY(-4px)',
                   boxShadow: 3,
                 },
               }}
             >
-              <CardContent sx={{ p: { xs: 2, md: 3 } }}>
+              <CardContent sx={{ p: { xs: 2, md: 3 }, overflow: 'visible' }}>
                 <Typography variant="h6" sx={{ color: '#5818C8', mb: 1, fontSize: { xs: '1rem', md: '1.25rem' } }}>
                   Métodos de Pagamento
                 </Typography>
-                <Typography variant="body2" color="textSecondary" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
+                <Typography variant="body2" color="textSecondary" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' }, mb: 2 }}>
                   Estatísticas por método de pagamento
                 </Typography>
 
-                <Box sx={{ mt: 2 }}>
+                <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {[
                     {
                       key: 'CREDIT_CARD',
@@ -649,47 +672,63 @@ const Dashboard = () => {
                     <Box
                       key={method.key}
                       sx={{
-                        p: 2,
+                        p: { xs: 1.5, md: 2 },
                         borderRadius: 2,
-                        mb: 2,
                         border: '1px solid #f0f0f0',
                         transition: 'all 0.2s',
+                        overflow: 'visible',
                         '&:hover': {
                           backgroundColor: '#fafafa',
                           transform: 'translateX(4px)',
                         },
                       }}
                     >
-                      <Box sx={{ display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+                      <Box sx={{ display: 'flex', gap: { xs: 1.5, md: 2 }, alignItems: 'flex-start' }}>
                         <Box
                           sx={{
-                            width: 32,
-                            height: 32,
+                            width: { xs: 28, md: 32 },
+                            height: { xs: 28, md: 32 },
                             borderRadius: '50%',
                             backgroundColor: method.bg,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
+                            flexShrink: 0,
                           }}
                         >
                           {method.icon}
                         </Box>
-                        <Box sx={{ flex: 1 }}>
-                          <Typography variant="subtitle1">{method.title}</Typography>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Typography variant="subtitle1" sx={{ fontSize: { xs: '0.875rem', md: '1rem' }, fontWeight: 600 }}>
+                            {method.title}
+                          </Typography>
                           <Typography
                             variant="body2"
                             color="textSecondary"
-                            sx={{ mb: 1 }}
+                            sx={{ 
+                              mb: 1,
+                              fontSize: { xs: '0.75rem', md: '0.875rem' },
+                              display: { xs: 'none', sm: 'block' }
+                            }}
                           >
                             {method.subtitle}
                           </Typography>
-                          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-                            <Typography variant="body2" color="textSecondary">
+                          <Box sx={{ 
+                            display: 'flex', 
+                            gap: { xs: 1, md: 2 }, 
+                            alignItems: 'center',
+                            flexWrap: 'wrap',
+                          }}>
+                            <Typography variant="body2" color="textSecondary" sx={{ fontSize: { xs: '0.75rem', md: '0.875rem' } }}>
                               {method.count} {method.count === 1 ? 'transação' : 'transações'}
                             </Typography>
                             <Typography
                               variant="body2"
-                              sx={{ color: '#5818C8', fontWeight: 600 }}
+                              sx={{ 
+                                color: '#5818C8', 
+                                fontWeight: 600,
+                                fontSize: { xs: '0.875rem', md: '1rem' },
+                              }}
                             >
                               {formatCurrency(method.total)}
                             </Typography>
