@@ -1,9 +1,8 @@
 // Serviço de Push Notifications para ZucroPay
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-// VAPID Public Key - precisa ser gerada uma vez e usada sempre
-// Gerar em: https://vapidkeys.com/ ou via web-push cli
-const VAPID_PUBLIC_KEY = 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
+// VAPID Public Key - chave gerada para ZucroPay
+const VAPID_PUBLIC_KEY = 'BLDL2Izhy0W6zhF1LpcrNRJ4IhjP6j1j_nWT-oSj8ZUIHjn1w7wMFac8E2AbX_ACm3kpkrm6Kj3FnaCLhqa6n3I';
 
 // Converter VAPID key para Uint8Array
 function urlBase64ToUint8Array(base64String: string): Uint8Array {

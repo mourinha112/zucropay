@@ -5,8 +5,8 @@ import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
 
 // Configurar VAPID para push notifications
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BEl62iUYgUivxIkv69yViEuiBIa-Ib9-SkvMeAtA3LFgDzkrxZJjSgSnfckjBJuBkr3qBUYIHBQFLXYp5Nksh8U';
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'Dl-lJhF_kE-O8gT-mSLcVxpRdwAY3bxGLTaJNE1Qz2I';
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BLDL2Izhy0W6zhF1LpcrNRJ4IhjP6j1j_nWT-oSj8ZUIHjn1w7wMFac8E2AbX_ACm3kpkrm6Kj3FnaCLhqa6n3I';
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'oiZgvhtY0BwrrnvIZ7FRl-Bsn65xt2Yrc3p6jIxw7cE';
 const VAPID_EMAIL = process.env.VAPID_EMAIL || 'mailto:contato@appzucropay.com';
 
 try {
