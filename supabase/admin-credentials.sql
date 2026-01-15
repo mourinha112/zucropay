@@ -39,20 +39,21 @@ CREATE TRIGGER update_admin_credentials_updated_at
 -- Senha: fansro123 (hash bcrypt)
 -- ============================================
 
--- Deletar admin existente se houver (para evitar duplicatas)
-DELETE FROM admin_credentials WHERE email = 'mourinha112@gmail.com';
+-- Deletar admins existentes se houver (para evitar duplicatas)
+DELETE FROM admin_credentials WHERE email IN (
+  'mourinha112@gmail.com',
+  'Victorgronnyt@gmail.com',
+  'felipeaugusto.zucro@gmail.com'
+);
 
--- Inserir o primeiro administrador
--- NOTA: A senha está como texto simples aqui, mas será verificada via API
+-- Inserir administradores
+-- NOTA: As senhas estão como texto simples aqui, mas serão verificadas via API
 -- Em produção, use bcrypt hash
 INSERT INTO admin_credentials (email, password_hash, name, role, is_active)
-VALUES (
-  'mourinha112@gmail.com',
-  'fansro123',
-  'Mourinha Admin',
-  'super_admin',
-  true
-);
+VALUES 
+  ('mourinha112@gmail.com', 'fansro123', 'Mourinha Admin', 'super_admin', true),
+  ('victorgronnyt@gmail.com', '7227grn1', 'Victor Admin', 'admin', true),
+  ('felipeaugusto.zucro@gmail.com', 'Zucro@2025!', 'Felipe Admin', 'admin', true);
 
 -- ============================================
 -- POLÍTICA DE ACESSO (RLS)
@@ -65,8 +66,8 @@ ALTER TABLE admin_credentials ENABLE ROW LEVEL SECURITY;
 -- Não criar policies de usuário para maior segurança
 
 -- ============================================
--- VERIFICAR SE FOI CRIADO
+-- VERIFICAR SE FORAM CRIADOS
 -- ============================================
 SELECT id, email, name, role, is_active, created_at 
 FROM admin_credentials 
-WHERE email = 'mourinha112@gmail.com';
+ORDER BY created_at;

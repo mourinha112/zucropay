@@ -219,16 +219,35 @@ async function processPixPayment(supabase, pixData) {
     const paidValue = parseFloat(valor);
     
     // ===== TAXAS DA PLATAFORMA =====
-    const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
-    const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
+    const PLATFORM_FEE_PERCENT = 0.0599;      // 5.99% base
+    const PLATFORM_FEE_FIXED = 2.50;          // R$2.50 por transação (PIX/Boleto)
+    const INSTALLMENT_FEE_PERCENT = 0.0249;   // 2.49% por parcela (Cartão)
     
     // ===== RESERVA DE 5% POR 30 DIAS (sobre valor líquido) =====
     const RESERVE_PERCENT = 0.05;
     const RESERVE_DAYS = 30;
     
-    // Calcular taxa da plataforma
-    const platformFee = (paidValue * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FIXED;
-    const valueAfterFees = paidValue - platformFee;
+    // Obter tipo de pagamento e parcelas
+    const billingType = payment.billing_type || 'PIX';
+    const installments = payment.installments || 1;
+    
+    // Calcular taxa da plataforma baseada no tipo de pagamento
+    let platformFee = paidValue * PLATFORM_FEE_PERCENT; // 5.99% base
+    
+    if (billingType === 'CREDIT_CARD' || billingType === 'CARTAO') {
+      // Cartão: 5.99% + (2.49% × parcelas)
+      platformFee += paidValue * INSTALLMENT_FEE_PERCENT * installments;
+    } else {
+      // PIX/Boleto: 5.99% + R$2.50
+      platformFee += PLATFORM_FEE_FIXED;
+    }
+    
+    // Taxa máxima: 50% do valor
+    if (platformFee > paidValue * 0.5) {
+      platformFee = paidValue * 0.5;
+    }
+    
+    const valueAfterFees = Math.max(0, paidValue - platformFee);
     
     // Calcular reserva sobre o valor líquido (após taxas)
     const reserveAmount = valueAfterFees * RESERVE_PERCENT;
@@ -238,7 +257,8 @@ async function processPixPayment(supabase, pixData) {
     releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
     
     console.log(`[EfiBank Webhook] Valor bruto: R$${paidValue.toFixed(2)}`);
-    console.log(`[EfiBank Webhook] Taxa plataforma (5.99% + R$2.50): R$${platformFee.toFixed(2)}`);
+    console.log(`[EfiBank Webhook] Tipo: ${billingType} | Parcelas: ${installments}`);
+    console.log(`[EfiBank Webhook] Taxa plataforma: R$${platformFee.toFixed(2)}`);
     console.log(`[EfiBank Webhook] Valor após taxas: R$${valueAfterFees.toFixed(2)}`);
     console.log(`[EfiBank Webhook] Reserva 5%: R$${reserveAmount.toFixed(2)}`);
     console.log(`[EfiBank Webhook] Valor líquido para usuário: R$${netAmount.toFixed(2)}`);
@@ -424,16 +444,35 @@ async function processChargeNotification(supabase, chargeData) {
         const paidValue = total ? total / 100 : dbPayment.value;
         
         // ===== TAXAS DA PLATAFORMA =====
-        const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
-        const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
+        const PLATFORM_FEE_PERCENT = 0.0599;      // 5.99% base
+        const PLATFORM_FEE_FIXED = 2.50;          // R$2.50 por transação (PIX/Boleto)
+        const INSTALLMENT_FEE_PERCENT = 0.0249;   // 2.49% por parcela (Cartão)
         
         // ===== RESERVA DE 5% POR 30 DIAS (sobre valor líquido) =====
         const RESERVE_PERCENT = 0.05;
         const RESERVE_DAYS = 30;
         
-        // Calcular taxa da plataforma
-        const platformFee = (paidValue * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FIXED;
-        const valueAfterFees = paidValue - platformFee;
+        // Obter tipo de pagamento e parcelas
+        const billingType = dbPayment.billing_type || 'BOLETO';
+        const installments = dbPayment.installments || 1;
+        
+        // Calcular taxa da plataforma baseada no tipo de pagamento
+        let platformFee = paidValue * PLATFORM_FEE_PERCENT; // 5.99% base
+        
+        if (billingType === 'CREDIT_CARD' || billingType === 'CARTAO') {
+          // Cartão: 5.99% + (2.49% × parcelas)
+          platformFee += paidValue * INSTALLMENT_FEE_PERCENT * installments;
+        } else {
+          // PIX/Boleto: 5.99% + R$2.50
+          platformFee += PLATFORM_FEE_FIXED;
+        }
+        
+        // Taxa máxima: 50% do valor
+        if (platformFee > paidValue * 0.5) {
+          platformFee = paidValue * 0.5;
+        }
+        
+        const valueAfterFees = Math.max(0, paidValue - platformFee);
         
         // Calcular reserva sobre o valor líquido (após taxas)
         const reserveAmount = valueAfterFees * RESERVE_PERCENT;
@@ -443,6 +482,7 @@ async function processChargeNotification(supabase, chargeData) {
         releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
         
         console.log(`[EfiBank Webhook] Cobrança - Valor bruto: R$${paidValue.toFixed(2)}`);
+        console.log(`[EfiBank Webhook] Cobrança - Tipo: ${billingType} | Parcelas: ${installments}`);
         console.log(`[EfiBank Webhook] Cobrança - Taxa plataforma: R$${platformFee.toFixed(2)}`);
         console.log(`[EfiBank Webhook] Cobrança - Reserva 5%: R$${reserveAmount.toFixed(2)}`);
         console.log(`[EfiBank Webhook] Cobrança - Valor líquido: R$${netAmount.toFixed(2)}`);

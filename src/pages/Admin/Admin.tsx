@@ -268,16 +268,9 @@ const Admin = () => {
   const loadWithdrawals = async () => {
     try {
       setLoading(true);
-      // Buscar saques pendentes E aprovados (aguardando transferência manual)
-      const [pendingRes, approvedRes] = await Promise.all([
-        adminApi.getWithdrawals({ status: 'pending' }),
-        adminApi.getWithdrawals({ status: 'approved' }),
-      ]);
-      const allWithdrawals = [
-        ...(pendingRes.withdrawals || []),
-        ...(approvedRes.withdrawals || []),
-      ];
-      setWithdrawals(allWithdrawals);
+      // Buscar todos os saques (agora são automáticos, apenas para visualização)
+      const response = await adminApi.getWithdrawals({ limit: 100 });
+      setWithdrawals(response.withdrawals || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -1350,13 +1343,16 @@ const Admin = () => {
             {/* Saques Tab */}
             <TabPanel value={tabValue} index={3}>
               <Box sx={{ p: 3 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700, color: '#5818C8', mb: 3 }}>💸 Solicitações de Saque Pendentes</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700, color: '#5818C8', mb: 3 }}>💸 Histórico de Saques</Typography>
+                <Alert severity="info" sx={{ mb: 3 }}>
+                  Os saques são processados automaticamente. Limite de 2 saques por dia por usuário.
+                </Alert>
                 {loading ? (
                   <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress sx={{ color: '#5818C8' }} /></Box>
                 ) : withdrawals.length === 0 ? (
                   <Box sx={{ textAlign: 'center', py: 6 }}>
                     <AccountBalanceIcon sx={{ fontSize: 64, color: '#94a3b8', mb: 2 }} />
-                    <Typography color="text.secondary">Nenhum saque pendente</Typography>
+                    <Typography color="text.secondary">Nenhum saque registrado</Typography>
                   </Box>
                 ) : (
                   <TableContainer component={Paper} variant="outlined">
@@ -1365,10 +1361,10 @@ const Admin = () => {
                         <TableRow sx={{ bgcolor: '#f8fafc' }}>
                           <TableCell sx={{ fontWeight: 600 }}>Usuário</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>Valor</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Dados Bancários</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Tipo</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Dados</TableCell>
                           <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }}>Data</TableCell>
-                          <TableCell sx={{ fontWeight: 600 }} align="center">Ações</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>Data/Hora</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -1376,41 +1372,62 @@ const Admin = () => {
                           <TableRow key={w.id} hover>
                             <TableCell>
                               <Box>
-                                <Typography variant="body2" sx={{ fontWeight: 500 }}>{w.users?.name}</Typography>
-                                <Typography variant="caption" color="text.secondary">{w.users?.email}</Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>{w.users?.name || 'N/A'}</Typography>
+                                <Typography variant="caption" color="text.secondary">{w.users?.email || '-'}</Typography>
                               </Box>
                             </TableCell>
-                            <TableCell><Typography variant="body2" sx={{ fontWeight: 700, color: '#5818C8' }}>{formatCurrency(w.amount)}</Typography></TableCell>
                             <TableCell>
-                              <Typography variant="caption">
-                                {w.pix_key ? `PIX (${w.pix_key_type}): ${w.pix_key}` : `${w.bank_name} - Ag: ${w.agency} Cc: ${w.account_number}-${w.account_digit}`}
+                              <Typography variant="body2" sx={{ fontWeight: 700, color: '#22c55e' }}>
+                                {formatCurrency(w.amount)}
                               </Typography>
-                              <Typography variant="caption" display="block" color="text.secondary">
+                            </TableCell>
+                            <TableCell>
+                              <Chip 
+                                label={w.withdrawal_type === 'pix' ? 'PIX' : 'TED'} 
+                                size="small" 
+                                sx={{ 
+                                  bgcolor: w.withdrawal_type === 'pix' ? 'rgba(34,197,94,0.1)' : 'rgba(88,24,200,0.1)',
+                                  color: w.withdrawal_type === 'pix' ? '#22c55e' : '#5818C8',
+                                  fontWeight: 600
+                                }} 
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="caption" sx={{ display: 'block' }}>
+                                {w.pix_key ? (
+                                  <>
+                                    <strong>Chave:</strong> {w.pix_key}
+                                    <br />
+                                    <strong>Tipo:</strong> {w.pix_key_type?.toUpperCase()}
+                                  </>
+                                ) : (
+                                  <>
+                                    <strong>Banco:</strong> {w.bank_name || w.bank_code}
+                                    <br />
+                                    <strong>Ag:</strong> {w.agency} <strong>Cc:</strong> {w.account_number}-{w.account_digit}
+                                  </>
+                                )}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
                                 {w.holder_name}
                               </Typography>
                             </TableCell>
-                            <TableCell><Chip label={getStatusLabel(w.status)} color={getStatusColor(w.status) as any} size="small" /></TableCell>
-                            <TableCell><Typography variant="caption">{formatDate(w.created_at)}</Typography></TableCell>
-                            <TableCell align="center">
-                              <Box sx={{ display: 'flex', gap: 0.5, justifyContent: 'center' }}>
-                                {w.status === 'pending' ? (
-                                  <>
-                                    <Tooltip title="Aprovar Saque"><IconButton size="small" onClick={() => setActionDialog({ open: true, type: 'approveWithdrawal', item: w, reason: '' })} sx={{ color: '#22c55e' }}><CheckCircleIcon fontSize="small" /></IconButton></Tooltip>
-                                    <Tooltip title="Rejeitar Saque"><IconButton size="small" onClick={() => setActionDialog({ open: true, type: 'rejectWithdrawal', item: w, reason: '' })} sx={{ color: '#ef4444' }}><CancelIcon fontSize="small" /></IconButton></Tooltip>
-                                  </>
-                                ) : w.status === 'approved' ? (
-                                  <Tooltip title="Marcar como Concluído (transferência feita)">
-                                    <Button 
-                                      size="small" 
-                                      variant="contained"
-                                      onClick={() => setActionDialog({ open: true, type: 'completeWithdrawal', item: w, reason: '' })} 
-                                      sx={{ bgcolor: '#5818C8', '&:hover': { bgcolor: '#4a14a8' }, fontSize: '0.7rem' }}
-                                    >
-                                      ✓ Concluir
-                                    </Button>
-                                  </Tooltip>
-                                ) : null}
-                              </Box>
+                            <TableCell>
+                              <Chip 
+                                label={getStatusLabel(w.status)} 
+                                color={getStatusColor(w.status) as any} 
+                                size="small" 
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Typography variant="caption" sx={{ display: 'block' }}>
+                                {formatDate(w.created_at)}
+                              </Typography>
+                              {w.completed_at && (
+                                <Typography variant="caption" color="success.main">
+                                  ✓ {formatDate(w.completed_at)}
+                                </Typography>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}

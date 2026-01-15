@@ -17,9 +17,10 @@ const getUserIdFromToken = (authHeader) => {
   } catch { return null; }
 };
 
-// Taxa de saque
-const WITHDRAWAL_FEE = 2.00; // R$ 2,00 por saque
+// Configurações de saque
+const WITHDRAWAL_FEE = 3.00; // R$ 2,00 por saque
 const MIN_WITHDRAWAL = 10.00; // Mínimo R$ 10,00
+const MAX_WITHDRAWALS_PER_DAY = 2; // Máximo 2 saques por dia
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -108,17 +109,22 @@ export default async function handler(req, res) {
         });
       }
 
-      // Verificar se tem saque pendente
-      const { data: pendingWithdrawals } = await supabase
+      // Verificar limite de saques por dia (máximo 2)
+      const today = new Date();
+      const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
+      const endOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1).toISOString();
+
+      const { data: todayWithdrawals, error: countError } = await supabase
         .from('withdrawals')
         .select('id')
         .eq('user_id', userId)
-        .eq('status', 'pending');
+        .gte('created_at', startOfDay)
+        .lt('created_at', endOfDay);
 
-      if (pendingWithdrawals && pendingWithdrawals.length > 0) {
+      if (!countError && todayWithdrawals && todayWithdrawals.length >= MAX_WITHDRAWALS_PER_DAY) {
         return res.status(400).json({
           success: false,
-          message: 'Você já possui uma solicitação de saque pendente. Aguarde a aprovação.',
+          message: `Você já atingiu o limite de ${MAX_WITHDRAWALS_PER_DAY} saques por dia. Tente novamente amanhã.`,
         });
       }
 
@@ -144,12 +150,12 @@ export default async function handler(req, res) {
         });
       }
 
-      // Criar solicitação de saque
+      // Criar saque AUTOMÁTICO (não precisa de aprovação)
       // amount = valor líquido que o usuário vai receber (grossAmount - taxa)
       const withdrawalData = {
         user_id: userId,
         amount: netAmount, // Valor que o usuário recebe
-        status: 'pending',
+        status: 'completed', // Saque automático - já aprovado
         withdrawal_type: withdrawalType,
         // PIX
         pix_key: pixKey || null,
@@ -163,6 +169,7 @@ export default async function handler(req, res) {
         account_type: accountType || 'checking',
         holder_name: holderName || null,
         holder_document: holderDocument || null,
+        completed_at: new Date().toISOString(),
       };
 
       const { data: withdrawal, error: insertError } = await supabase
@@ -180,39 +187,43 @@ export default async function handler(req, res) {
         .update({ balance: newBalance })
         .eq('id', userId);
 
+      // Contar quantos saques restam hoje
+      const withdrawalsRemaining = MAX_WITHDRAWALS_PER_DAY - (todayWithdrawals?.length || 0) - 1;
+
       // Registrar transação de saque (valor líquido)
       await supabase.from('transactions').insert({
         user_id: userId,
-        type: 'withdrawal_request',
+        type: 'withdraw',
         amount: -netAmount,
-        status: 'pending',
-        description: `Solicitação de saque via ${withdrawalType === 'pix' ? 'PIX' : 'Transferência Bancária'} (Você receberá R$ ${netAmount.toFixed(2)})`,
+        status: 'completed',
+        description: `Saque via ${withdrawalType === 'pix' ? 'PIX' : 'Transferência Bancária'} - R$ ${netAmount.toFixed(2)}`,
         metadata: { withdrawal_id: withdrawal.id, gross_amount: grossAmount, net_amount: netAmount, fee: WITHDRAWAL_FEE },
       });
 
       // Registrar taxa de saque
       await supabase.from('transactions').insert({
         user_id: userId,
-        type: 'withdrawal_fee',
+        type: 'fee',
         amount: -WITHDRAWAL_FEE,
         status: 'completed',
         description: 'Taxa de saque',
         metadata: { withdrawal_id: withdrawal.id },
       });
 
-      console.log(`[SAQUE] Solicitação criada: ${withdrawal.id} - Líquido: R$ ${netAmount.toFixed(2)} | Bruto: R$ ${grossAmount.toFixed(2)} | Taxa: R$ ${WITHDRAWAL_FEE.toFixed(2)} | Usuário: ${user.email}`);
+      console.log(`[SAQUE AUTOMÁTICO] Concluído: ${withdrawal.id} - Líquido: R$ ${netAmount.toFixed(2)} | Bruto: R$ ${grossAmount.toFixed(2)} | Taxa: R$ ${WITHDRAWAL_FEE.toFixed(2)} | Usuário: ${user.email}`);
 
       return res.status(200).json({
         success: true,
-        message: `Solicitação de saque enviada! Você receberá R$ ${netAmount.toFixed(2)} após aprovação.`,
+        message: `Saque de R$ ${netAmount.toFixed(2)} efetuado com sucesso! ${withdrawalsRemaining > 0 ? `Você ainda pode fazer mais ${withdrawalsRemaining} saque(s) hoje.` : 'Você atingiu o limite de saques de hoje.'}`,
         withdrawal: {
           id: withdrawal.id,
           amount: netAmount, // Valor que o usuário recebe
           grossAmount: grossAmount, // Valor debitado do saldo
           fee: WITHDRAWAL_FEE,
-          status: 'pending',
+          status: 'completed',
           withdrawalType,
         },
+        withdrawalsRemaining,
       });
     }
 

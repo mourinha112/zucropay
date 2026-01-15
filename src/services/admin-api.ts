@@ -181,6 +181,7 @@ export const rejectVerification = async (verificationId: string, reason: string)
 
 export interface GetWithdrawalsParams {
   status?: string;
+  limit?: number;
 }
 
 export const getWithdrawals = async (params: GetWithdrawalsParams = {}) => {
@@ -190,6 +191,7 @@ export const getWithdrawals = async (params: GetWithdrawalsParams = {}) => {
   
   const queryParams = new URLSearchParams();
   if (params.status) queryParams.append('status', params.status);
+  if (params.limit) queryParams.append('limit', params.limit.toString());
   
   const response = await fetch(`${API_BASE_URL}/admin-withdrawals?${queryParams}`, {
     method: 'GET',

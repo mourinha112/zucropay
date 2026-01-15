@@ -36,8 +36,12 @@ import {
   TrendingUp as TrendingUpIcon,
   CheckCircle as CheckCircleIcon,
   Pending as PendingIcon,
+  RocketLaunch as RocketIcon,
 } from '@mui/icons-material';
 import Header from '../../components/Header/Header';
+
+// Flag para ativar/desativar o modo "Em Breve"
+const COMING_SOON = true;
 
 interface Referral {
   id: number;
@@ -181,10 +185,142 @@ const Indique: React.FC = () => {
   };
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: '#f5f5f5', position: 'relative' }}>
       <Header />
       
-      <Container maxWidth="xl" sx={{ py: 4 }}>
+      {/* Overlay "Em Breve" */}
+      {COMING_SOON && (
+        <Box
+          sx={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1200,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            bgcolor: 'rgba(0, 0, 0, 0.6)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <Box
+            sx={{
+              textAlign: 'center',
+              p: 4,
+              maxWidth: 500,
+            }}
+          >
+            <Box
+              sx={{
+                width: 120,
+                height: 120,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #651BE5 0%, #380F7F 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 24px',
+                boxShadow: '0 8px 32px rgba(101, 27, 229, 0.4)',
+                animation: 'pulse 2s ease-in-out infinite',
+                '@keyframes pulse': {
+                  '0%, 100%': {
+                    transform: 'scale(1)',
+                    boxShadow: '0 8px 32px rgba(101, 27, 229, 0.4)',
+                  },
+                  '50%': {
+                    transform: 'scale(1.05)',
+                    boxShadow: '0 12px 48px rgba(101, 27, 229, 0.6)',
+                  },
+                },
+              }}
+            >
+              <RocketIcon sx={{ fontSize: 60, color: 'white' }} />
+            </Box>
+            
+            <Typography
+              variant="h2"
+              sx={{
+                fontWeight: 800,
+                color: 'white',
+                mb: 2,
+                textShadow: '0 2px 10px rgba(0,0,0,0.3)',
+                fontSize: { xs: '2.5rem', sm: '3.5rem' },
+              }}
+            >
+              Em Breve
+            </Typography>
+            
+            <Typography
+              variant="h5"
+              sx={{
+                color: 'rgba(255,255,255,0.9)',
+                mb: 3,
+                fontWeight: 500,
+              }}
+            >
+              Programa de Indicação
+            </Typography>
+            
+            <Typography
+              variant="body1"
+              sx={{
+                color: 'rgba(255,255,255,0.7)',
+                mb: 4,
+                lineHeight: 1.8,
+              }}
+            >
+              Estamos preparando algo incrivel para voce! 
+              Em breve voce podera indicar amigos e ganhar recompensas exclusivas.
+            </Typography>
+            
+            <Box
+              sx={{
+                display: 'flex',
+                gap: 2,
+                justifyContent: 'center',
+                flexWrap: 'wrap',
+              }}
+            >
+              <Chip
+                icon={<CheckCircleIcon />}
+                label="R$ 50 por cadastro"
+                sx={{
+                  bgcolor: 'rgba(255,255,255,0.15)',
+                  color: 'white',
+                  fontWeight: 600,
+                  backdropFilter: 'blur(4px)',
+                }}
+              />
+              <Chip
+                icon={<CheckCircleIcon />}
+                label="5% das transacoes"
+                sx={{
+                  bgcolor: 'rgba(255,255,255,0.15)',
+                  color: 'white',
+                  fontWeight: 600,
+                  backdropFilter: 'blur(4px)',
+                }}
+              />
+            </Box>
+            
+            <Typography
+              variant="caption"
+              sx={{
+                display: 'block',
+                mt: 4,
+                color: 'rgba(255,255,255,0.5)',
+              }}
+            >
+              Fique ligado nas novidades!
+            </Typography>
+          </Box>
+        </Box>
+      )}
+      
+      <Container maxWidth="xl" sx={{ py: 4, filter: COMING_SOON ? 'blur(3px)' : 'none', pointerEvents: COMING_SOON ? 'none' : 'auto' }}>
         {/* Hero Section */}
         <Box
           sx={{

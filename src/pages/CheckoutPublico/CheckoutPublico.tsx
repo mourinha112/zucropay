@@ -1236,7 +1236,7 @@ const CheckoutPublicoHubla: React.FC = () => {
 
                 {/* Termos */}
                 <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', mt: 2, color: '#94a3b8' }}>
-                  Ao confirmar sua compra, você concorda com os Termos de Uso da Hubla.
+                  Ao confirmar sua compra, você concorda com os Termos de Uso da ZucroPay.
                 </Typography>
               </Paper>
             ) : success && paymentMethod === 'PIX' && pixConfirmed ? (

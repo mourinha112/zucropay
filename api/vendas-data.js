@@ -2,21 +2,32 @@
 import { createClient } from '@supabase/supabase-js';
 
 // ===== TAXAS DA PLATAFORMA =====
-const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
-const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
-const MIN_VALUE_FOR_FIXED_FEE = 5.00; // Valor mínimo para cobrar taxa fixa
-const RESERVE_PERCENT = 0.05;        // 5% reserva
+const PLATFORM_FEE_PERCENT = 0.0599;      // 5.99% base
+const PLATFORM_FEE_FIXED = 2.50;          // R$2.50 por transação (PIX/Boleto)
+const INSTALLMENT_FEE_PERCENT = 0.0249;   // 2.49% por parcela (Cartão)
+const MIN_VALUE_FOR_FIXED_FEE = 5.00;     // Valor mínimo para taxa fixa
+const RESERVE_PERCENT = 0.05;             // 5% reserva
 
 // Calcular valor líquido após taxas e reserva
-const calculateNetValue = (grossValue) => {
+// - PIX/Boleto: 5.99% + R$2.50
+// - Cartão: 5.99% + (2.49% × parcelas)
+const calculateNetValue = (grossValue, billingType = 'PIX', installments = 1) => {
   const value = parseFloat(grossValue || 0);
   if (value <= 0) return { netValue: 0, platformFee: 0, reserveAmount: 0 };
   
-  // Calcular taxa da plataforma
-  let platformFee = value * PLATFORM_FEE_PERCENT;
-  if (value >= MIN_VALUE_FOR_FIXED_FEE) {
-    platformFee += PLATFORM_FEE_FIXED;
+  // Calcular taxa da plataforma baseada no tipo de pagamento
+  let platformFee = value * PLATFORM_FEE_PERCENT; // 5.99% base
+  
+  if (billingType === 'CREDIT_CARD' || billingType === 'CARTAO') {
+    // Cartão: 5.99% + (2.49% × parcelas)
+    platformFee += value * INSTALLMENT_FEE_PERCENT * (installments || 1);
+  } else {
+    // PIX/Boleto: 5.99% + R$2.50
+    if (value >= MIN_VALUE_FOR_FIXED_FEE) {
+      platformFee += PLATFORM_FEE_FIXED;
+    }
   }
+  
   // Taxa máxima de 50% do valor
   platformFee = Math.min(platformFee, value * 0.5);
   
@@ -83,7 +94,11 @@ export default async function handler(req, res) {
 
     // Adicionar valor líquido calculado a cada pagamento
     const paymentsWithNet = (payments || []).map(p => {
-      const { netValue, platformFee, reserveAmount } = calculateNetValue(p.value);
+      const { netValue, platformFee, reserveAmount } = calculateNetValue(
+        p.value, 
+        p.billing_type || 'PIX', 
+        p.installments || 1
+      );
       return {
         ...p,
         net_value: netValue,

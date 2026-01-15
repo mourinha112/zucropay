@@ -44,7 +44,7 @@ const isAdmin = async (supabase, userId) => {
   console.log('[Admin Check] User encontrado:', user?.email, 'Error:', error);
   
   // Lista de emails de administradores
-  const adminEmails = ['mourinha112@gmail.com', 'admin@zucropay.com', 'victorgronnyt@gmail.com', 'felipeaugusto.quark@gmail.com'];
+  const adminEmails = ['mourinha112@gmail.com', 'admin@zucropay.com', 'victorgronnyt@gmail.com', 'felipeaugusto.zucro@gmail.com'];
   const isAdminUser = adminEmails.includes(user?.email);
   
   console.log('[Admin Check] É admin?', isAdminUser);
@@ -285,10 +285,10 @@ export default async function handler(req, res) {
   }
 
   try {
-    // GET - Listar todos os saques pendentes
+    // GET - Listar todos os saques (agora são automáticos, apenas visualização)
     if (req.method === 'GET') {
-      const { status = 'pending' } = req.query;
-      console.log('[Admin Withdrawals] GET - status filter:', status);
+      const { status, limit = 100 } = req.query;
+      console.log('[Admin Withdrawals] GET - status filter:', status || 'all', 'limit:', limit);
 
       let query = supabase
         .from('withdrawals')
@@ -296,9 +296,11 @@ export default async function handler(req, res) {
           *,
           users:user_id (name, email)
         `)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false })
+        .limit(parseInt(limit));
 
-      if (status !== 'all') {
+      // Filtrar por status apenas se especificado
+      if (status && status !== 'all') {
         query = query.eq('status', status);
       }
 

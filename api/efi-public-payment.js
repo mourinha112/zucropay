@@ -564,17 +564,16 @@ export default async function handler(req, res) {
           const { data: user } = await supabase.from('users').select('balance, reserved_balance').eq('id', link.user_id).single();
           if (user) {
             // ===== TAXAS DA PLATAFORMA =====
-            const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
-            const PLATFORM_FEE_FIXED = 2.50;     // R$2.50 por venda
-            const MIN_VALUE_FOR_FEES = 5.00;     // Valor mínimo para taxa fixa
-            const RESERVE_PERCENT = 0.05;        // 5% reserva
+            const PLATFORM_FEE_PERCENT = 0.0599;      // 5.99% base
+            const INSTALLMENT_FEE_PERCENT = 0.0249;   // 2.49% por parcela (Cartão)
+            const RESERVE_PERCENT = 0.05;             // 5% reserva
             const RESERVE_DAYS = 30;
             
-            // Calcular taxa (sem taxa fixa para valores baixos)
+            // Cartão de crédito: 5.99% + (2.49% × parcelas)
+            const installments = cardInstallments || 1;
             let platformFee = value * PLATFORM_FEE_PERCENT;
-            if (value >= MIN_VALUE_FOR_FEES) {
-              platformFee += PLATFORM_FEE_FIXED;
-            }
+            platformFee += value * INSTALLMENT_FEE_PERCENT * installments;
+            
             // Garantir que taxa não seja maior que 50% do valor
             if (platformFee > value * 0.5) {
               platformFee = value * 0.5;
@@ -586,7 +585,7 @@ export default async function handler(req, res) {
             const releaseDate = new Date();
             releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
             
-            console.log(`[CARTAO] Valor bruto: R$${value.toFixed(2)}, Taxa: R$${platformFee.toFixed(2)}, Reserva: R$${reserveAmount.toFixed(2)}, Líquido: R$${netAmount.toFixed(2)}`);
+            console.log(`[CARTAO] Valor bruto: R$${value.toFixed(2)}, Parcelas: ${installments}, Taxa: R$${platformFee.toFixed(2)}, Reserva: R$${reserveAmount.toFixed(2)}, Líquido: R$${netAmount.toFixed(2)}`);
             
             await supabase.from('users').update({ 
               balance: (user.balance || 0) + netAmount,
@@ -602,7 +601,7 @@ export default async function handler(req, res) {
               status: 'held',
               release_date: releaseDate.toISOString(),
               description: `Reserva 5% - ${description}`,
-              metadata: { gross_value: value, platform_fee: platformFee, value_after_fees: valueAfterFees }
+              metadata: { gross_value: value, platform_fee: platformFee, value_after_fees: valueAfterFees, installments }
             });
             
             await supabase.from('transactions').insert({
@@ -610,8 +609,8 @@ export default async function handler(req, res) {
               type: 'payment_received',
               amount: value,
               status: 'completed',
-              description: `Venda com cartão - ${description} (Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)})`,
-              metadata: { gross_value: value, platform_fee: platformFee, net_amount: netAmount, reserve_amount: reserveAmount }
+              description: `Venda com cartão ${installments}x - ${description} (Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)})`,
+              metadata: { gross_value: value, platform_fee: platformFee, net_amount: netAmount, reserve_amount: reserveAmount, installments }
             });
             
             // Registrar taxa da plataforma
@@ -620,8 +619,8 @@ export default async function handler(req, res) {
               type: 'platform_fee',
               amount: -platformFee,
               status: 'completed',
-              description: `Taxa da plataforma (5.99% + R$2.50) - ${description}`,
-              metadata: { gross_value: value, fee_percent: PLATFORM_FEE_PERCENT, fee_fixed: PLATFORM_FEE_FIXED }
+              description: `Taxa da plataforma (5.99% + ${installments}x 2.49%) - ${description}`,
+              metadata: { gross_value: value, fee_percent: PLATFORM_FEE_PERCENT, installment_fee_percent: INSTALLMENT_FEE_PERCENT, installments }
             });
           }
         }

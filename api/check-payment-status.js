@@ -145,17 +145,32 @@ const getCobrancaAccessToken = async (config) => {
 // TAXAS E RESERVA
 // ========================================
 
-const PLATFORM_FEE_PERCENT = 0.0599;
-const PLATFORM_FEE_FIXED = 2.50;
+const PLATFORM_FEE_PERCENT = 0.0599;      // 5.99% base
+const PLATFORM_FEE_FIXED = 2.50;          // R$2.50 por transação (à vista)
+const INSTALLMENT_FEE_PERCENT = 0.0249;   // 2.49% por parcela (cartão)
 const MIN_VALUE_FOR_FEES = 5.00;
 const RESERVE_PERCENT = 0.05;
 const RESERVE_DAYS = 30;
 
-const calculateFees = (grossValue) => {
+// Calcular taxas com suporte a parcelamento
+// - À vista (PIX/Boleto): 5.99% + R$2.50
+// - Cartão parcelado: 5.99% + (2.49% × parcelas)
+const calculateFees = (grossValue, installments = 1, billingType = 'PIX') => {
+  // Taxa base: 5.99%
   let platformFee = grossValue * PLATFORM_FEE_PERCENT;
-  if (grossValue >= MIN_VALUE_FOR_FEES) {
-    platformFee += PLATFORM_FEE_FIXED;
+  
+  // Se for cartão de crédito parcelado: adiciona 2.49% por parcela
+  if ((billingType === 'CREDIT_CARD' || billingType === 'CARTAO') && installments > 0) {
+    const installmentFee = grossValue * INSTALLMENT_FEE_PERCENT * installments;
+    platformFee += installmentFee;
+  } else {
+    // Se for PIX/Boleto (à vista): adiciona R$2.50 fixo
+    if (grossValue >= MIN_VALUE_FOR_FEES) {
+      platformFee += PLATFORM_FEE_FIXED;
+    }
   }
+  
+  // Taxa máxima: 50% do valor
   if (platformFee > grossValue * 0.5) {
     platformFee = grossValue * 0.5;
   }
@@ -167,7 +182,7 @@ const calculateFees = (grossValue) => {
   const releaseDate = new Date();
   releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
   
-  return { platformFee, valueAfterFees, reserveAmount, netAmount, releaseDate };
+  return { platformFee, valueAfterFees, reserveAmount, netAmount, releaseDate, installments };
 };
 
 // ========================================
@@ -177,9 +192,13 @@ const calculateFees = (grossValue) => {
 const processConfirmedPayment = async (supabase, dbPayment, paidValue, txidOrChargeId, type) => {
   console.log(`[Check Payment] Processando ${type} confirmado:`, dbPayment.id);
   
-  const { platformFee, valueAfterFees, reserveAmount, netAmount, releaseDate } = calculateFees(paidValue);
+  // Obter parcelas e tipo de pagamento
+  const installments = dbPayment.installments || 1;
+  const billingType = dbPayment.billing_type || 'PIX';
   
-  console.log(`[Check Payment] Bruto: R$${paidValue.toFixed(2)} | Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)} | Líquido: R$${netAmount.toFixed(2)}`);
+  const { platformFee, valueAfterFees, reserveAmount, netAmount, releaseDate } = calculateFees(paidValue, installments, billingType);
+  
+  console.log(`[Check Payment] Bruto: R$${paidValue.toFixed(2)} | Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)} | Líquido: R$${netAmount.toFixed(2)} | Parcelas: ${installments}`);
 
   // Atualizar pagamento
   await supabase
