@@ -16,19 +16,15 @@ import {
   Visibility,
   VisibilityOff,
   Lock as LockIcon,
-  Person as PersonIcon,
+  Email as EmailIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
-// Credenciais do Admin (em produção, usar variáveis de ambiente ou banco de dados)
-const ADMIN_CREDENTIALS = {
-  username: import.meta.env.VITE_ADMIN_USERNAME || 'admin',
-  password: import.meta.env.VITE_ADMIN_PASSWORD || 'zucropay2024',
-};
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 const AdminLogin: React.FC = () => {
   const navigate = useNavigate();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -38,7 +34,19 @@ const AdminLogin: React.FC = () => {
     // Se já está logado como admin, redirecionar
     const adminToken = localStorage.getItem('zucropay_admin_token');
     if (adminToken) {
-      navigate('/admin');
+      try {
+        const payload = JSON.parse(atob(adminToken));
+        if (payload.exp && payload.exp > Date.now()) {
+          navigate('/admin');
+        } else {
+          // Token expirado
+          localStorage.removeItem('zucropay_admin_token');
+          localStorage.removeItem('zucropay_admin_user');
+        }
+      } catch {
+        localStorage.removeItem('zucropay_admin_token');
+        localStorage.removeItem('zucropay_admin_user');
+      }
     }
   }, [navigate]);
 
@@ -47,27 +55,36 @@ const AdminLogin: React.FC = () => {
     setError('');
     setLoading(true);
 
-    // Simular delay de verificação
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+      // Chamar API de login admin
+      const response = await fetch(`${API_BASE_URL}/admin-login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (username === ADMIN_CREDENTIALS.username && password === ADMIN_CREDENTIALS.password) {
-      // Gerar token de admin (em produção, usar JWT real)
-      const adminToken = btoa(JSON.stringify({
-        type: 'admin',
-        username,
-        timestamp: Date.now(),
-        exp: Date.now() + 24 * 60 * 60 * 1000 // 24 horas
-      }));
-      
-      localStorage.setItem('zucropay_admin_token', adminToken);
-      localStorage.setItem('zucropay_admin_user', JSON.stringify({ username }));
-      
-      navigate('/admin');
-    } else {
-      setError('Usuário ou senha incorretos');
+      const data = await response.json();
+
+      if (data.success) {
+        localStorage.setItem('zucropay_admin_token', data.token);
+        localStorage.setItem('zucropay_admin_user', JSON.stringify({
+          username: data.admin.name,
+          email: data.admin.email,
+          role: data.admin.role
+        }));
+        
+        navigate('/admin');
+      } else {
+        setError(data.error || 'Credenciais inválidas');
+      }
+    } catch (err: any) {
+      console.error('Erro no login admin:', err);
+      setError('Erro ao conectar com o servidor. Tente novamente.');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
@@ -176,11 +193,13 @@ const AdminLogin: React.FC = () => {
           <Box component="form" onSubmit={handleLogin}>
             <TextField
               fullWidth
-              label="Usuário Admin"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
+              label="E-mail do Admin"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
               autoFocus
+              autoComplete="email"
               sx={{
                 mb: 2,
                 '& .MuiOutlinedInput-root': {
@@ -196,7 +215,7 @@ const AdminLogin: React.FC = () => {
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
-                    <PersonIcon sx={{ color: '#64748b' }} />
+                    <EmailIcon sx={{ color: '#64748b' }} />
                   </InputAdornment>
                 ),
               }}
