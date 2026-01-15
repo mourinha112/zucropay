@@ -96,7 +96,11 @@
     </button>
     
     <button class="btn btn-secondary" onclick="testLocal()">
-      3. Testar Notificação Local
+      3. Testar Notificação Local (navegador)
+    </button>
+    
+    <button class="btn btn-primary" onclick="testReal()" style="background: linear-gradient(135deg, #2E7D32 0%, #4CAF50 100%);">
+      🚀 Enviar Push Real (celular)
     </button>
     
     <button class="btn btn-secondary" onclick="checkStatus()">
@@ -225,6 +229,52 @@
       
       showStatus('✅ Notificação enviada! Verifique.', 'success');
       log('Notificação local enviada');
+    }
+    
+    async function testReal() {
+      try {
+        log('Enviando push notification real...');
+        showStatus('⏳ Enviando notificação push...', 'info');
+        
+        const token = localStorage.getItem('zucropay_token');
+        if (!token) {
+          showStatus('⚠️ Faça login primeiro no app principal', 'warning');
+          log('Erro: Token não encontrado');
+          return;
+        }
+        
+        log('Chamando API...');
+        const response = await fetch('/api/dashboard-data?type=push', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + token,
+          },
+          body: JSON.stringify({
+            action: 'test',
+          }),
+        });
+        
+        const result = await response.json();
+        log('Resposta: ' + JSON.stringify(result));
+        
+        if (result.success) {
+          showStatus('✅ ' + result.message + '<br>Verifique o seu celular! 📱', 'success');
+          
+          if (result.sent > 0) {
+            log(`✅ ${result.sent} notificação(ões) enviada(s) com sucesso!`);
+          }
+          if (result.failed > 0) {
+            log(`⚠️ ${result.failed} notificação(ões) falharam`);
+          }
+        } else {
+          showStatus('❌ Erro: ' + result.error, 'error');
+          log('Erro: ' + result.error);
+        }
+      } catch (error) {
+        log('Erro: ' + error.message);
+        showStatus('❌ Erro ao enviar: ' + error.message, 'error');
+      }
     }
     
     async function checkStatus() {

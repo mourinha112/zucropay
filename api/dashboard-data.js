@@ -124,6 +124,61 @@ export default async function handler(req, res) {
           return res.status(200).json({ success: true, message: 'Subscription removida' });
         }
 
+        // Testar push notification (enviar notificação real)
+        if (action === 'test') {
+          const { data: subscriptions, error: subError } = await supabase
+            .from('push_subscriptions')
+            .select('*')
+            .eq('user_id', userId);
+
+          if (subError || !subscriptions?.length) {
+            return res.status(404).json({ success: false, error: 'Nenhuma subscription encontrada' });
+          }
+
+          const payload = JSON.stringify({
+            title: '💰 Nova Venda Confirmada!',
+            body: 'R$ 150,00 recebido - Teste de notificação',
+            icon: '/logotipo.png',
+            badge: '/logotipo.png',
+            tag: 'test-' + Date.now(),
+            data: {
+              type: 'sale',
+              value: 150,
+              url: '/vendas',
+            },
+          });
+
+          let sent = 0;
+          let failed = 0;
+
+          for (const sub of subscriptions) {
+            try {
+              await webpush.sendNotification({
+                endpoint: sub.endpoint,
+                keys: { p256dh: sub.p256dh, auth: sub.auth },
+              }, payload);
+              sent++;
+              console.log(`[Push Test] Notificação enviada para: ${sub.endpoint.substring(0, 50)}...`);
+            } catch (err) {
+              failed++;
+              console.error(`[Push Test] Erro:`, err.statusCode || err.message);
+              
+              // Remover subscription inválida
+              if (err.statusCode === 404 || err.statusCode === 410) {
+                await supabase.from('push_subscriptions').delete().eq('id', sub.id);
+              }
+            }
+          }
+
+          return res.status(200).json({
+            success: true,
+            message: `Notificação enviada! (${sent} enviadas, ${failed} falharam)`,
+            sent,
+            failed,
+            total: subscriptions.length,
+          });
+        }
+
         return res.status(400).json({ success: false, error: 'Ação inválida' });
       }
 
