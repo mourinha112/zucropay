@@ -17,12 +17,35 @@ import Login from './pages/Login/Login';
 import Register from './pages/Register/Register';
 import Indique from './pages/Indique/Indique';
 import Admin from './pages/Admin/Admin';
+import AdminLogin from './pages/AdminLogin/AdminLogin';
 import Settings from './pages/Settings/Settings';
 
-// Componente de proteção de rota
+// Componente de proteção de rota (usuário normal)
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
   const token = localStorage.getItem('zucropay_token');
   return token ? <>{children}</> : <Navigate to="/login" />;
+};
+
+// Componente de proteção de rota do Admin (separado)
+const AdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const adminToken = localStorage.getItem('zucropay_admin_token');
+  
+  // Verificar se o token é válido e não expirou
+  if (adminToken) {
+    try {
+      const payload = JSON.parse(atob(adminToken));
+      if (payload.exp && payload.exp > Date.now()) {
+        return <>{children}</>;
+      }
+    } catch {
+      // Token inválido
+    }
+    // Token expirado ou inválido, limpar
+    localStorage.removeItem('zucropay_admin_token');
+    localStorage.removeItem('zucropay_admin_user');
+  }
+  
+  return <Navigate to="/admin-login" />;
 };
 
 const App = () => {
@@ -34,8 +57,9 @@ const App = () => {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
           <Route path="/checkout/:linkId" element={<CheckoutPublico />} />
+          <Route path="/admin-login" element={<AdminLogin />} />
           
-          {/* Rotas protegidas */}
+          {/* Rotas protegidas (usuário normal) */}
           <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="/produtos" element={<PrivateRoute><Products /></PrivateRoute>} />
@@ -48,8 +72,10 @@ const App = () => {
           <Route path="/financas" element={<PrivateRoute><Finances /></PrivateRoute>} />
           <Route path="/suporte" element={<PrivateRoute><Support /></PrivateRoute>} />
           <Route path="/indique" element={<PrivateRoute><Indique /></PrivateRoute>} />
-          <Route path="/admin" element={<PrivateRoute><Admin /></PrivateRoute>} />
           <Route path="/configuracoes" element={<PrivateRoute><Settings /></PrivateRoute>} />
+          
+          {/* Rota Admin (login separado) */}
+          <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
         </Routes>
       </Router>
     </ThemeProvider>

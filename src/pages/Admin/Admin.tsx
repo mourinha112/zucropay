@@ -79,6 +79,7 @@ import {
 } from 'recharts';
 import AdminHeader from '../../components/AdminHeader/AdminHeader';
 import * as adminApi from '../../services/admin-api';
+import { useNavigate } from 'react-router-dom';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -96,6 +97,7 @@ function TabPanel(props: TabPanelProps) {
 }
 
 const Admin = () => {
+  const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -103,6 +105,25 @@ const Admin = () => {
   const [configError, setConfigError] = useState<string | null>(null);
   const [userId, _setUserId] = useState<string | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
+
+  // Verificar se está logado como admin
+  useEffect(() => {
+    const adminToken = localStorage.getItem('zucropay_admin_token');
+    if (!adminToken) {
+      navigate('/admin-login');
+      return;
+    }
+    try {
+      const payload = JSON.parse(atob(adminToken));
+      if (!payload.exp || payload.exp < Date.now()) {
+        localStorage.removeItem('zucropay_admin_token');
+        localStorage.removeItem('zucropay_admin_user');
+        navigate('/admin-login');
+      }
+    } catch {
+      navigate('/admin-login');
+    }
+  }, [navigate]);
 
   // Estados dos dados
   const [stats, setStats] = useState<any>(null);
@@ -524,13 +545,23 @@ const Admin = () => {
     </Card>
   );
 
+  // Handler para mudança de tab pelo header
+  const handleTabChange = (tabIndex: number) => {
+    setTabValue(tabIndex);
+  };
+
   // ============================================
   // PÁGINA DE ACESSO NEGADO
   // ============================================
   if (accessDenied) {
     return (
       <>
-        <AdminHeader />
+        <AdminHeader 
+          onTabChange={handleTabChange}
+          pendingVerifications={stats?.verifications?.pending || 0}
+          pendingWithdrawals={stats?.withdrawals?.pending || 0}
+          pendingUsers={stats?.users?.pending || 0}
+        />
         <Box
           sx={{
             minHeight: '100vh',
@@ -678,7 +709,12 @@ const Admin = () => {
 
   return (
     <>
-      <AdminHeader />
+      <AdminHeader 
+        onTabChange={handleTabChange}
+        pendingVerifications={stats?.verifications?.pending || 0}
+        pendingWithdrawals={stats?.withdrawals?.pending || 0}
+        pendingUsers={stats?.users?.pending || 0}
+      />
       <Box sx={{ minHeight: '100vh', bgcolor: '#f8fafc' }}>
         <Box sx={{ maxWidth: '1800px', margin: '0 auto', p: { xs: 2, sm: 3 } }}>
           {/* Header */}

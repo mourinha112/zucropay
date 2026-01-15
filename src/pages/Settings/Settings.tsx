@@ -37,11 +37,12 @@ import Header from '../../components/Header/Header';
 import { createClient } from '@supabase/supabase-js';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 // Initialize Supabase client for file uploads
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
 
 interface UserData {
   id: string;
@@ -215,6 +216,17 @@ const Settings: React.FC = () => {
   };
 
   const uploadFileToSupabase = async (file: File, folder: string): Promise<string> => {
+    // Se Supabase não está configurado, usar upload local ou base64
+    if (!supabase) {
+      // Converter para base64 como fallback
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Erro ao ler arquivo'));
+        reader.readAsDataURL(file);
+      });
+    }
+
     const fileExt = file.name.split('.').pop();
     const fileName = `${userData?.id}/${folder}/${Date.now()}.${fileExt}`;
     
@@ -227,7 +239,13 @@ const Settings: React.FC = () => {
     
     if (error) {
       console.error('Erro no upload:', error);
-      throw new Error('Erro ao fazer upload da imagem');
+      // Fallback para base64 se upload falhar
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Erro ao fazer upload da imagem'));
+        reader.readAsDataURL(file);
+      });
     }
     
     const { data: urlData } = supabase.storage
@@ -259,9 +277,13 @@ const Settings: React.FC = () => {
       const documentBackUrl = documentBack ? await uploadFileToSupabase(documentBack, 'documents') : null;
       const selfieUrl = await uploadFileToSupabase(selfie, 'selfies');
 
-      // Enviar verificação
+      // Determinar qual URL base usar
+      const baseUrl = API_BASE_URL || API_URL;
+      const apiEndpoint = baseUrl.includes('/api') ? `${baseUrl}/dashboard-data` : `${baseUrl}/api/dashboard-data`;
+
+      // Enviar verificação via API (usando service role, sem problemas de schema cache)
       const token = getAuthToken();
-      const response = await fetch(`${API_URL}/api/dashboard-data`, {
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -282,9 +304,16 @@ const Settings: React.FC = () => {
 
       if (data.success) {
         setSnackbar({ open: true, message: 'Documentos enviados com sucesso! Aguarde a análise.', severity: 'success' });
+        // Limpar formulário
+        setDocumentFront(null);
+        setDocumentBack(null);
+        setSelfie(null);
+        setDocumentFrontPreview('');
+        setDocumentBackPreview('');
+        setSelfiePreview('');
         loadUserData();
       } else {
-        throw new Error(data.error);
+        throw new Error(data.error || 'Erro ao enviar documentos');
       }
     } catch (error: any) {
       console.error('Erro no upload:', error);
