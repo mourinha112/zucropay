@@ -375,6 +375,14 @@ async function getUsers(supabase, params, res) {
           status,
           document_type,
           created_at
+        ),
+        user_custom_rates (
+          pix_rate,
+          card_rate,
+          boleto_rate,
+          withdrawal_fee,
+          notes,
+          updated_at
         )
       `)
       .order('created_at', { ascending: false });
@@ -399,9 +407,15 @@ async function getUsers(supabase, params, res) {
 
     if (error) throw error;
 
+    // Formatar dados - user_custom_rates vem como array, converter para objeto
+    const formattedUsers = data?.map(user => ({
+      ...user,
+      custom_rates: user.user_custom_rates?.[0] || null, // Pegar primeiro item do array
+    })) || [];
+
     return res.status(200).json({
       success: true,
-      users: data,
+      users: formattedUsers,
       count
     });
   } catch (error) {
