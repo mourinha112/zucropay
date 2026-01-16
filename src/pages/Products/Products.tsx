@@ -503,161 +503,214 @@ const Products: React.FC = () => {
         </Container>
       </Box>
 
-      {/* Dialog Criar/Editar Produto */}
-      <Dialog open={openProductDialog} onClose={handleCloseProductDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>
-          {editingProduct ? 'Editar Produto' : 'Novo Produto'}
+      {/* Dialog Criar/Editar Produto - Otimizado */}
+      <Dialog 
+        open={openProductDialog} 
+        onClose={handleCloseProductDialog} 
+        maxWidth="sm" 
+        fullWidth
+        PaperProps={{
+          sx: { borderRadius: 3, maxHeight: '90vh' }
+        }}
+      >
+        <DialogTitle sx={{ 
+          pb: 1, 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 1,
+          borderBottom: '1px solid #f0f0f0',
+        }}>
+          <ShoppingCartIcon sx={{ color: '#5818C8' }} />
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            {editingProduct ? 'Editar Produto' : 'Novo Produto'}
+          </Typography>
         </DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2 }}>
-            <TextField
-              label="Nome do Produto"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              fullWidth
-              required
-            />
+        <DialogContent sx={{ p: 2.5 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Nome e Preço na mesma linha */}
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="Nome do Produto"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                fullWidth
+                required
+                size="small"
+                placeholder="Ex: Curso de Marketing"
+              />
+              <TextField
+                label="Preço (R$)"
+                type="number"
+                value={formData.price}
+                onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                required
+                size="small"
+                inputProps={{ step: '0.01', min: '0' }}
+                sx={{ minWidth: 130 }}
+              />
+            </Box>
+
+            {/* Descrição compacta */}
             <TextField
               label="Descrição"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               multiline
-              rows={3}
+              rows={2}
               fullWidth
-            />
-            <TextField
-              label="Preço (R$)"
-              type="number"
-              value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
-              fullWidth
-              required
-              inputProps={{ step: '0.01', min: '0' }}
+              size="small"
+              placeholder="Descreva seu produto em poucas palavras"
             />
             
-            {/* Upload de Imagem */}
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1, color: '#666' }}>
-                Imagem do Produto
-              </Typography>
-              
-              {imagePreview && (
+            {/* Upload de Imagem - Compacto */}
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 2,
+              p: 1.5,
+              border: '1px dashed #d0d0d0',
+              borderRadius: 2,
+              bgcolor: '#fafafa',
+            }}>
+              {imagePreview ? (
                 <Box
                   sx={{
-                    width: '100%',
-                    height: 200,
-                    borderRadius: 2,
-                    mb: 2,
+                    width: 60,
+                    height: 60,
+                    borderRadius: 1.5,
                     overflow: 'hidden',
-                    border: '2px solid #e5e7eb',
+                    flexShrink: 0,
                     backgroundImage: `url(${imagePreview})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
+                    border: '2px solid #e0e0e0',
                   }}
                 />
+              ) : (
+                <Box
+                  sx={{
+                    width: 60,
+                    height: 60,
+                    borderRadius: 1.5,
+                    bgcolor: '#e0e0e0',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <AddIcon sx={{ color: '#999' }} />
+                </Box>
               )}
-              
-              <Box sx={{ display: 'flex', gap: 2 }}>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 500, color: '#333' }}>
+                  Imagem do Produto
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#888' }}>
+                  JPEG, PNG, GIF, WEBP (máx. 5MB)
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1 }}>
                 <Button
                   variant="outlined"
                   component="label"
-                  fullWidth
+                  size="small"
                   disabled={uploading}
-                  sx={{ py: 1.5 }}
+                  sx={{ minWidth: 'auto', px: 2 }}
                 >
-                  {uploading ? 'Enviando...' : imagePreview ? 'Trocar Imagem' : 'Escolher Imagem'}
-                  <input
-                    type="file"
-                    hidden
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                  />
+                  {uploading ? '...' : 'Escolher'}
+                  <input type="file" hidden accept="image/*" onChange={handleImageUpload} />
                 </Button>
-                
                 {imagePreview && (
                   <Button
-                    variant="outlined"
+                    size="small"
                     color="error"
-                    onClick={() => {
-                      setFormData({ ...formData, imageUrl: '' });
-                      setImagePreview('');
-                    }}
+                    onClick={() => { setFormData({ ...formData, imageUrl: '' }); setImagePreview(''); }}
+                    sx={{ minWidth: 'auto', px: 1 }}
                   >
-                    Remover
+                    <DeleteIcon fontSize="small" />
                   </Button>
                 )}
               </Box>
-              
-              <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#999' }}>
-                Formatos aceitos: JPEG, PNG, GIF, WEBP (máx. 5MB)
-              </Typography>
             </Box>
-            
-            <TextField
-              label="Estoque"
-              type="number"
-              value={formData.stock || ''}
-              onChange={(e) => setFormData({ ...formData, stock: e.target.value ? parseInt(e.target.value) : undefined })}
-              fullWidth
-              placeholder="Deixe em branco para estoque ilimitado"
-            />
-            <TextField
-              label="Status"
-              select
-              value={formData.active ? 'true' : 'false'}
-              onChange={(e) => setFormData({ ...formData, active: e.target.value === 'true' })}
-              fullWidth
-            >
-              <MenuItem value="true">Ativo</MenuItem>
-              <MenuItem value="false">Inativo</MenuItem>
-            </TextField>
 
-            {/* Quem paga a taxa */}
+            {/* Estoque e Status na mesma linha */}
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <TextField
+                label="Estoque"
+                type="number"
+                value={formData.stock || ''}
+                onChange={(e) => setFormData({ ...formData, stock: e.target.value ? parseInt(e.target.value) : undefined })}
+                fullWidth
+                size="small"
+                placeholder="Ilimitado"
+              />
+              <TextField
+                label="Status"
+                select
+                value={formData.active ? 'true' : 'false'}
+                onChange={(e) => setFormData({ ...formData, active: e.target.value === 'true' })}
+                fullWidth
+                size="small"
+              >
+                <MenuItem value="true">Ativo</MenuItem>
+                <MenuItem value="false">Inativo</MenuItem>
+              </TextField>
+            </Box>
+
+            {/* Quem paga a taxa - Compacto */}
             <Box sx={{ 
-              p: 2, 
+              p: 1.5, 
               bgcolor: '#f8f5ff', 
               borderRadius: 2,
               border: '1px solid #e9d5ff',
             }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, color: '#5818C8', fontWeight: 600 }}>
+              <Typography variant="caption" sx={{ color: '#5818C8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
                 💰 Quem assume as taxas?
               </Typography>
               <TextField
                 select
-                value={formData.fee_payer || 'seller'}
+                value={formData.fee_payer || 'buyer'}
                 onChange={(e) => setFormData({ ...formData, fee_payer: e.target.value as 'seller' | 'buyer' })}
                 fullWidth
                 size="small"
               >
-                <MenuItem value="seller">
-                  <Box>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>Vendedor (você)</Typography>
-                    <Typography variant="caption" color="textSecondary">
-                      Cliente paga R${formData.price?.toFixed(2) || '0,00'}, você recebe o valor menos taxas
-                    </Typography>
-                  </Box>
-                </MenuItem>
                 <MenuItem value="buyer">
-                  <Box>
+                  <Box sx={{ py: 0.5 }}>
                     <Typography variant="body2" sx={{ fontWeight: 500 }}>Comprador (cliente)</Typography>
                     <Typography variant="caption" color="textSecondary">
                       Cliente paga valor + taxas, você recebe R${formData.price?.toFixed(2) || '0,00'} líquido
                     </Typography>
                   </Box>
                 </MenuItem>
+                <MenuItem value="seller">
+                  <Box sx={{ py: 0.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>Vendedor (você)</Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      Cliente paga R${formData.price?.toFixed(2) || '0,00'}, você recebe o valor menos taxas
+                    </Typography>
+                  </Box>
+                </MenuItem>
               </TextField>
-              <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#666' }}>
+              <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#888', fontSize: '0.7rem' }}>
                 Taxas: 5,99% + R$2,50 (PIX/Boleto) | 5,99% + 2,49% por parcela (Cartão)
               </Typography>
             </Box>
           </Box>
         </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseProductDialog}>Cancelar</Button>
+        <DialogActions sx={{ px: 2.5, py: 2, borderTop: '1px solid #f0f0f0' }}>
+          <Button onClick={handleCloseProductDialog} sx={{ color: '#666' }}>
+            Cancelar
+          </Button>
           <Button
             onClick={handleSaveProduct}
             variant="contained"
             disabled={!formData.name || formData.price <= 0}
+            sx={{ 
+              bgcolor: '#5818C8', 
+              '&:hover': { bgcolor: '#4a14a8' },
+              px: 3,
+            }}
           >
             {editingProduct ? 'Atualizar' : 'Criar'}
           </Button>

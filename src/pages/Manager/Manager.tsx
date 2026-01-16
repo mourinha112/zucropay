@@ -32,7 +32,6 @@ import {
 import {
   People as PeopleIcon,
   CheckCircle as CheckCircleIcon,
-  Cancel as CancelIcon,
   Block as BlockIcon,
   Search as SearchIcon,
   Refresh as RefreshIcon,
