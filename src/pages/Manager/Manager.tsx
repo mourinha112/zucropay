@@ -563,13 +563,13 @@ const Manager = () => {
         </Box>
       </Box>
 
-      {/* Action Dialog - Compacto */}
+      {/* Action Dialog */}
       <Dialog 
         open={actionDialog.open} 
         onClose={() => setActionDialog({ open: false, type: '', item: null, reason: '' })} 
-        maxWidth="xs" 
         fullWidth
-        PaperProps={{ sx: { borderRadius: 2, maxWidth: 360 } }}
+        maxWidth="xs"
+        PaperProps={{ sx: { borderRadius: 2, maxWidth: 360, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
       >
         <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem' }}>
           {actionDialog.type.includes('approve') && '✅ Aprovar'}
@@ -603,13 +603,13 @@ const Manager = () => {
         </DialogActions>
       </Dialog>
 
-      {/* User Detail Dialog - Compacto */}
+      {/* User Detail Dialog */}
       <Dialog 
         open={userDetailDialog.open} 
         onClose={() => setUserDetailDialog({ open: false, user: null, loading: false })} 
-        maxWidth="xs" 
         fullWidth
-        PaperProps={{ sx: { borderRadius: 2, maxWidth: 400 } }}
+        maxWidth="xs"
+        PaperProps={{ sx: { borderRadius: 2, maxWidth: 400, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
       >
         <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 1 }}>
           <PersonIcon fontSize="small" /> Detalhes
@@ -643,13 +643,13 @@ const Manager = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Rate Adjustment Dialog - Compacto */}
+      {/* Rate Adjustment Dialog */}
       <Dialog 
         open={rateDialog.open} 
         onClose={() => setRateDialog({ open: false, user: null, pixRate: 0.99, cardRate: 4.99, boletoRate: 2.99, withdrawalFee: 2.00, notes: '' })} 
-        maxWidth="xs" 
         fullWidth
-        PaperProps={{ sx: { borderRadius: 2, maxWidth: 380 } }}
+        maxWidth="xs"
+        PaperProps={{ sx: { borderRadius: 2, maxWidth: 380, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
       >
         <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem' }}>📊 Taxas</DialogTitle>
         <DialogContent sx={{ p: 2 }}>

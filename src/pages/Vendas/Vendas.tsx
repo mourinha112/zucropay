@@ -399,13 +399,13 @@ const Vendas: React.FC = () => {
         </TableContainer>
           </Card>
 
-        {/* Dialog de Detalhes - Compacto */}
+        {/* Dialog de Detalhes */}
         <Dialog
           open={detailsOpen}
           onClose={() => setDetailsOpen(false)}
-          maxWidth="xs"
           fullWidth
-          PaperProps={{ sx: { borderRadius: 2, maxWidth: 380 } }}
+          maxWidth="xs"
+          PaperProps={{ sx: { borderRadius: 2, maxWidth: 380, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
         >
           <DialogTitle sx={{ py: 1.5, fontSize: '1rem', fontWeight: 600 }}>
             Detalhes da Venda

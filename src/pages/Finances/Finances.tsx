@@ -593,13 +593,13 @@ const Finances: React.FC = () => {
         </Container>
       </Box>
 
-      {/* Dialog Saque - Compacto */}
+      {/* Dialog Saque */}
       <Dialog 
         open={openWithdrawDialog} 
         onClose={() => !submitting && setOpenWithdrawDialog(false)} 
-        maxWidth="xs" 
         fullWidth
-        PaperProps={{ sx: { borderRadius: 2, maxWidth: 400 } }}
+        maxWidth="xs"
+        PaperProps={{ sx: { borderRadius: 2, maxWidth: 400, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
       >
         <DialogTitle sx={{ py: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -607,7 +607,7 @@ const Finances: React.FC = () => {
             <Typography variant="subtitle1" fontWeight={600}>Solicitar Saque</Typography>
           </Box>
         </DialogTitle>
-        <DialogContent sx={{ p: 2 }}>
+        <DialogContent sx={{ p: 2, overflowY: 'auto' }}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <Box sx={{ p: 1.5, bgcolor: '#f0fdf4', borderRadius: 1.5, textAlign: 'center' }}>
               <Typography variant="caption" color="text.secondary">Saldo disponível</Typography>
