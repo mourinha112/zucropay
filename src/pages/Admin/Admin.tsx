@@ -64,6 +64,7 @@ import {
   CloudDone as CloudDoneIcon,
   CloudOff as CloudOffIcon,
   Webhook as WebhookIcon,
+  Percent as PercentIcon,
 } from '@mui/icons-material';
 import {
   AreaChart,
@@ -765,6 +766,364 @@ const Admin = () => {
   };
 
   // ============================================
+  // COMPONENTE DE TAXAS TAB
+  // ============================================
+  const RatesTab = () => {
+    const [ratesUsers, setRatesUsers] = useState<any[]>([]);
+    const [loadingRates, setLoadingRates] = useState(false);
+    const [searchUser, setSearchUser] = useState('');
+    const [rateDialog, setRateDialog] = useState<{
+      open: boolean;
+      user: any;
+      pixRate: string;
+      cardRate: string;
+      boletoRate: string;
+      withdrawalFee: string;
+      notes: string;
+    }>({
+      open: false,
+      user: null,
+      pixRate: '5.99',
+      cardRate: '5.99',
+      boletoRate: '5.99',
+      withdrawalFee: '3.00',
+      notes: '',
+    });
+
+    // Taxas padrão da plataforma (fixas no código)
+    const DEFAULT_RATES = {
+      pixRate: 5.99,
+      cardRate: 5.99, // Base, depois soma 2.49% por parcela
+      boletoRate: 5.99,
+      withdrawalFee: 3.00,
+      fixedFee: 2.50, // Taxa fixa por transação PIX/Boleto
+    };
+
+    const loadUsersWithRates = async () => {
+      try {
+        setLoadingRates(true);
+        const response = await adminApi.getUsers({ search: searchUser });
+        setRatesUsers(response.users || []);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoadingRates(false);
+      }
+    };
+
+    useEffect(() => {
+      loadUsersWithRates();
+    }, []);
+
+    const handleOpenRateDialog = async (user: any) => {
+      try {
+        // Buscar taxas atuais do usuário
+        const response = await adminApi.getUserCustomRates(user.id);
+        const rates = response.rates || {};
+        
+        setRateDialog({
+          open: true,
+          user,
+          pixRate: rates.pix_rate?.toString() || DEFAULT_RATES.pixRate.toString(),
+          cardRate: rates.card_rate?.toString() || DEFAULT_RATES.cardRate.toString(),
+          boletoRate: rates.boleto_rate?.toString() || DEFAULT_RATES.boletoRate.toString(),
+          withdrawalFee: rates.withdrawal_fee?.toString() || DEFAULT_RATES.withdrawalFee.toString(),
+          notes: rates.notes || '',
+        });
+      } catch (err: any) {
+        // Se não encontrou, usar taxas padrão
+        setRateDialog({
+          open: true,
+          user,
+          pixRate: DEFAULT_RATES.pixRate.toString(),
+          cardRate: DEFAULT_RATES.cardRate.toString(),
+          boletoRate: DEFAULT_RATES.boletoRate.toString(),
+          withdrawalFee: DEFAULT_RATES.withdrawalFee.toString(),
+          notes: '',
+        });
+      }
+    };
+
+    const handleSaveRates = async () => {
+      try {
+        setLoadingRates(true);
+        await adminApi.setUserCustomRates({
+          userId: rateDialog.user.id,
+          pixRate: parseFloat(rateDialog.pixRate) || DEFAULT_RATES.pixRate,
+          cardRate: parseFloat(rateDialog.cardRate) || DEFAULT_RATES.cardRate,
+          boletoRate: parseFloat(rateDialog.boletoRate) || DEFAULT_RATES.boletoRate,
+          withdrawalFee: parseFloat(rateDialog.withdrawalFee) || DEFAULT_RATES.withdrawalFee,
+          notes: rateDialog.notes,
+        });
+        setSuccess('Taxas atualizadas com sucesso!');
+        setRateDialog({ ...rateDialog, open: false });
+        loadUsersWithRates();
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoadingRates(false);
+      }
+    };
+
+    const filteredUsers = ratesUsers.filter(user =>
+      user.name?.toLowerCase().includes(searchUser.toLowerCase()) ||
+      user.email?.toLowerCase().includes(searchUser.toLowerCase())
+    );
+
+    return (
+      <Box sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#5818C8' }}>
+              📊 Taxas por Usuário
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Configure taxas personalizadas para cada usuário. Taxas padrão: PIX {DEFAULT_RATES.pixRate}% + R${DEFAULT_RATES.fixedFee.toFixed(2)} fixo
+            </Typography>
+          </Box>
+          <Button
+            variant="outlined"
+            startIcon={<RefreshIcon />}
+            onClick={loadUsersWithRates}
+            disabled={loadingRates}
+          >
+            Atualizar
+          </Button>
+        </Box>
+
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            <strong>💡 Como funciona:</strong><br />
+            • <strong>Taxas Padrão:</strong> PIX/Boleto: {DEFAULT_RATES.pixRate}% + R${DEFAULT_RATES.fixedFee.toFixed(2)} | Cartão: {DEFAULT_RATES.cardRate}% + 2.49% por parcela<br />
+            • <strong>Taxas Personalizadas:</strong> Você pode diminuir (ou aumentar) as taxas para usuários específicos<br />
+            • Taxa de saque padrão: R${DEFAULT_RATES.withdrawalFee.toFixed(2)}
+          </Typography>
+        </Alert>
+
+        {/* Busca */}
+        <Box sx={{ mb: 3 }}>
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Buscar usuário por nome ou email..."
+            value={searchUser}
+            onChange={(e) => setSearchUser(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ color: '#94a3b8' }} />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ maxWidth: 400 }}
+          />
+        </Box>
+
+        {loadingRates ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress sx={{ color: '#5818C8' }} />
+          </Box>
+        ) : filteredUsers.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 6 }}>
+            <PercentIcon sx={{ fontSize: 64, color: '#94a3b8', mb: 2 }} />
+            <Typography color="text.secondary">Nenhum usuário encontrado</Typography>
+          </Box>
+        ) : (
+          <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+              <TableHead>
+                <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                  <TableCell sx={{ fontWeight: 600 }}>Usuário</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="center">PIX</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="center">Cartão</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="center">Boleto</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="center">Saque</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="center">Ações</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {filteredUsers.map((user) => {
+                  const hasCustomRate = user.custom_rates && (
+                    user.custom_rates.pix_rate !== DEFAULT_RATES.pixRate ||
+                    user.custom_rates.card_rate !== DEFAULT_RATES.cardRate ||
+                    user.custom_rates.boleto_rate !== DEFAULT_RATES.boletoRate ||
+                    user.custom_rates.withdrawal_fee !== DEFAULT_RATES.withdrawalFee
+                  );
+                  
+                  return (
+                    <TableRow key={user.id} hover>
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Avatar sx={{ width: 32, height: 32, bgcolor: '#5818C8', fontSize: '0.8rem' }}>
+                            {user.name?.[0]?.toUpperCase() || '?'}
+                          </Avatar>
+                          <Box>
+                            <Typography variant="body2" sx={{ fontWeight: 600 }}>{user.name}</Typography>
+                            {hasCustomRate && (
+                              <Chip 
+                                label="Taxa Personalizada" 
+                                size="small" 
+                                sx={{ 
+                                  height: 18, 
+                                  fontSize: '0.65rem',
+                                  bgcolor: '#dcfce7', 
+                                  color: '#16a34a' 
+                                }} 
+                              />
+                            )}
+                          </Box>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" color="text.secondary">{user.email}</Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2" sx={{ 
+                          fontWeight: 600, 
+                          color: user.custom_rates?.pix_rate !== undefined && user.custom_rates?.pix_rate !== DEFAULT_RATES.pixRate ? '#16a34a' : '#64748b' 
+                        }}>
+                          {user.custom_rates?.pix_rate ?? DEFAULT_RATES.pixRate}%
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2" sx={{ 
+                          fontWeight: 600, 
+                          color: user.custom_rates?.card_rate !== undefined && user.custom_rates?.card_rate !== DEFAULT_RATES.cardRate ? '#16a34a' : '#64748b' 
+                        }}>
+                          {user.custom_rates?.card_rate ?? DEFAULT_RATES.cardRate}%
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2" sx={{ 
+                          fontWeight: 600, 
+                          color: user.custom_rates?.boleto_rate !== undefined && user.custom_rates?.boleto_rate !== DEFAULT_RATES.boletoRate ? '#16a34a' : '#64748b' 
+                        }}>
+                          {user.custom_rates?.boleto_rate ?? DEFAULT_RATES.boletoRate}%
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Typography variant="body2" sx={{ 
+                          fontWeight: 600, 
+                          color: user.custom_rates?.withdrawal_fee !== undefined && user.custom_rates?.withdrawal_fee !== DEFAULT_RATES.withdrawalFee ? '#16a34a' : '#64748b' 
+                        }}>
+                          R${(user.custom_rates?.withdrawal_fee ?? DEFAULT_RATES.withdrawalFee).toFixed(2)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="center">
+                        <Tooltip title="Editar taxas">
+                          <IconButton 
+                            size="small" 
+                            onClick={() => handleOpenRateDialog(user)}
+                            sx={{ color: '#5818C8' }}
+                          >
+                            <SettingsIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
+        {/* Dialog de Edição de Taxas */}
+        <Dialog 
+          open={rateDialog.open} 
+          onClose={() => setRateDialog({ ...rateDialog, open: false })}
+          PaperProps={{ sx: { borderRadius: 2, width: 450, maxWidth: '95vw' } }}
+        >
+          <DialogTitle sx={{ fontWeight: 600, py: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <PercentIcon sx={{ color: '#5818C8' }} />
+            Taxas de {rateDialog.user?.name}
+          </DialogTitle>
+          <DialogContent sx={{ p: 2.5 }}>
+            <Alert severity="warning" sx={{ mb: 2, py: 0.5 }}>
+              <Typography variant="caption">
+                Taxas padrão da plataforma: {DEFAULT_RATES.pixRate}% + R${DEFAULT_RATES.fixedFee.toFixed(2)} (PIX/Boleto)
+              </Typography>
+            </Alert>
+            
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Taxa PIX (%)"
+                type="number"
+                value={rateDialog.pixRate}
+                onChange={(e) => setRateDialog({ ...rateDialog, pixRate: e.target.value })}
+                inputProps={{ step: '0.01', min: '0', max: '50' }}
+                helperText="Taxa percentual para pagamentos via PIX"
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Taxa Cartão (%)"
+                type="number"
+                value={rateDialog.cardRate}
+                onChange={(e) => setRateDialog({ ...rateDialog, cardRate: e.target.value })}
+                inputProps={{ step: '0.01', min: '0', max: '50' }}
+                helperText="Taxa base para cartão (+ 2.49% por parcela)"
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Taxa Boleto (%)"
+                type="number"
+                value={rateDialog.boletoRate}
+                onChange={(e) => setRateDialog({ ...rateDialog, boletoRate: e.target.value })}
+                inputProps={{ step: '0.01', min: '0', max: '50' }}
+                helperText="Taxa percentual para pagamentos via Boleto"
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Taxa de Saque (R$)"
+                type="number"
+                value={rateDialog.withdrawalFee}
+                onChange={(e) => setRateDialog({ ...rateDialog, withdrawalFee: e.target.value })}
+                InputProps={{
+                  startAdornment: <InputAdornment position="start">R$</InputAdornment>,
+                }}
+                inputProps={{ step: '0.01', min: '0' }}
+                helperText="Valor fixo cobrado por saque"
+              />
+              <TextField
+                fullWidth
+                size="small"
+                label="Observações (opcional)"
+                multiline
+                rows={2}
+                value={rateDialog.notes}
+                onChange={(e) => setRateDialog({ ...rateDialog, notes: e.target.value })}
+                placeholder="Ex: Cliente VIP - taxa reduzida"
+              />
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 2 }}>
+            <Button 
+              onClick={() => setRateDialog({ ...rateDialog, open: false })} 
+              sx={{ color: '#64748b' }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleSaveRates}
+              disabled={loadingRates}
+              sx={{ bgcolor: '#5818C8', '&:hover': { bgcolor: '#4a14a8' } }}
+            >
+              {loadingRates ? <CircularProgress size={18} sx={{ color: 'white' }} /> : 'Salvar Taxas'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    );
+  };
+
+  // ============================================
   // PÁGINA DE ACESSO NEGADO
   // ============================================
   if (accessDenied) {
@@ -1222,6 +1581,7 @@ const Admin = () => {
               <Tab icon={<LinkIcon />} label="Links" iconPosition="start" />
               <Tab icon={<HistoryIcon />} label="Logs" iconPosition="start" />
               <Tab icon={<PeopleIcon />} label="Gerentes" iconPosition="start" />
+              <Tab icon={<PercentIcon />} label="Taxas" iconPosition="start" />
             </Tabs>
 
             {/* Dashboard Tab */}
@@ -1902,6 +2262,11 @@ const Admin = () => {
             {/* Gerentes Tab */}
             <TabPanel value={tabValue} index={8}>
               <ManagersTab />
+            </TabPanel>
+
+            {/* Taxas Tab */}
+            <TabPanel value={tabValue} index={9}>
+              <RatesTab />
             </TabPanel>
           </Card>
         </Box>

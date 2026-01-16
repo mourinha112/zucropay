@@ -321,9 +321,9 @@ async function processPixPayment(supabase, pixData) {
 
     const paidValue = parseFloat(valor);
     
-    // ===== TAXAS DA PLATAFORMA =====
-    const PLATFORM_FEE_PERCENT = 0.0599;      // 5.99% base
-    const PLATFORM_FEE_FIXED = 2.50;          // R$2.50 por transação (PIX/Boleto)
+    // ===== TAXAS PADRÃO DA PLATAFORMA =====
+    const DEFAULT_FEE_PERCENT = 0.0599;       // 5.99% base
+    const DEFAULT_FEE_FIXED = 2.50;           // R$2.50 por transação (PIX/Boleto)
     const INSTALLMENT_FEE_PERCENT = 0.0249;   // 2.49% por parcela (Cartão)
     
     // ===== RESERVA DE 5% POR 30 DIAS (sobre valor líquido) =====
@@ -334,15 +334,39 @@ async function processPixPayment(supabase, pixData) {
     const billingType = payment.billing_type || 'PIX';
     const installments = payment.installments || 1;
     
+    // ===== BUSCAR TAXAS PERSONALIZADAS DO USUÁRIO =====
+    let userFeePercent = DEFAULT_FEE_PERCENT;
+    let userFeeFixed = DEFAULT_FEE_FIXED;
+    
+    if (payment.user_id) {
+      const { data: customRates } = await supabase
+        .from('user_custom_rates')
+        .select('pix_rate, card_rate, boleto_rate')
+        .eq('user_id', payment.user_id)
+        .single();
+      
+      if (customRates) {
+        // Usar taxa personalizada baseada no tipo de pagamento
+        if (billingType === 'CREDIT_CARD' || billingType === 'CARTAO') {
+          userFeePercent = (customRates.card_rate || 5.99) / 100;
+        } else if (billingType === 'BOLETO') {
+          userFeePercent = (customRates.boleto_rate || 5.99) / 100;
+        } else {
+          userFeePercent = (customRates.pix_rate || 5.99) / 100;
+        }
+        console.log(`[EfiBank Webhook] Taxa personalizada encontrada: ${(userFeePercent * 100).toFixed(2)}%`);
+      }
+    }
+    
     // Calcular taxa da plataforma baseada no tipo de pagamento
-    let platformFee = paidValue * PLATFORM_FEE_PERCENT; // 5.99% base
+    let platformFee = paidValue * userFeePercent;
     
     if (billingType === 'CREDIT_CARD' || billingType === 'CARTAO') {
-      // Cartão: 5.99% + (2.49% × parcelas)
+      // Cartão: taxa base + (2.49% × parcelas)
       platformFee += paidValue * INSTALLMENT_FEE_PERCENT * installments;
     } else {
-      // PIX/Boleto: 5.99% + R$2.50
-      platformFee += PLATFORM_FEE_FIXED;
+      // PIX/Boleto: taxa base + R$2.50 fixo
+      platformFee += userFeeFixed;
     }
     
     // Taxa máxima: 50% do valor
@@ -361,6 +385,7 @@ async function processPixPayment(supabase, pixData) {
     
     console.log(`[EfiBank Webhook] Valor bruto: R$${paidValue.toFixed(2)}`);
     console.log(`[EfiBank Webhook] Tipo: ${billingType} | Parcelas: ${installments}`);
+    console.log(`[EfiBank Webhook] Taxa usada: ${(userFeePercent * 100).toFixed(2)}%`);
     console.log(`[EfiBank Webhook] Taxa plataforma: R$${platformFee.toFixed(2)}`);
     console.log(`[EfiBank Webhook] Valor após taxas: R$${valueAfterFees.toFixed(2)}`);
     console.log(`[EfiBank Webhook] Reserva 5%: R$${reserveAmount.toFixed(2)}`);
