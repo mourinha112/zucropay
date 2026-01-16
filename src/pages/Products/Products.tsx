@@ -510,7 +510,7 @@ const Products: React.FC = () => {
         PaperProps={{ 
           sx: { 
             borderRadius: 3, 
-            width: 480,
+            width: 560,
             maxWidth: '95vw',
             maxHeight: '90vh',
             display: 'flex',

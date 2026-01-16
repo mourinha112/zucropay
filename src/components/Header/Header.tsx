@@ -191,7 +191,7 @@ const Header = () => {
   return (
     <>
       <AppBar position="sticky" color="default" elevation={1} sx={{ backgroundColor: 'white', width: '100%', maxWidth: '100vw' }}>
-        <Container maxWidth={false} sx={{ maxWidth: '2000px', px: { xs: 0.5, sm: 1, md: 2 } }}>
+        <Container maxWidth="xl" sx={{ px: { xs: 1, sm: 2, md: 3 } }}>
           <Toolbar 
             sx={{ 
               display: 'flex', 
