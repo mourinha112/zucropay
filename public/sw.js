@@ -88,12 +88,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Ignorar requisições POST (não podem ser cacheadas)
+  if (request.method !== 'GET') {
+    event.respondWith(fetch(request));
+    return;
+  }
+
   // Para assets estáticos (JS, CSS, imagens), Network First com cache
   event.respondWith(
     fetch(request)
       .then((response) => {
-        // Cachear resposta válida
-        if (response && response.status === 200) {
+        // Cachear resposta válida (apenas GET)
+        if (response && response.status === 200 && request.method === 'GET') {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(request, responseToCache);
