@@ -18,6 +18,7 @@ import {
   CardActions,
   Alert,
   Snackbar,
+  CircularProgress,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -68,7 +69,7 @@ const Products: React.FC = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
   const [paymentLinks, setPaymentLinks] = useState<PaymentLink[]>([]);
-  const [_loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [openProductDialog, setOpenProductDialog] = useState(false);
   const [openLinkDialog, setOpenLinkDialog] = useState(false);
   const [openLinkCreatedDialog, setOpenLinkCreatedDialog] = useState(false);
@@ -79,6 +80,7 @@ const Products: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [imagePreview, setImagePreview] = useState<string>('');
   const [verificationStatus, setVerificationStatus] = useState<string>('pending');
+  const [verificationLoading, setVerificationLoading] = useState(true);
   
   const [formData, setFormData] = useState<Product>({
     name: '',
@@ -103,6 +105,7 @@ const Products: React.FC = () => {
 
   // Carregar status de verificação
   const loadVerificationStatus = async () => {
+    setVerificationLoading(true);
     try {
       const token = localStorage.getItem('zucropay_token');
       const response = await fetch(`${API_URL}/api/dashboard-data?type=verification`, {
@@ -116,6 +119,8 @@ const Products: React.FC = () => {
       }
     } catch (error) {
       console.error('Erro ao verificar status:', error);
+    } finally {
+      setVerificationLoading(false);
     }
   };
 
@@ -322,7 +327,7 @@ const Products: React.FC = () => {
       <Box sx={{ minHeight: '100vh', backgroundColor: '#fafafa', py: 4 }}>
         <Container maxWidth="lg">
           {/* Alerta de Verificação */}
-          {!isVerified && (
+          {!verificationLoading && !isVerified && (
             <Alert 
               severity={verificationStatus === 'submitted' ? 'info' : 'warning'}
               icon={verificationStatus === 'submitted' ? <VerifiedUserIcon /> : <WarningIcon />}
@@ -480,7 +485,13 @@ const Products: React.FC = () => {
             })}
           </Box>
 
-          {products.length === 0 && (
+          {loading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
+              <CircularProgress />
+            </Box>
+          )}
+
+          {!loading && products.length === 0 && (
             <Box sx={{ textAlign: 'center', py: 8 }}>
               <ShoppingCartIcon sx={{ fontSize: 80, color: '#ddd', mb: 2 }} />
               <Typography variant="h6" color="text.secondary">

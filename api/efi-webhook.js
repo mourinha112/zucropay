@@ -3,6 +3,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import webpush from 'web-push';
+import crypto from 'crypto';
 
 // Configurar VAPID para push notifications
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BLDL2Izhy0W6zhF1LpcrNRJ4IhjP6j1j_nWT-oSj8ZUIHjn1w7wMFac8E2AbX_ACm3kpkrm6Kj3FnaCLhqa6n3I';
@@ -27,6 +28,18 @@ const getSupabase = () => {
   }
   
   return createClient(url, key, { auth: { persistSession: false } });
+};
+
+// Token simples para validar origem do webhook (opcional)
+const WEBHOOK_TOKEN = process.env.EFI_WEBHOOK_TOKEN || process.env.WEBHOOK_TOKEN || '';
+const isValidWebhook = (req) => {
+  if (!WEBHOOK_TOKEN) return true; // Não bloquear se não configurado
+  const headerToken = req.headers['x-webhook-token'] || req.headers['x-efi-webhook-token'];
+  if (!headerToken) return false;
+  const a = Buffer.from(String(headerToken));
+  const b = Buffer.from(WEBHOOK_TOKEN);
+  if (a.length !== b.length) return false;
+  return crypto.timingSafeEqual(a, b);
 };
 
 // ==========================================
@@ -108,6 +121,10 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Método não permitido' });
+  }
+
+  if (!isValidWebhook(req)) {
+    return res.status(401).json({ success: false, message: 'Webhook não autorizado' });
   }
 
   try {

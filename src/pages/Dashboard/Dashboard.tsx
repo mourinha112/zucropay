@@ -91,41 +91,10 @@ const Dashboard = () => {
   useEffect(() => {
     loadDashboardData();
     setupPWAInstall();
-    checkVerificationStatus();
     
     // Inicializar Push Notifications
     initializePushNotifications();
   }, []);
-
-  // Verificar status de verificação da conta
-  const checkVerificationStatus = async () => {
-    try {
-      const token = localStorage.getItem('zucropay_token');
-      if (!token) return;
-
-      const response = await fetch(`${API_URL}/api/dashboard-data?type=verification`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        // O status de verificação vem no user.verification_status ou verification.status
-        const userStatus = data.user?.verification_status;
-        const verificationStatus = data.verification?.status;
-        
-        // Priorizar o status do usuário, depois o da verificação
-        const finalStatus = userStatus || verificationStatus || 'none';
-        
-        console.log('[Verificação] Status:', { userStatus, verificationStatus, finalStatus });
-        
-        setVerificationStatus(finalStatus as any);
-        // Conta está verificada se status for 'approved' ou 'verified'
-        setIsVerified(finalStatus === 'approved' || finalStatus === 'verified');
-      }
-    } catch (error) {
-      console.error('Erro ao verificar status:', error);
-    }
-  };
 
   const initializePushNotifications = async () => {
     // Aguardar um pouco para não bloquear o carregamento inicial
@@ -255,6 +224,12 @@ const Dashboard = () => {
         setMonthTotal(stats.monthTotal || 0);
         setBalance(user.balance || 0);
         setFullChartData(apiChartData || []);
+
+        // Status de verificação (evita alerta incorreto no carregamento)
+        const userStatus = user?.verificationStatus || user?.verification_status;
+        const finalStatus = userStatus || 'none';
+        setVerificationStatus(finalStatus as any);
+        setIsVerified(finalStatus === 'approved' || finalStatus === 'verified');
         
         // Dados de reserva
         if (reserves) {
@@ -321,7 +296,7 @@ const Dashboard = () => {
           }}
         >
           {/* Alerta de Verificação de Conta */}
-          {!isVerified && (
+          {!loading && !isVerified && (
             <Alert 
               severity={verificationStatus === 'submitted' ? 'info' : verificationStatus === 'rejected' ? 'error' : 'warning'}
               icon={verificationStatus === 'submitted' ? <VerifiedUserIcon /> : <WarningIcon />}
