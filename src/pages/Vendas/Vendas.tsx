@@ -416,7 +416,7 @@ const Vendas: React.FC = () => {
                 <Box sx={{ p: 1, bgcolor: '#f8fafc', borderRadius: 1 }}>
                   <Typography variant="caption" color="text.secondary">ID</Typography>
                   <Typography variant="caption" display="block" fontFamily="monospace" sx={{ fontSize: '0.7rem' }}>
-                    {(selectedSale.efi_txid || selectedSale.efi_charge_id || selectedSale.id).substring(0, 20)}...
+                    {String(selectedSale.efi_txid || selectedSale.efi_charge_id || selectedSale.id).substring(0, 20)}...
                   </Typography>
                 </Box>
 
