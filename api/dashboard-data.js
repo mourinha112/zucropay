@@ -238,13 +238,14 @@ export default async function handler(req, res) {
 
       if (userError) throw userError;
 
-      const { data: verification } = await supabase
+      const { data: verifications } = await supabase
         .from('user_verifications')
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+        .limit(1);
+      
+      const verification = verifications?.[0] || null;
 
       // Determinar status final - priorizar tabela users
       // Se user.verification_status === 'approved' ou 'verified', a conta está verificada
@@ -305,7 +306,7 @@ export default async function handler(req, res) {
         .select('id, status')
         .eq('user_id', userId)
         .in('status', ['pending', 'approved'])
-        .single();
+        .maybeSingle();
 
       if (existingVerification) {
         if (existingVerification.status === 'approved') {
@@ -423,12 +424,12 @@ export default async function handler(req, res) {
         .order('created_at', { ascending: false })
         .limit(50),
       
-      // Taxas personalizadas do usuário
+      // Taxas personalizadas do usuário (usar maybeSingle para não dar erro se não existir)
       supabase
         .from('user_custom_rates')
         .select('pix_rate, card_rate, boleto_rate, withdrawal_fee')
         .eq('user_id', userId)
-        .single()
+        .maybeSingle()
     ]);
 
     const user = userResult.data;
