@@ -44,7 +44,7 @@ const getSupabase = () => {
   return createClient(url, key);
 };
 
-// Extrair user do token JWT (valida assinatura)
+// Extrair user do token JWT (valida assinatura via Supabase)
 const getUserFromToken = async (authHeader) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;
@@ -53,12 +53,19 @@ const getUserFromToken = async (authHeader) => {
   try {
     const token = authHeader.split(' ')[1];
     const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-    const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
-    if (!url || !anonKey) return null;
+    // Usar service role key para validar tokens (tem permissão total)
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+    if (!url || !key) {
+      console.error('[Dashboard API] Supabase não configurado');
+      return null;
+    }
 
-    const supabaseAuth = createClient(url, anonKey, { auth: { persistSession: false } });
+    const supabaseAuth = createClient(url, key, { auth: { persistSession: false } });
     const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
-    if (error || !user) return null;
+    if (error || !user) {
+      console.error('[Dashboard API] Token inválido:', error?.message);
+      return null;
+    }
     return user;
   } catch (error) {
     console.error('[Dashboard API] Erro ao decodificar token:', error);

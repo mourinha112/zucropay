@@ -42,15 +42,15 @@ const getUserFromToken = async (authHeader) => {
   
   const token = authHeader.replace('Bearer ', '');
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
   
-  if (!supabaseUrl || !supabaseAnonKey) {
-    console.log('[Admin API] SUPABASE_URL ou SUPABASE_ANON_KEY não configurado');
+  if (!supabaseUrl || !supabaseKey) {
+    console.log('[Admin API] SUPABASE_URL ou SUPABASE_KEY não configurado');
     return null;
   }
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
+    const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
     const { data: { user }, error } = await supabase.auth.getUser(token);
     
     if (error) {
