@@ -67,6 +67,20 @@ CREATE TRIGGER update_user_custom_rates_updated_at
 -- 6. Habilitar RLS na tabela de taxas
 ALTER TABLE user_custom_rates ENABLE ROW LEVEL SECURITY;
 
+-- 7. Policies para user_custom_rates (IMPORTANTE!)
+-- Permitir que service_role faça tudo (usado pelas APIs)
+DROP POLICY IF EXISTS "Service role full access" ON user_custom_rates;
+CREATE POLICY "Service role full access" ON user_custom_rates
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- Permitir que usuários vejam suas próprias taxas
+DROP POLICY IF EXISTS "Users can view own rates" ON user_custom_rates;
+CREATE POLICY "Users can view own rates" ON user_custom_rates
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
 -- ============================================
 -- EXEMPLO: CRIAR UM GERENTE
 -- (Execute manualmente quando precisar adicionar um gerente)

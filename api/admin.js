@@ -1435,27 +1435,33 @@ async function setUserCustomRates(supabase, adminId, params, res) {
     // Não usar created_by para evitar erro de FK (admin_users.id != admin_credentials.id)
     const ratesData = {
       user_id: userId,
-      pix_rate: pixRate || 0.99,
-      card_rate: cardRate || 4.99,
-      boleto_rate: boletoRate || 2.99,
-      withdrawal_fee: withdrawalFee || 2.00,
+      pix_rate: pixRate !== undefined ? pixRate : 5.99,
+      card_rate: cardRate !== undefined ? cardRate : 5.99,
+      boleto_rate: boletoRate !== undefined ? boletoRate : 5.99,
+      withdrawal_fee: withdrawalFee !== undefined ? withdrawalFee : 3.00,
       notes: notes || null,
     };
 
+    console.log('[setUserCustomRates] userId:', userId, 'existing:', !!existing, 'ratesData:', ratesData);
+
     if (existing) {
       // Atualizar taxas existentes
-      const { error: updateError } = await supabase
+      const { data: updateData, error: updateError } = await supabase
         .from('user_custom_rates')
         .update(ratesData)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .select();
 
+      console.log('[setUserCustomRates] UPDATE result:', updateData, 'error:', updateError);
       if (updateError) throw updateError;
     } else {
       // Criar novas taxas
-      const { error: insertError } = await supabase
+      const { data: insertData, error: insertError } = await supabase
         .from('user_custom_rates')
-        .insert(ratesData);
+        .insert(ratesData)
+        .select();
 
+      console.log('[setUserCustomRates] INSERT result:', insertData, 'error:', insertError);
       if (insertError) throw insertError;
     }
 
@@ -1499,16 +1505,19 @@ async function getUserCustomRates(supabase, userId, res) {
 
     // Se não há taxas personalizadas, retornar as padrão
     const rates = data || {
-      pix_rate: 0.99,
-      card_rate: 4.99,
-      boleto_rate: 2.99,
-      withdrawal_fee: 2.00,
+      pix_rate: 5.99,
+      card_rate: 5.99,
+      boleto_rate: 5.99,
+      withdrawal_fee: 3.00,
       is_default: true
     };
 
+    console.log('[getUserCustomRates] userId:', userId, 'data:', data, 'rates:', rates);
+
     return res.status(200).json({
       success: true,
-      rates
+      rates,
+      hasCustomRates: !!data
     });
   } catch (error) {
     console.error('getUserCustomRates error:', error);

@@ -438,6 +438,9 @@ export default async function handler(req, res) {
     const transactions = transactionsResult.data || [];
     const customRates = customRatesResult.data;
     
+    console.log('[Dashboard API] customRatesResult:', customRatesResult);
+    console.log('[Dashboard API] customRates for user', userId, ':', customRates);
+    
     // Taxas padrão da plataforma
     const DEFAULT_RATES = {
       pix_rate: 5.99,
@@ -450,14 +453,16 @@ export default async function handler(req, res) {
     
     // Taxas efetivas do usuário (personalizadas ou padrão)
     const userRates = {
-      pix_rate: customRates?.pix_rate ?? DEFAULT_RATES.pix_rate,
-      card_rate: customRates?.card_rate ?? DEFAULT_RATES.card_rate,
-      boleto_rate: customRates?.boleto_rate ?? DEFAULT_RATES.boleto_rate,
-      withdrawal_fee: customRates?.withdrawal_fee ?? DEFAULT_RATES.withdrawal_fee,
+      pix_rate: customRates?.pix_rate !== undefined ? parseFloat(customRates.pix_rate) : DEFAULT_RATES.pix_rate,
+      card_rate: customRates?.card_rate !== undefined ? parseFloat(customRates.card_rate) : DEFAULT_RATES.card_rate,
+      boleto_rate: customRates?.boleto_rate !== undefined ? parseFloat(customRates.boleto_rate) : DEFAULT_RATES.boleto_rate,
+      withdrawal_fee: customRates?.withdrawal_fee !== undefined ? parseFloat(customRates.withdrawal_fee) : DEFAULT_RATES.withdrawal_fee,
       fixed_fee: DEFAULT_RATES.fixed_fee,
       installment_fee: DEFAULT_RATES.installment_fee,
       is_custom: !!customRates,
     };
+    
+    console.log('[Dashboard API] userRates:', userRates);
 
     // Calcular dados de reserva
     const reservesTotal = reserves.reduce((sum, r) => sum + parseFloat(r.reserve_amount || 0), 0);
