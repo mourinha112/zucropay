@@ -383,7 +383,7 @@ export default async function handler(req, res) {
     }
 
     // Buscar dados em paralelo (muito mais rápido!)
-    const [userResult, paymentsResult, linksResult, reservesResult, transactionsResult] = await Promise.all([
+    const [userResult, paymentsResult, linksResult, reservesResult, transactionsResult, customRatesResult] = await Promise.all([
       // Saldo do usuário e status de verificação
       supabase
         .from('users')
@@ -421,7 +421,14 @@ export default async function handler(req, res) {
         .select('*')
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
-        .limit(50)
+        .limit(50),
+      
+      // Taxas personalizadas do usuário
+      supabase
+        .from('user_custom_rates')
+        .select('pix_rate, card_rate, boleto_rate, withdrawal_fee')
+        .eq('user_id', userId)
+        .single()
     ]);
 
     const user = userResult.data;
@@ -429,6 +436,28 @@ export default async function handler(req, res) {
     const links = linksResult.data || [];
     const reserves = reservesResult.data || [];
     const transactions = transactionsResult.data || [];
+    const customRates = customRatesResult.data;
+    
+    // Taxas padrão da plataforma
+    const DEFAULT_RATES = {
+      pix_rate: 5.99,
+      card_rate: 5.99,
+      boleto_rate: 5.99,
+      withdrawal_fee: 3.00,
+      fixed_fee: 2.50, // Taxa fixa por transação PIX/Boleto
+      installment_fee: 2.49, // Taxa por parcela no cartão
+    };
+    
+    // Taxas efetivas do usuário (personalizadas ou padrão)
+    const userRates = {
+      pix_rate: customRates?.pix_rate ?? DEFAULT_RATES.pix_rate,
+      card_rate: customRates?.card_rate ?? DEFAULT_RATES.card_rate,
+      boleto_rate: customRates?.boleto_rate ?? DEFAULT_RATES.boleto_rate,
+      withdrawal_fee: customRates?.withdrawal_fee ?? DEFAULT_RATES.withdrawal_fee,
+      fixed_fee: DEFAULT_RATES.fixed_fee,
+      installment_fee: DEFAULT_RATES.installment_fee,
+      is_custom: !!customRates,
+    };
 
     // Calcular dados de reserva
     const reservesTotal = reserves.reduce((sum, r) => sum + parseFloat(r.reserve_amount || 0), 0);
@@ -534,6 +563,7 @@ export default async function handler(req, res) {
         recentPayments: payments.slice(0, 10),
         activeLinks: links,
         transactions: transactions,
+        rates: userRates, // Taxas efetivas do usuário
       }
     });
 

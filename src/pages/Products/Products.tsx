@@ -66,6 +66,16 @@ interface PaymentLink {
   totalReceived?: number;
 }
 
+interface UserRates {
+  pix_rate: number;
+  card_rate: number;
+  boleto_rate: number;
+  withdrawal_fee: number;
+  fixed_fee: number;
+  installment_fee: number;
+  is_custom: boolean;
+}
+
 const Products: React.FC = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState<Product[]>([]);
@@ -82,6 +92,15 @@ const Products: React.FC = () => {
   const [imagePreview, setImagePreview] = useState<string>('');
   const [verificationStatus, setVerificationStatus] = useState<string>('pending');
   const [verificationLoading, setVerificationLoading] = useState(true);
+  const [userRates, setUserRates] = useState<UserRates>({
+    pix_rate: 5.99,
+    card_rate: 5.99,
+    boleto_rate: 5.99,
+    withdrawal_fee: 3.00,
+    fixed_fee: 2.50,
+    installment_fee: 2.49,
+    is_custom: false,
+  });
   
   const [formData, setFormData] = useState<Product>({
     name: '',
@@ -104,19 +123,33 @@ const Products: React.FC = () => {
     loadVerificationStatus();
   }, []);
 
-  // Carregar status de verificação
+  // Carregar status de verificação e taxas do usuário
   const loadVerificationStatus = async () => {
     setVerificationLoading(true);
     try {
       const token = await getAuthToken();
       if (!token) return;
-      const response = await fetch(`${API_URL}/api/dashboard-data?type=verification`, {
+      
+      // Buscar dados completos do dashboard (inclui taxas)
+      const response = await fetch(`${API_URL}/api/dashboard-data`, {
         headers: {
           'Authorization': `Bearer ${token}`,
         },
       });
       const data = await response.json();
-      if (data.user?.verification_status) {
+      
+      if (data.success && data.data) {
+        // Status de verificação
+        if (data.data.user?.verificationStatus) {
+          setVerificationStatus(data.data.user.verificationStatus);
+        }
+        
+        // Taxas do usuário
+        if (data.data.rates) {
+          setUserRates(data.data.rates);
+        }
+      } else if (data.user?.verification_status) {
+        // Fallback para resposta de verificação
         setVerificationStatus(data.user.verification_status);
       }
     } catch (error) {
@@ -642,7 +675,7 @@ const Products: React.FC = () => {
                   <Typography variant="body1" sx={{ fontWeight: 600, color: '#5818C8' }}>💰 Quem paga as taxas?</Typography>
                   <Typography variant="body2" color="text.secondary">
                     {formData.fee_payer === 'seller' 
-                      ? 'Você paga: 5,99% + R$2,50 por venda' 
+                      ? `Você paga: ${userRates.pix_rate.toFixed(2).replace('.', ',')}% + R$${userRates.fixed_fee.toFixed(2).replace('.', ',')} por venda${userRates.is_custom ? ' (taxa especial)' : ''}` 
                       : 'Cliente paga as taxas, você recebe o valor cheio'}
                   </Typography>
                 </Box>

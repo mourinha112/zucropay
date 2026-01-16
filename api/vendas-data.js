@@ -1,30 +1,42 @@
 // API otimizada para página de Vendas
 import { createClient } from '@supabase/supabase-js';
 
-// ===== TAXAS DA PLATAFORMA =====
-const PLATFORM_FEE_PERCENT = 0.0599;      // 5.99% base
-const PLATFORM_FEE_FIXED = 2.50;          // R$2.50 por transação (PIX/Boleto)
+// ===== TAXAS PADRÃO DA PLATAFORMA =====
+const DEFAULT_FEE_PERCENT = 0.0599;       // 5.99% base
+const DEFAULT_FEE_FIXED = 2.50;           // R$2.50 por transação (PIX/Boleto)
 const INSTALLMENT_FEE_PERCENT = 0.0249;   // 2.49% por parcela (Cartão)
 const MIN_VALUE_FOR_FIXED_FEE = 5.00;     // Valor mínimo para taxa fixa
 const RESERVE_PERCENT = 0.05;             // 5% reserva
 
-// Calcular valor líquido após taxas e reserva
-// - PIX/Boleto: 5.99% + R$2.50
-// - Cartão: 5.99% + (2.49% × parcelas)
-const calculateNetValue = (grossValue, billingType = 'PIX', installments = 1) => {
+// Calcular valor líquido após taxas e reserva usando taxas personalizadas
+const calculateNetValue = (grossValue, billingType = 'PIX', installments = 1, userRates = null) => {
   const value = parseFloat(grossValue || 0);
   if (value <= 0) return { netValue: 0, platformFee: 0, reserveAmount: 0 };
   
+  // Usar taxas personalizadas ou padrão
+  let feePercent;
+  if (userRates) {
+    if (billingType === 'CREDIT_CARD' || billingType === 'CARTAO') {
+      feePercent = (userRates.card_rate || 5.99) / 100;
+    } else if (billingType === 'BOLETO') {
+      feePercent = (userRates.boleto_rate || 5.99) / 100;
+    } else {
+      feePercent = (userRates.pix_rate || 5.99) / 100;
+    }
+  } else {
+    feePercent = DEFAULT_FEE_PERCENT;
+  }
+  
   // Calcular taxa da plataforma baseada no tipo de pagamento
-  let platformFee = value * PLATFORM_FEE_PERCENT; // 5.99% base
+  let platformFee = value * feePercent;
   
   if (billingType === 'CREDIT_CARD' || billingType === 'CARTAO') {
-    // Cartão: 5.99% + (2.49% × parcelas)
+    // Cartão: taxa base + (2.49% × parcelas)
     platformFee += value * INSTALLMENT_FEE_PERCENT * (installments || 1);
   } else {
-    // PIX/Boleto: 5.99% + R$2.50
+    // PIX/Boleto: taxa base + R$2.50 fixo
     if (value >= MIN_VALUE_FOR_FIXED_FEE) {
-      platformFee += PLATFORM_FEE_FIXED;
+      platformFee += DEFAULT_FEE_FIXED;
     }
   }
   
@@ -84,34 +96,46 @@ export default async function handler(req, res) {
     const supabase = getSupabase();
     const { filter, startDate, endDate, limit = 100 } = req.query;
 
-    // Query otimizada com filtros
-    let query = supabase
-      .from('payments')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(parseInt(limit));
+    // Buscar taxas personalizadas e pagamentos em paralelo
+    const [customRatesResult, paymentsResult] = await Promise.all([
+      supabase
+        .from('user_custom_rates')
+        .select('pix_rate, card_rate, boleto_rate, withdrawal_fee')
+        .eq('user_id', userId)
+        .single(),
+      (async () => {
+        let query = supabase
+          .from('payments')
+          .select('*')
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false })
+          .limit(parseInt(limit));
 
-    if (filter && filter !== 'ALL') {
-      query = query.eq('status', filter);
-    }
-    if (startDate) {
-      query = query.gte('created_at', startDate);
-    }
-    if (endDate) {
-      query = query.lte('created_at', endDate);
-    }
+        if (filter && filter !== 'ALL') {
+          query = query.eq('status', filter);
+        }
+        if (startDate) {
+          query = query.gte('created_at', startDate);
+        }
+        if (endDate) {
+          query = query.lte('created_at', endDate);
+        }
+        return query;
+      })()
+    ]);
 
-    const { data: payments, error } = await query;
+    const userRates = customRatesResult.data;
+    const { data: payments, error } = paymentsResult;
 
     if (error) throw error;
 
-    // Adicionar valor líquido calculado a cada pagamento
+    // Adicionar valor líquido calculado a cada pagamento (usando taxas personalizadas)
     const paymentsWithNet = (payments || []).map(p => {
       const { netValue, platformFee, reserveAmount } = calculateNetValue(
         p.value, 
         p.billing_type || 'PIX', 
-        p.installments || 1
+        p.installments || 1,
+        userRates // Passar taxas personalizadas
       );
       return {
         ...p,
