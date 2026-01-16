@@ -221,17 +221,41 @@ export default async function handler(req, res) {
         .limit(1)
         .single();
 
+      // Determinar status final - priorizar tabela users
+      // Se user.verification_status === 'approved' ou 'verified', a conta está verificada
+      const userStatus = user?.verification_status;
+      const verificationTableStatus = verification?.status;
+      
+      // Status possíveis: none, pending, submitted, approved, rejected, verified
+      let finalStatus = 'none';
+      
+      if (userStatus === 'approved' || userStatus === 'verified') {
+        finalStatus = 'approved';
+      } else if (userStatus === 'submitted' || verificationTableStatus === 'pending') {
+        finalStatus = 'submitted';
+      } else if (userStatus === 'rejected' || verificationTableStatus === 'rejected') {
+        finalStatus = 'rejected';
+      } else if (verification) {
+        finalStatus = verificationTableStatus || 'submitted';
+      }
+
+      console.log(`[Verification] User ${userId}: userStatus=${userStatus}, verificationStatus=${verificationTableStatus}, final=${finalStatus}`);
+
       return res.status(200).json({
+        success: true,
         user: {
           id: user.id,
           name: user.name,
           email: user.email,
           cpf_cnpj: user.cpf_cnpj,
           phone: user.phone,
-          verification_status: user.verification_status || 'pending',
+          verification_status: finalStatus,
           verification_rejection_reason: user.verification_rejection_reason
         },
-        verification: verification || null
+        verification: verification ? {
+          ...verification,
+          status: finalStatus
+        } : { status: finalStatus }
       });
     }
 

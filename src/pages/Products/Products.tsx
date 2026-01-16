@@ -503,41 +503,44 @@ const Products: React.FC = () => {
         </Container>
       </Box>
 
-      {/* Dialog Criar/Editar Produto - Otimizado */}
+      {/* Dialog Criar/Editar Produto - Compacto */}
       <Dialog 
         open={openProductDialog} 
         onClose={handleCloseProductDialog} 
-        maxWidth="sm" 
+        maxWidth="xs" 
         fullWidth
         PaperProps={{
-          sx: { borderRadius: 3, maxHeight: '90vh' }
+          sx: { borderRadius: 2, maxHeight: '85vh', width: { xs: '100%', sm: 420 } }
         }}
       >
         <DialogTitle sx={{ 
-          pb: 1, 
+          py: 1.5, 
+          px: 2,
           display: 'flex', 
           alignItems: 'center', 
           gap: 1,
           borderBottom: '1px solid #f0f0f0',
         }}>
-          <ShoppingCartIcon sx={{ color: '#5818C8' }} />
-          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+          <ShoppingCartIcon sx={{ color: '#5818C8', fontSize: 20 }} />
+          <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
             {editingProduct ? 'Editar Produto' : 'Novo Produto'}
           </Typography>
         </DialogTitle>
-        <DialogContent sx={{ p: 2.5 }}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {/* Nome e Preço na mesma linha */}
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
-                label="Nome do Produto"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                fullWidth
-                required
-                size="small"
-                placeholder="Ex: Curso de Marketing"
-              />
+        <DialogContent sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 0.5 }}>
+            {/* Nome */}
+            <TextField
+              label="Nome do Produto"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              fullWidth
+              required
+              size="small"
+              placeholder="Ex: Curso de Marketing"
+            />
+            
+            {/* Preço e Estoque */}
+            <Box sx={{ display: 'flex', gap: 1.5 }}>
               <TextField
                 label="Preço (R$)"
                 type="number"
@@ -546,173 +549,168 @@ const Products: React.FC = () => {
                 required
                 size="small"
                 inputProps={{ step: '0.01', min: '0' }}
-                sx={{ minWidth: 130 }}
+                sx={{ flex: 1 }}
+              />
+              <TextField
+                label="Estoque"
+                type="number"
+                value={formData.stock || ''}
+                onChange={(e) => setFormData({ ...formData, stock: e.target.value ? parseInt(e.target.value) : undefined })}
+                size="small"
+                placeholder="∞"
+                sx={{ width: 90 }}
               />
             </Box>
 
             {/* Descrição compacta */}
             <TextField
-              label="Descrição"
+              label="Descrição (opcional)"
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
               multiline
               rows={2}
               fullWidth
               size="small"
-              placeholder="Descreva seu produto em poucas palavras"
+              placeholder="Breve descrição do produto"
             />
             
-            {/* Upload de Imagem - Compacto */}
+            {/* Imagem - Linha compacta */}
             <Box sx={{ 
               display: 'flex', 
               alignItems: 'center', 
-              gap: 2,
-              p: 1.5,
+              gap: 1.5,
+              p: 1,
               border: '1px dashed #d0d0d0',
-              borderRadius: 2,
+              borderRadius: 1.5,
               bgcolor: '#fafafa',
             }}>
               {imagePreview ? (
                 <Box
                   sx={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: 1.5,
+                    width: 44,
+                    height: 44,
+                    borderRadius: 1,
                     overflow: 'hidden',
                     flexShrink: 0,
                     backgroundImage: `url(${imagePreview})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
-                    border: '2px solid #e0e0e0',
+                    border: '1px solid #e0e0e0',
                   }}
                 />
               ) : (
                 <Box
                   sx={{
-                    width: 60,
-                    height: 60,
-                    borderRadius: 1.5,
-                    bgcolor: '#e0e0e0',
+                    width: 44,
+                    height: 44,
+                    borderRadius: 1,
+                    bgcolor: '#e8e8e8',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
                   }}
                 >
-                  <AddIcon sx={{ color: '#999' }} />
+                  <AddIcon sx={{ color: '#999', fontSize: 20 }} />
                 </Box>
               )}
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography variant="body2" sx={{ fontWeight: 500, color: '#333' }}>
-                  Imagem do Produto
-                </Typography>
-                <Typography variant="caption" sx={{ color: '#888' }}>
-                  JPEG, PNG, GIF, WEBP (máx. 5MB)
+                <Typography variant="caption" sx={{ fontWeight: 500, color: '#555' }}>
+                  Imagem (opcional)
                 </Typography>
               </Box>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <Button
-                  variant="outlined"
-                  component="label"
-                  size="small"
-                  disabled={uploading}
-                  sx={{ minWidth: 'auto', px: 2 }}
-                >
-                  {uploading ? '...' : 'Escolher'}
-                  <input type="file" hidden accept="image/*" onChange={handleImageUpload} />
-                </Button>
-                {imagePreview && (
-                  <Button
-                    size="small"
-                    color="error"
-                    onClick={() => { setFormData({ ...formData, imageUrl: '' }); setImagePreview(''); }}
-                    sx={{ minWidth: 'auto', px: 1 }}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </Button>
-                )}
-              </Box>
-            </Box>
-
-            {/* Estoque e Status na mesma linha */}
-            <Box sx={{ display: 'flex', gap: 2 }}>
-              <TextField
-                label="Estoque"
-                type="number"
-                value={formData.stock || ''}
-                onChange={(e) => setFormData({ ...formData, stock: e.target.value ? parseInt(e.target.value) : undefined })}
-                fullWidth
+              <Button
+                variant="text"
+                component="label"
                 size="small"
-                placeholder="Ilimitado"
-              />
-              <TextField
-                label="Status"
-                select
-                value={formData.active ? 'true' : 'false'}
-                onChange={(e) => setFormData({ ...formData, active: e.target.value === 'true' })}
-                fullWidth
-                size="small"
+                disabled={uploading}
+                sx={{ minWidth: 'auto', fontSize: '0.75rem', color: '#5818C8' }}
               >
-                <MenuItem value="true">Ativo</MenuItem>
-                <MenuItem value="false">Inativo</MenuItem>
-              </TextField>
+                {uploading ? '...' : imagePreview ? 'Trocar' : 'Adicionar'}
+                <input type="file" hidden accept="image/*" onChange={handleImageUpload} />
+              </Button>
+              {imagePreview && (
+                <Button
+                  size="small"
+                  color="error"
+                  onClick={() => { setFormData({ ...formData, imageUrl: '' }); setImagePreview(''); }}
+                  sx={{ minWidth: 'auto', p: 0.5 }}
+                >
+                  <DeleteIcon sx={{ fontSize: 18 }} />
+                </Button>
+              )}
             </Box>
 
-            {/* Quem paga a taxa - Compacto */}
+            {/* Taxas - Super compacto */}
             <Box sx={{ 
               p: 1.5, 
               bgcolor: '#f8f5ff', 
-              borderRadius: 2,
-              border: '1px solid #e9d5ff',
+              borderRadius: 1.5,
+              border: '1px solid #ede9fe',
             }}>
-              <Typography variant="caption" sx={{ color: '#5818C8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
-                💰 Quem assume as taxas?
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+                <Typography variant="caption" sx={{ color: '#5818C8', fontWeight: 600 }}>
+                  💰 Taxas
+                </Typography>
+                <TextField
+                  select
+                  value={formData.fee_payer || 'buyer'}
+                  onChange={(e) => setFormData({ ...formData, fee_payer: e.target.value as 'seller' | 'buyer' })}
+                  size="small"
+                  sx={{ 
+                    width: 150,
+                    '& .MuiSelect-select': { py: 0.5, fontSize: '0.8rem' }
+                  }}
+                >
+                  <MenuItem value="buyer">Cliente paga</MenuItem>
+                  <MenuItem value="seller">Você paga</MenuItem>
+                </TextField>
+              </Box>
+              <Typography variant="caption" sx={{ color: '#888', fontSize: '0.7rem' }}>
+                {formData.fee_payer === 'buyer' 
+                  ? `Cliente paga taxas, você recebe R$ ${formData.price?.toFixed(2) || '0,00'} líquido`
+                  : `Você recebe valor - taxas (5,99% + R$2,50)`
+                }
+              </Typography>
+            </Box>
+
+            {/* Status */}
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Typography variant="body2" sx={{ color: '#555' }}>
+                Produto ativo
               </Typography>
               <TextField
                 select
-                value={formData.fee_payer || 'buyer'}
-                onChange={(e) => setFormData({ ...formData, fee_payer: e.target.value as 'seller' | 'buyer' })}
-                fullWidth
+                value={formData.active ? 'true' : 'false'}
+                onChange={(e) => setFormData({ ...formData, active: e.target.value === 'true' })}
                 size="small"
+                sx={{ 
+                  width: 100,
+                  '& .MuiSelect-select': { py: 0.5, fontSize: '0.8rem' }
+                }}
               >
-                <MenuItem value="buyer">
-                  <Box sx={{ py: 0.5 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>Comprador (cliente)</Typography>
-                    <Typography variant="caption" color="textSecondary">
-                      Cliente paga valor + taxas, você recebe R${formData.price?.toFixed(2) || '0,00'} líquido
-                    </Typography>
-                  </Box>
-                </MenuItem>
-                <MenuItem value="seller">
-                  <Box sx={{ py: 0.5 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500 }}>Vendedor (você)</Typography>
-                    <Typography variant="caption" color="textSecondary">
-                      Cliente paga R${formData.price?.toFixed(2) || '0,00'}, você recebe o valor menos taxas
-                    </Typography>
-                  </Box>
-                </MenuItem>
+                <MenuItem value="true">Sim</MenuItem>
+                <MenuItem value="false">Não</MenuItem>
               </TextField>
-              <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#888', fontSize: '0.7rem' }}>
-                Taxas: 5,99% + R$2,50 (PIX/Boleto) | 5,99% + 2,49% por parcela (Cartão)
-              </Typography>
             </Box>
           </Box>
         </DialogContent>
-        <DialogActions sx={{ px: 2.5, py: 2, borderTop: '1px solid #f0f0f0' }}>
-          <Button onClick={handleCloseProductDialog} sx={{ color: '#666' }}>
+        <DialogActions sx={{ px: 2, py: 1.5, borderTop: '1px solid #f0f0f0' }}>
+          <Button onClick={handleCloseProductDialog} size="small" sx={{ color: '#666' }}>
             Cancelar
           </Button>
           <Button
             onClick={handleSaveProduct}
             variant="contained"
+            size="small"
             disabled={!formData.name || formData.price <= 0}
             sx={{ 
               bgcolor: '#5818C8', 
               '&:hover': { bgcolor: '#4a14a8' },
-              px: 3,
+              px: 2.5,
             }}
           >
-            {editingProduct ? 'Atualizar' : 'Criar'}
+            {editingProduct ? 'Salvar' : 'Criar'}
           </Button>
         </DialogActions>
       </Dialog>
