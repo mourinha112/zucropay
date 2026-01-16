@@ -1,4 +1,6 @@
 // Serviço de cache para dados - elimina delay de carregamento
+import { getAuthToken } from './api-supabase';
+
 const API_URL = import.meta.env.VITE_API_URL || '';
 
 interface CacheEntry<T> {
@@ -23,8 +25,6 @@ const memoryCache = new Map<string, CacheEntry<any>>();
 // Prefetch queue
 const prefetchQueue = new Set<string>();
 let isPrefetching = false;
-
-const getToken = () => localStorage.getItem('zucropay_token');
 
 // Função genérica de fetch com cache
 async function fetchWithCache<T>(
@@ -55,7 +55,10 @@ async function fetchWithCache<T>(
 }
 
 async function fetchData<T>(url: string): Promise<T> {
-  const token = getToken();
+  const token = await getAuthToken();
+  if (!token) {
+    throw new Error('Token não disponível');
+  }
   const response = await fetch(url, {
     headers: {
       'Authorization': `Bearer ${token}`,

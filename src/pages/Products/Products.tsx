@@ -35,6 +35,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import Header from '../../components/Header/Header';
 import * as api from '../../services/api-supabase';
+import { getAuthToken } from '../../services/api-supabase';
 import dataCache from '../../services/data-cache';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -107,7 +108,8 @@ const Products: React.FC = () => {
   const loadVerificationStatus = async () => {
     setVerificationLoading(true);
     try {
-      const token = localStorage.getItem('zucropay_token');
+      const token = await getAuthToken();
+      if (!token) return;
       const response = await fetch(`${API_URL}/api/dashboard-data?type=verification`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -155,7 +157,8 @@ const Products: React.FC = () => {
   // Revalidar dados em background sem mostrar loading
   const revalidateInBackground = async () => {
     try {
-      const token = localStorage.getItem('zucropay_token');
+      const token = await getAuthToken();
+      if (!token) return;
       const response = await fetch(`${API_URL}/api/produtos-data`, {
         headers: {
           'Authorization': `Bearer ${token}`,

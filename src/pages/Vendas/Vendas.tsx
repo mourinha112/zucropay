@@ -32,6 +32,7 @@ import {
   Receipt as ReceiptIcon,
 } from '@mui/icons-material';
 import Header from '../../components/Header/Header';
+import { getAuthToken } from '../../services/api-supabase';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
@@ -76,7 +77,8 @@ const Vendas: React.FC = () => {
   const loadSales = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('zucropay_token');
+      const token = await getAuthToken();
+      if (!token) return;
       const params = new URLSearchParams();
       if (filterStatus !== 'ALL') params.append('filter', filterStatus);
       

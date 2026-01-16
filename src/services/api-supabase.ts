@@ -9,6 +9,31 @@ export { callEfiAPI as callAsaasAPI } from '../config/supabase';
 export { isSupabaseConfigured };
 
 // ========================================
+// HELPER: Obter token atualizado da sessão
+// ========================================
+
+/**
+ * Obtém o token de autenticação atualizado da sessão do Supabase.
+ * O Supabase renova automaticamente tokens expirados.
+ * Atualiza o localStorage para manter sincronizado.
+ */
+export const getAuthToken = async (): Promise<string | null> => {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error || !session) {
+      // Sessão expirada ou inválida - limpar localStorage
+      localStorage.removeItem('zucropay_token');
+      return null;
+    }
+    // Atualizar localStorage com token atual
+    localStorage.setItem('zucropay_token', session.access_token);
+    return session.access_token;
+  } catch {
+    return null;
+  }
+};
+
+// ========================================
 // TIPOS E INTERFACES
 // ========================================
 

@@ -39,6 +39,7 @@ import {
 } from 'recharts';
 import Header from '../../components/Header/Header';
 import pushNotifications from '../../services/push-notifications';
+import { getAuthToken } from '../../services/api-supabase';
 
 // API URL
 const API_URL = import.meta.env.VITE_API_URL || '';
@@ -204,7 +205,12 @@ const Dashboard = () => {
 
   const loadDashboardData = async () => {
     try {
-      const token = localStorage.getItem('zucropay_token');
+      // Usar token atualizado da sessão (Supabase renova automaticamente)
+      const token = await getAuthToken();
+      if (!token) {
+        console.error('[Dashboard] Token não disponível');
+        return;
+      }
       
       // Uma única requisição para a API otimizada
       const response = await fetch(`${API_URL}/api/dashboard-data`, {
