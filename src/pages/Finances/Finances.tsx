@@ -593,29 +593,30 @@ const Finances: React.FC = () => {
         </Container>
       </Box>
 
-      {/* Dialog Saque */}
+      {/* Dialog Saque - Compacto */}
       <Dialog 
         open={openWithdrawDialog} 
         onClose={() => !submitting && setOpenWithdrawDialog(false)} 
-        maxWidth="sm" 
+        maxWidth="xs" 
         fullWidth
+        PaperProps={{ sx: { borderRadius: 2, maxWidth: 400 } }}
       >
-        <DialogTitle sx={{ pb: 1 }}>
+        <DialogTitle sx={{ py: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <WalletIcon color="primary" />
-            <Typography variant="h6">Solicitar Saque</Typography>
+            <WalletIcon color="primary" fontSize="small" />
+            <Typography variant="subtitle1" fontWeight={600}>Solicitar Saque</Typography>
           </Box>
         </DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3, mt: 1 }}>
-            <Alert severity="success">
-              <Typography variant="body2">
-                <strong>Saldo disponível:</strong> {formatCurrency(balance.available)}
-              </Typography>
-            </Alert>
+        <DialogContent sx={{ p: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ p: 1.5, bgcolor: '#f0fdf4', borderRadius: 1.5, textAlign: 'center' }}>
+              <Typography variant="caption" color="text.secondary">Saldo disponível</Typography>
+              <Typography variant="h6" sx={{ color: '#22c55e', fontWeight: 700 }}>{formatCurrency(balance.available)}</Typography>
+            </Box>
 
             <TextField
-              label="Valor do Saque (será debitado do seu saldo)"
+              size="small"
+              label="Valor do Saque"
               type="number"
               value={withdrawAmount}
               onChange={(e) => setWithdrawAmount(e.target.value)}
@@ -624,7 +625,7 @@ const Finances: React.FC = () => {
               InputProps={{
                 startAdornment: <InputAdornment position="start">R$</InputAdornment>,
               }}
-              helperText={`Mínimo: R$ 10,00 | Taxa: R$ 2,00 | Você receberá: ${formatCurrency(Math.max(0, parseFloat(withdrawAmount || '0') - 2))}`}
+              helperText={`Taxa: R$ 2,00 • Receberá: ${formatCurrency(Math.max(0, parseFloat(withdrawAmount || '0') - 2))}`}
             />
 
             <Divider />

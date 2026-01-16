@@ -707,50 +707,58 @@ const Admin = () => {
           </TableContainer>
         )}
 
-        {/* Dialog Criar Gerente */}
-        <Dialog open={createDialog} onClose={() => setCreateDialog(false)} maxWidth="sm" fullWidth>
-          <DialogTitle sx={{ fontWeight: 600 }}>👤 Criar Novo Gerente</DialogTitle>
-          <DialogContent>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+        {/* Dialog Criar Gerente - Compacto */}
+        <Dialog 
+          open={createDialog} 
+          onClose={() => setCreateDialog(false)} 
+          maxWidth="xs" 
+          fullWidth
+          PaperProps={{ sx: { borderRadius: 2, maxWidth: 380 } }}
+        >
+          <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem' }}>👤 Novo Gerente</DialogTitle>
+          <DialogContent sx={{ p: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <TextField
                 fullWidth
-                label="Nome do Gerente"
+                size="small"
+                label="Nome"
                 value={newManager.name}
                 onChange={(e) => setNewManager({ ...newManager, name: e.target.value })}
-                placeholder="Ex: João Silva"
+                placeholder="João Silva"
               />
               <TextField
                 fullWidth
+                size="small"
                 type="email"
                 label="Email"
                 value={newManager.email}
                 onChange={(e) => setNewManager({ ...newManager, email: e.target.value })}
-                placeholder="gerente@exemplo.com"
+                placeholder="gerente@email.com"
               />
               <TextField
                 fullWidth
+                size="small"
                 type="password"
                 label="Senha"
                 value={newManager.password}
                 onChange={(e) => setNewManager({ ...newManager, password: e.target.value })}
                 placeholder="Mínimo 6 caracteres"
               />
-              <Alert severity="warning">
-                <Typography variant="body2">
-                  ⚠️ O gerente usará essas credenciais para acessar em: <strong>/gerente-login</strong>
-                </Typography>
-              </Alert>
+              <Typography variant="caption" sx={{ color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                ⚠️ Acesso em: /gerente-login
+              </Typography>
             </Box>
           </DialogContent>
-          <DialogActions sx={{ p: 2, gap: 1 }}>
-            <Button onClick={() => setCreateDialog(false)} sx={{ color: '#64748b' }}>Cancelar</Button>
+          <DialogActions sx={{ p: 1.5 }}>
+            <Button size="small" onClick={() => setCreateDialog(false)} sx={{ color: '#64748b' }}>Cancelar</Button>
             <Button
+              size="small"
               variant="contained"
               onClick={handleCreateManager}
               disabled={loadingManagers || !newManager.name || !newManager.email || !newManager.password}
               sx={{ bgcolor: '#5818C8', '&:hover': { bgcolor: '#4a14a8' } }}
             >
-              {loadingManagers ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Criar Gerente'}
+              {loadingManagers ? <CircularProgress size={16} sx={{ color: 'white' }} /> : 'Criar'}
             </Button>
           </DialogActions>
         </Dialog>
@@ -1901,127 +1909,125 @@ const Admin = () => {
         </Box>
       </Box>
 
-      {/* Action Dialog */}
-      <Dialog open={actionDialog.open} onClose={() => setActionDialog({ open: false, type: '', item: null, reason: '' })} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>
-          {actionDialog.type.includes('approve') && '✅ Confirmar Aprovação'}
-          {actionDialog.type.includes('reject') && '❌ Confirmar Rejeição'}
-          {actionDialog.type.includes('block') && '🚫 Confirmar Bloqueio'}
-          {actionDialog.type.includes('unblock') && '🔓 Confirmar Desbloqueio'}
+      {/* Action Dialog - Compacto */}
+      <Dialog 
+        open={actionDialog.open} 
+        onClose={() => setActionDialog({ open: false, type: '', item: null, reason: '' })} 
+        maxWidth="xs" 
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2, maxWidth: 380 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem' }}>
+          {actionDialog.type.includes('approve') && '✅ Aprovar'}
+          {actionDialog.type.includes('reject') && '❌ Rejeitar'}
+          {actionDialog.type.includes('block') && '🚫 Bloquear'}
+          {actionDialog.type.includes('unblock') && '🔓 Desbloquear'}
+          {actionDialog.type.includes('complete') && '✅ Concluir'}
         </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {actionDialog.type === 'approveUser' && 'Tem certeza que deseja aprovar este usuário?'}
-            {actionDialog.type === 'rejectUser' && 'Informe o motivo da rejeição do usuário:'}
-            {actionDialog.type === 'blockUser' && 'Informe o motivo do bloqueio:'}
-            {actionDialog.type === 'approveVerification' && 'Confirmar aprovação da verificação de identidade?'}
-            {actionDialog.type === 'rejectVerification' && 'Informe o motivo da rejeição:'}
-            {actionDialog.type === 'approveWithdrawal' && 'Confirmar aprovação do saque? Você deverá fazer a transferência manualmente e depois clicar em "Concluir".'}
-            {actionDialog.type === 'completeWithdrawal' && 'Confirmar que a transferência foi realizada?'}
-            {actionDialog.type === 'rejectWithdrawal' && 'Informe o motivo da rejeição do saque:'}
-            {actionDialog.type === 'blockWithdrawals' && 'Informe o motivo do bloqueio de saques:'}
-            {actionDialog.type === 'unblockWithdrawals' && 'Confirmar liberação de saques para este usuário?'}
+        <DialogContent sx={{ p: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontSize: '0.85rem' }}>
+            {actionDialog.type === 'approveUser' && 'Confirma aprovação?'}
+            {actionDialog.type === 'rejectUser' && 'Motivo da rejeição:'}
+            {actionDialog.type === 'blockUser' && 'Motivo do bloqueio:'}
+            {actionDialog.type === 'approveVerification' && 'Aprovar verificação?'}
+            {actionDialog.type === 'rejectVerification' && 'Motivo da rejeição:'}
+            {actionDialog.type === 'approveWithdrawal' && 'Aprovar saque? Faça a transferência e clique em Concluir.'}
+            {actionDialog.type === 'completeWithdrawal' && 'Confirma que a transferência foi feita?'}
+            {actionDialog.type === 'rejectWithdrawal' && 'Motivo da rejeição:'}
+            {actionDialog.type === 'blockWithdrawals' && 'Motivo do bloqueio:'}
+            {actionDialog.type === 'unblockWithdrawals' && 'Liberar saques?'}
           </Typography>
           {(actionDialog.type.includes('reject') || actionDialog.type.includes('block')) && (
-            <TextField fullWidth multiline rows={3} label="Motivo" value={actionDialog.reason} onChange={(e) => setActionDialog({ ...actionDialog, reason: e.target.value })} placeholder="Informe o motivo..." />
+            <TextField fullWidth size="small" multiline rows={2} label="Motivo" value={actionDialog.reason} onChange={(e) => setActionDialog({ ...actionDialog, reason: e.target.value })} />
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button onClick={() => setActionDialog({ open: false, type: '', item: null, reason: '' })} sx={{ color: '#64748b' }}>Cancelar</Button>
+        <DialogActions sx={{ p: 1.5 }}>
+          <Button size="small" onClick={() => setActionDialog({ open: false, type: '', item: null, reason: '' })} sx={{ color: '#64748b' }}>Cancelar</Button>
           <Button
+            size="small"
             variant="contained"
             onClick={handleAction}
             disabled={loading || ((actionDialog.type.includes('reject') || actionDialog.type.includes('block')) && !actionDialog.reason)}
             sx={{
-              bgcolor: actionDialog.type.includes('approve') || actionDialog.type.includes('unblock') ? '#22c55e' : '#ef4444',
-              '&:hover': { bgcolor: actionDialog.type.includes('approve') || actionDialog.type.includes('unblock') ? '#16a34a' : '#dc2626' },
+              bgcolor: actionDialog.type.includes('approve') || actionDialog.type.includes('unblock') || actionDialog.type.includes('complete') ? '#22c55e' : '#ef4444',
+              '&:hover': { bgcolor: actionDialog.type.includes('approve') || actionDialog.type.includes('unblock') || actionDialog.type.includes('complete') ? '#16a34a' : '#dc2626' },
             }}
           >
-            {loading ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Confirmar'}
+            {loading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : 'Confirmar'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* User Detail Dialog */}
-      <Dialog open={userDetailDialog.open} onClose={() => setUserDetailDialog({ open: false, user: null, loading: false })} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <PersonIcon /> Detalhes do Usuário
+      {/* User Detail Dialog - Compacto */}
+      <Dialog 
+        open={userDetailDialog.open} 
+        onClose={() => setUserDetailDialog({ open: false, user: null, loading: false })} 
+        maxWidth="xs" 
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2, maxWidth: 420 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PersonIcon fontSize="small" /> Detalhes
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ p: 2 }}>
           {userDetailDialog.loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={24} /></Box>
           ) : userDetailDialog.user && (
-            <Box>
-              <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={6}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="subtitle2" color="text.secondary">Informações</Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 700 }}>{userDetailDialog.user.user?.name}</Typography>
-                      <Typography variant="body2" color="text.secondary">{userDetailDialog.user.user?.email}</Typography>
-                      <Typography variant="body2" color="text.secondary">{userDetailDialog.user.user?.phone || 'Sem telefone'}</Typography>
-                      <Typography variant="body2" color="text.secondary">CPF/CNPJ: {userDetailDialog.user.user?.cpf_cnpj || '-'}</Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="subtitle2" color="text.secondary">Estatísticas</Typography>
-                      <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mt: 1 }}>
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">Saldo</Typography>
-                          <Typography variant="h6" sx={{ fontWeight: 700, color: '#5818C8' }}>{formatCurrency(userDetailDialog.user.user?.balance || 0)}</Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">Total Vendas</Typography>
-                          <Typography variant="h6" sx={{ fontWeight: 700, color: '#22c55e' }}>{formatCurrency(userDetailDialog.user.user?.stats?.totalSales || 0)}</Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">Produtos</Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 700 }}>{userDetailDialog.user.user?.stats?.totalProducts || 0}</Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">Transações</Typography>
-                          <Typography variant="body1" sx={{ fontWeight: 700 }}>{userDetailDialog.user.user?.stats?.totalTransactions || 0}</Typography>
-                        </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 1.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{userDetailDialog.user.user?.name}</Typography>
+                <Typography variant="caption" color="text.secondary">{userDetailDialog.user.user?.email}</Typography>
+                <Typography variant="caption" display="block" color="text.secondary">{userDetailDialog.user.user?.phone || 'Sem telefone'}</Typography>
+                <Typography variant="caption" display="block" color="text.secondary">CPF/CNPJ: {userDetailDialog.user.user?.cpf_cnpj || '-'}</Typography>
+              </Box>
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                <Box sx={{ p: 1, bgcolor: '#f0fdf4', borderRadius: 1, textAlign: 'center' }}>
+                  <Typography variant="caption" color="text.secondary">Saldo</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#5818C8' }}>{formatCurrency(userDetailDialog.user.user?.balance || 0)}</Typography>
+                </Box>
+                <Box sx={{ p: 1, bgcolor: '#f0fdf4', borderRadius: 1, textAlign: 'center' }}>
+                  <Typography variant="caption" color="text.secondary">Vendas</Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: '#22c55e' }}>{formatCurrency(userDetailDialog.user.user?.stats?.totalSales || 0)}</Typography>
+                </Box>
+              </Box>
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setUserDetailDialog({ open: false, user: null, loading: false })}>Fechar</Button>
+        <DialogActions sx={{ p: 1.5 }}>
+          <Button size="small" onClick={() => setUserDetailDialog({ open: false, user: null, loading: false })}>Fechar</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Balance Adjustment Dialog */}
-      <Dialog open={balanceDialog.open} onClose={() => setBalanceDialog({ open: false, user: null, amount: '', type: 'add', reason: '' })} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>💰 Ajustar Saldo</DialogTitle>
-        <DialogContent>
+      {/* Balance Adjustment Dialog - Compacto */}
+      <Dialog 
+        open={balanceDialog.open} 
+        onClose={() => setBalanceDialog({ open: false, user: null, amount: '', type: 'add', reason: '' })} 
+        maxWidth="xs" 
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2, maxWidth: 380 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem' }}>💰 Ajustar Saldo</DialogTitle>
+        <DialogContent sx={{ p: 2 }}>
           {balanceDialog.user && (
-            <Box>
-              <Alert severity="info" sx={{ mb: 2 }}>
-                Usuário: <strong>{balanceDialog.user.name}</strong><br />
-                Saldo atual: <strong>{formatCurrency(balanceDialog.user.balance)}</strong>
-              </Alert>
-              <FormControl fullWidth sx={{ mb: 2 }}>
-                <InputLabel>Tipo de Ajuste</InputLabel>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Typography variant="caption" sx={{ color: '#64748b' }}>
+                {balanceDialog.user.name} • Saldo: {formatCurrency(balanceDialog.user.balance)}
+              </Typography>
+              <FormControl fullWidth size="small">
+                <InputLabel>Tipo</InputLabel>
                 <Select
                   value={balanceDialog.type}
                   onChange={(e) => setBalanceDialog({ ...balanceDialog, type: e.target.value as any })}
-                  label="Tipo de Ajuste"
+                  label="Tipo"
                 >
-                  <MenuItem value="add">➕ Adicionar ao saldo</MenuItem>
-                  <MenuItem value="subtract">➖ Subtrair do saldo</MenuItem>
-                  <MenuItem value="set">🔄 Definir saldo exato</MenuItem>
+                  <MenuItem value="add">➕ Adicionar</MenuItem>
+                  <MenuItem value="subtract">➖ Subtrair</MenuItem>
+                  <MenuItem value="set">🔄 Definir</MenuItem>
                 </Select>
               </FormControl>
               <TextField
                 fullWidth
+                size="small"
                 label="Valor"
                 type="number"
                 value={balanceDialog.amount}
@@ -2029,29 +2035,29 @@ const Admin = () => {
                 InputProps={{
                   startAdornment: <InputAdornment position="start">R$</InputAdornment>,
                 }}
-                sx={{ mb: 2 }}
               />
               <TextField
                 fullWidth
+                size="small"
                 multiline
                 rows={2}
-                label="Motivo (obrigatório)"
+                label="Motivo"
                 value={balanceDialog.reason}
                 onChange={(e) => setBalanceDialog({ ...balanceDialog, reason: e.target.value })}
-                placeholder="Informe o motivo do ajuste..."
               />
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button onClick={() => setBalanceDialog({ open: false, user: null, amount: '', type: 'add', reason: '' })} sx={{ color: '#64748b' }}>Cancelar</Button>
+        <DialogActions sx={{ p: 1.5 }}>
+          <Button size="small" onClick={() => setBalanceDialog({ open: false, user: null, amount: '', type: 'add', reason: '' })} sx={{ color: '#64748b' }}>Cancelar</Button>
           <Button
+            size="small"
             variant="contained"
             onClick={handleAdjustBalance}
             disabled={loading || !balanceDialog.amount || !balanceDialog.reason}
             sx={{ bgcolor: '#5818C8', '&:hover': { bgcolor: '#4a14a8' } }}
           >
-            {loading ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Confirmar Ajuste'}
+            {loading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : 'Confirmar'}
           </Button>
         </DialogActions>
       </Dialog>

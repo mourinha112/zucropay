@@ -399,84 +399,55 @@ const Vendas: React.FC = () => {
         </TableContainer>
           </Card>
 
-        {/* Dialog de Detalhes */}
+        {/* Dialog de Detalhes - Compacto */}
         <Dialog
           open={detailsOpen}
           onClose={() => setDetailsOpen(false)}
-          maxWidth="sm"
+          maxWidth="xs"
           fullWidth
+          PaperProps={{ sx: { borderRadius: 2, maxWidth: 380 } }}
         >
-          <DialogTitle>
+          <DialogTitle sx={{ py: 1.5, fontSize: '1rem', fontWeight: 600 }}>
             Detalhes da Venda
           </DialogTitle>
-          <DialogContent>
+          <DialogContent sx={{ p: 2 }}>
               {selectedSale && (
-              <Stack spacing={2} sx={{ mt: 1 }}>
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    ID do Pagamento
-                  </Typography>
-                  <Typography variant="body2" fontFamily="monospace">
-                    {selectedSale.efi_txid || selectedSale.efi_charge_id || selectedSale.id}
+              <Stack spacing={1.5}>
+                <Box sx={{ p: 1, bgcolor: '#f8fafc', borderRadius: 1 }}>
+                  <Typography variant="caption" color="text.secondary">ID</Typography>
+                  <Typography variant="caption" display="block" fontFamily="monospace" sx={{ fontSize: '0.7rem' }}>
+                    {(selectedSale.efi_txid || selectedSale.efi_charge_id || selectedSale.id).substring(0, 20)}...
                   </Typography>
                 </Box>
 
                 <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Cliente
-                  </Typography>
-                  <Typography variant="body2" fontWeight={500}>
-                    {selectedSale.customer_name || 'Sem nome'}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    {selectedSale.customer_email || 'Sem email'}
-                  </Typography>
+                  <Typography variant="caption" color="text.secondary">Cliente</Typography>
+                  <Typography variant="body2" fontWeight={500}>{selectedSale.customer_name || 'Sem nome'}</Typography>
+                  <Typography variant="caption" color="text.secondary" display="block">{selectedSale.customer_email || 'Sem email'}</Typography>
                   {selectedSale.customer_cpf && (
-                    <Typography variant="caption" color="text.secondary" display="block">
-                      CPF/CNPJ: {selectedSale.customer_cpf}
-                    </Typography>
+                    <Typography variant="caption" color="text.secondary" display="block">CPF: {selectedSale.customer_cpf}</Typography>
                   )}
                 </Box>
 
                 <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Produto/Serviço
-                  </Typography>
-                  <Typography variant="body2" fontWeight={500}>
-                    {selectedSale.description || 'Sem descrição'}
-                  </Typography>
+                  <Typography variant="caption" color="text.secondary">Produto</Typography>
+                  <Typography variant="body2" fontWeight={500}>{selectedSale.description || 'Sem descrição'}</Typography>
                 </Box>
 
-                <Stack direction="row" spacing={2}>
-                  <Box flex={1}>
-                    <Typography variant="caption" color="text.secondary">
-                      Valor Bruto
-                    </Typography>
-                    <Typography variant="h6">
-                      {formatCurrency(selectedSale.value)}
-                    </Typography>
+                <Stack direction="row" spacing={1.5}>
+                  <Box flex={1} sx={{ p: 1, bgcolor: '#fafafa', borderRadius: 1, textAlign: 'center' }}>
+                    <Typography variant="caption" color="text.secondary">Bruto</Typography>
+                    <Typography variant="body2" fontWeight={600}>{formatCurrency(selectedSale.value)}</Typography>
                   </Box>
-                  <Box flex={1}>
-                    <Typography variant="caption" color="text.secondary">
-                      Valor Líquido
-                    </Typography>
-                    <Typography variant="h6" color="success.main">
-                      {formatCurrency(selectedSale.net_value || selectedSale.value)}
-                    </Typography>
+                  <Box flex={1} sx={{ p: 1, bgcolor: '#f0fdf4', borderRadius: 1, textAlign: 'center' }}>
+                    <Typography variant="caption" color="text.secondary">Líquido</Typography>
+                    <Typography variant="body2" fontWeight={600} color="success.main">{formatCurrency(selectedSale.net_value || selectedSale.value)}</Typography>
                   </Box>
                 </Stack>
 
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Status
-                  </Typography>
-                  <Box sx={{ mt: 0.5 }}>
-                    <Chip
-                      label={getStatusLabel(selectedSale.status)}
-                      color={getStatusColor(selectedSale.status)}
-                      size="small"
-                    />
-                  </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="caption" color="text.secondary">Status:</Typography>
+                  <Chip label={getStatusLabel(selectedSale.status)} color={getStatusColor(selectedSale.status)} size="small" />
                 </Box>
 
                 <Box>

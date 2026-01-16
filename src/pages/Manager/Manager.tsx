@@ -563,26 +563,33 @@ const Manager = () => {
         </Box>
       </Box>
 
-      {/* Action Dialog */}
-      <Dialog open={actionDialog.open} onClose={() => setActionDialog({ open: false, type: '', item: null, reason: '' })} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>
-          {actionDialog.type.includes('approve') && '✅ Confirmar Aprovação'}
-          {actionDialog.type.includes('reject') && '❌ Confirmar Rejeição'}
-          {actionDialog.type.includes('block') && '🚫 Confirmar Bloqueio'}
+      {/* Action Dialog - Compacto */}
+      <Dialog 
+        open={actionDialog.open} 
+        onClose={() => setActionDialog({ open: false, type: '', item: null, reason: '' })} 
+        maxWidth="xs" 
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2, maxWidth: 360 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem' }}>
+          {actionDialog.type.includes('approve') && '✅ Aprovar'}
+          {actionDialog.type.includes('reject') && '❌ Rejeitar'}
+          {actionDialog.type.includes('block') && '🚫 Bloquear'}
         </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            {actionDialog.type === 'approveUser' && 'Tem certeza que deseja aprovar este usuário?'}
-            {actionDialog.type === 'rejectUser' && 'Informe o motivo da rejeição do usuário:'}
-            {actionDialog.type === 'blockUser' && 'Informe o motivo do bloqueio:'}
+        <DialogContent sx={{ p: 2 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            {actionDialog.type === 'approveUser' && 'Confirma aprovação?'}
+            {actionDialog.type === 'rejectUser' && 'Motivo da rejeição:'}
+            {actionDialog.type === 'blockUser' && 'Motivo do bloqueio:'}
           </Typography>
           {(actionDialog.type.includes('reject') || actionDialog.type.includes('block')) && (
-            <TextField fullWidth multiline rows={3} label="Motivo" value={actionDialog.reason} onChange={(e) => setActionDialog({ ...actionDialog, reason: e.target.value })} placeholder="Informe o motivo..." />
+            <TextField fullWidth size="small" multiline rows={2} label="Motivo" value={actionDialog.reason} onChange={(e) => setActionDialog({ ...actionDialog, reason: e.target.value })} />
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button onClick={() => setActionDialog({ open: false, type: '', item: null, reason: '' })} sx={{ color: '#64748b' }}>Cancelar</Button>
+        <DialogActions sx={{ p: 1.5 }}>
+          <Button size="small" onClick={() => setActionDialog({ open: false, type: '', item: null, reason: '' })} sx={{ color: '#64748b' }}>Cancelar</Button>
           <Button
+            size="small"
             variant="contained"
             onClick={handleAction}
             disabled={loading || ((actionDialog.type.includes('reject') || actionDialog.type.includes('block')) && !actionDialog.reason)}
@@ -591,130 +598,97 @@ const Manager = () => {
               '&:hover': { bgcolor: actionDialog.type.includes('approve') ? '#16a34a' : '#dc2626' },
             }}
           >
-            {loading ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Confirmar'}
+            {loading ? <CircularProgress size={16} sx={{ color: 'white' }} /> : 'Confirmar'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* User Detail Dialog */}
-      <Dialog open={userDetailDialog.open} onClose={() => setUserDetailDialog({ open: false, user: null, loading: false })} maxWidth="md" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <PersonIcon /> Detalhes do Usuário
+      {/* User Detail Dialog - Compacto */}
+      <Dialog 
+        open={userDetailDialog.open} 
+        onClose={() => setUserDetailDialog({ open: false, user: null, loading: false })} 
+        maxWidth="xs" 
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2, maxWidth: 400 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <PersonIcon fontSize="small" /> Detalhes
         </DialogTitle>
-        <DialogContent>
+        <DialogContent sx={{ p: 2 }}>
           {userDetailDialog.loading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}><CircularProgress /></Box>
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={24} /></Box>
           ) : userDetailDialog.user && (
-            <Box>
-              <Grid container spacing={2} sx={{ mb: 3 }}>
-                <Grid item xs={12} md={6}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="subtitle2" color="text.secondary">Informações</Typography>
-                      <Typography variant="h6" sx={{ fontWeight: 700 }}>{userDetailDialog.user.user?.name}</Typography>
-                      <Typography variant="body2" color="text.secondary">{userDetailDialog.user.user?.email}</Typography>
-                      <Typography variant="body2" color="text.secondary">{userDetailDialog.user.user?.phone || 'Sem telefone'}</Typography>
-                      <Typography variant="body2" color="text.secondary">CPF/CNPJ: {userDetailDialog.user.user?.cpf_cnpj || '-'}</Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-                <Grid item xs={12} md={6}>
-                  <Card variant="outlined">
-                    <CardContent>
-                      <Typography variant="subtitle2" color="text.secondary">Status da Conta</Typography>
-                      <Chip 
-                        label={getStatusLabel(userDetailDialog.user.user?.account_status || 'pending')} 
-                        color={getStatusColor(userDetailDialog.user.user?.account_status || 'pending') as any}
-                        sx={{ mt: 1 }}
-                      />
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                        Cadastrado em: {formatDate(userDetailDialog.user.user?.created_at)}
-                      </Typography>
-                    </CardContent>
-                  </Card>
-                </Grid>
-              </Grid>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Box sx={{ p: 1.5, bgcolor: '#f8fafc', borderRadius: 1.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{userDetailDialog.user.user?.name}</Typography>
+                <Typography variant="caption" color="text.secondary">{userDetailDialog.user.user?.email}</Typography>
+                <Typography variant="caption" display="block" color="text.secondary">{userDetailDialog.user.user?.phone || 'Sem telefone'}</Typography>
+                <Typography variant="caption" display="block" color="text.secondary">CPF/CNPJ: {userDetailDialog.user.user?.cpf_cnpj || '-'}</Typography>
+              </Box>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Chip 
+                  size="small"
+                  label={getStatusLabel(userDetailDialog.user.user?.account_status || 'pending')} 
+                  color={getStatusColor(userDetailDialog.user.user?.account_status || 'pending') as any}
+                />
+                <Typography variant="caption" color="text.secondary">
+                  {formatDate(userDetailDialog.user.user?.created_at)}
+                </Typography>
+              </Box>
             </Box>
           )}
         </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setUserDetailDialog({ open: false, user: null, loading: false })}>Fechar</Button>
+        <DialogActions sx={{ p: 1.5 }}>
+          <Button size="small" onClick={() => setUserDetailDialog({ open: false, user: null, loading: false })}>Fechar</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Rate Adjustment Dialog */}
-      <Dialog open={rateDialog.open} onClose={() => setRateDialog({ open: false, user: null, pixRate: 0.99, cardRate: 4.99, boletoRate: 2.99, withdrawalFee: 2.00, notes: '' })} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>📊 Ajustar Taxas do Usuário</DialogTitle>
-        <DialogContent>
+      {/* Rate Adjustment Dialog - Compacto */}
+      <Dialog 
+        open={rateDialog.open} 
+        onClose={() => setRateDialog({ open: false, user: null, pixRate: 0.99, cardRate: 4.99, boletoRate: 2.99, withdrawalFee: 2.00, notes: '' })} 
+        maxWidth="xs" 
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2, maxWidth: 380 } }}
+      >
+        <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem' }}>📊 Taxas</DialogTitle>
+        <DialogContent sx={{ p: 2 }}>
           {rateDialog.user && (
             <Box>
-              <Alert severity="info" sx={{ mb: 3 }}>
-                Usuário: <strong>{rateDialog.user.name}</strong> ({rateDialog.user.email})
-              </Alert>
+              <Typography variant="caption" sx={{ display: 'block', mb: 2, color: '#64748b' }}>
+                {rateDialog.user.name}
+              </Typography>
 
-              <Typography variant="subtitle2" gutterBottom>Taxa PIX: {rateDialog.pixRate}%</Typography>
-              <Slider
-                value={rateDialog.pixRate}
-                onChange={(_, value) => setRateDialog({ ...rateDialog, pixRate: value as number })}
-                min={0}
-                max={2}
-                step={0.01}
-                valueLabelDisplay="auto"
-                valueLabelFormat={(value) => `${value}%`}
-                sx={{ mb: 3, color: '#22c55e' }}
-              />
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>PIX: {rateDialog.pixRate}%</Typography>
+                  <Slider size="small" value={rateDialog.pixRate} onChange={(_, value) => setRateDialog({ ...rateDialog, pixRate: value as number })} min={0} max={2} step={0.01} sx={{ color: '#22c55e' }} />
+                </Box>
 
-              <Typography variant="subtitle2" gutterBottom>Taxa Cartão: {rateDialog.cardRate}%</Typography>
-              <Slider
-                value={rateDialog.cardRate}
-                onChange={(_, value) => setRateDialog({ ...rateDialog, cardRate: value as number })}
-                min={0}
-                max={10}
-                step={0.01}
-                valueLabelDisplay="auto"
-                valueLabelFormat={(value) => `${value}%`}
-                sx={{ mb: 3, color: '#5818C8' }}
-              />
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Cartão: {rateDialog.cardRate}%</Typography>
+                  <Slider size="small" value={rateDialog.cardRate} onChange={(_, value) => setRateDialog({ ...rateDialog, cardRate: value as number })} min={0} max={10} step={0.01} sx={{ color: '#5818C8' }} />
+                </Box>
 
-              <Typography variant="subtitle2" gutterBottom>Taxa Boleto: {rateDialog.boletoRate}%</Typography>
-              <Slider
-                value={rateDialog.boletoRate}
-                onChange={(_, value) => setRateDialog({ ...rateDialog, boletoRate: value as number })}
-                min={0}
-                max={5}
-                step={0.01}
-                valueLabelDisplay="auto"
-                valueLabelFormat={(value) => `${value}%`}
-                sx={{ mb: 3, color: '#f59e0b' }}
-              />
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Boleto: {rateDialog.boletoRate}%</Typography>
+                  <Slider size="small" value={rateDialog.boletoRate} onChange={(_, value) => setRateDialog({ ...rateDialog, boletoRate: value as number })} min={0} max={5} step={0.01} sx={{ color: '#f59e0b' }} />
+                </Box>
 
-              <Typography variant="subtitle2" gutterBottom>Taxa de Saque: R$ {rateDialog.withdrawalFee.toFixed(2)}</Typography>
-              <Slider
-                value={rateDialog.withdrawalFee}
-                onChange={(_, value) => setRateDialog({ ...rateDialog, withdrawalFee: value as number })}
-                min={0}
-                max={10}
-                step={0.50}
-                valueLabelDisplay="auto"
-                valueLabelFormat={(value) => `R$ ${value.toFixed(2)}`}
-                sx={{ mb: 3, color: '#ef4444' }}
-              />
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Saque: R$ {rateDialog.withdrawalFee.toFixed(2)}</Typography>
+                  <Slider size="small" value={rateDialog.withdrawalFee} onChange={(_, value) => setRateDialog({ ...rateDialog, withdrawalFee: value as number })} min={0} max={10} step={0.50} sx={{ color: '#ef4444' }} />
+                </Box>
 
-              <TextField
-                fullWidth
-                multiline
-                rows={2}
-                label="Observações (opcional)"
-                value={rateDialog.notes}
-                onChange={(e) => setRateDialog({ ...rateDialog, notes: e.target.value })}
-                placeholder="Motivo do ajuste, acordos comerciais, etc."
-              />
+                <TextField fullWidth size="small" multiline rows={2} label="Observações" value={rateDialog.notes} onChange={(e) => setRateDialog({ ...rateDialog, notes: e.target.value })} />
+              </Box>
             </Box>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button onClick={() => setRateDialog({ open: false, user: null, pixRate: 0.99, cardRate: 4.99, boletoRate: 2.99, withdrawalFee: 2.00, notes: '' })} sx={{ color: '#64748b' }}>Cancelar</Button>
+        <DialogActions sx={{ p: 1.5 }}>
+          <Button size="small" onClick={() => setRateDialog({ open: false, user: null, pixRate: 0.99, cardRate: 4.99, boletoRate: 2.99, withdrawalFee: 2.00, notes: '' })} sx={{ color: '#64748b' }}>Cancelar</Button>
           <Button
+            size="small"
             variant="contained"
             onClick={handleSaveRates}
             disabled={loading}
