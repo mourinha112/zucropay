@@ -596,10 +596,8 @@ const Finances: React.FC = () => {
       {/* Dialog Saque */}
       <Dialog 
         open={openWithdrawDialog} 
-        onClose={() => !submitting && setOpenWithdrawDialog(false)} 
-        fullWidth
-        maxWidth="xs"
-        PaperProps={{ sx: { borderRadius: 2, maxWidth: 400, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
+        onClose={() => !submitting && setOpenWithdrawDialog(false)}
+        PaperProps={{ sx: { borderRadius: 2, width: 400, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
       >
         <DialogTitle sx={{ py: 1.5 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>

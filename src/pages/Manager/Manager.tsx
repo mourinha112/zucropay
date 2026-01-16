@@ -566,10 +566,8 @@ const Manager = () => {
       {/* Action Dialog */}
       <Dialog 
         open={actionDialog.open} 
-        onClose={() => setActionDialog({ open: false, type: '', item: null, reason: '' })} 
-        fullWidth
-        maxWidth="xs"
-        PaperProps={{ sx: { borderRadius: 2, maxWidth: 360, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
+        onClose={() => setActionDialog({ open: false, type: '', item: null, reason: '' })}
+        PaperProps={{ sx: { borderRadius: 2, width: 360, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
       >
         <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem' }}>
           {actionDialog.type.includes('approve') && '✅ Aprovar'}
@@ -606,10 +604,8 @@ const Manager = () => {
       {/* User Detail Dialog */}
       <Dialog 
         open={userDetailDialog.open} 
-        onClose={() => setUserDetailDialog({ open: false, user: null, loading: false })} 
-        fullWidth
-        maxWidth="xs"
-        PaperProps={{ sx: { borderRadius: 2, maxWidth: 400, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
+        onClose={() => setUserDetailDialog({ open: false, user: null, loading: false })}
+        PaperProps={{ sx: { borderRadius: 2, width: 400, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
       >
         <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 1 }}>
           <PersonIcon fontSize="small" /> Detalhes
@@ -646,10 +642,8 @@ const Manager = () => {
       {/* Rate Adjustment Dialog */}
       <Dialog 
         open={rateDialog.open} 
-        onClose={() => setRateDialog({ open: false, user: null, pixRate: 0.99, cardRate: 4.99, boletoRate: 2.99, withdrawalFee: 2.00, notes: '' })} 
-        fullWidth
-        maxWidth="xs"
-        PaperProps={{ sx: { borderRadius: 2, maxWidth: 380, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
+        onClose={() => setRateDialog({ open: false, user: null, pixRate: 0.99, cardRate: 4.99, boletoRate: 2.99, withdrawalFee: 2.00, notes: '' })}
+        PaperProps={{ sx: { borderRadius: 2, width: 380, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
       >
         <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem' }}>📊 Taxas</DialogTitle>
         <DialogContent sx={{ p: 2 }}>

@@ -403,9 +403,7 @@ const Vendas: React.FC = () => {
         <Dialog
           open={detailsOpen}
           onClose={() => setDetailsOpen(false)}
-          fullWidth
-          maxWidth="xs"
-          PaperProps={{ sx: { borderRadius: 2, maxWidth: 380, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
+          PaperProps={{ sx: { borderRadius: 2, width: 380, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
         >
           <DialogTitle sx={{ py: 1.5, fontSize: '1rem', fontWeight: 600 }}>
             Detalhes da Venda

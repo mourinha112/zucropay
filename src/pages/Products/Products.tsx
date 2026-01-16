@@ -506,17 +506,15 @@ const Products: React.FC = () => {
       {/* Dialog Criar/Editar Produto */}
       <Dialog 
         open={openProductDialog} 
-        onClose={handleCloseProductDialog} 
-        fullWidth
-        maxWidth="sm"
+        onClose={handleCloseProductDialog}
         PaperProps={{ 
           sx: { 
-            borderRadius: 3, 
-            maxWidth: 420, 
+            borderRadius: 2, 
+            width: 420,
+            maxWidth: '95vw',
             maxHeight: '85vh',
             display: 'flex',
             flexDirection: 'column',
-            m: 2,
           } 
         }}
       >

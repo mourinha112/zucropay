@@ -710,10 +710,8 @@ const Admin = () => {
         {/* Dialog Criar Gerente */}
         <Dialog 
           open={createDialog} 
-          onClose={() => setCreateDialog(false)} 
-          fullWidth
-          maxWidth="xs"
-          PaperProps={{ sx: { borderRadius: 2, maxWidth: 380, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
+          onClose={() => setCreateDialog(false)}
+          PaperProps={{ sx: { borderRadius: 2, width: 380, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
         >
           <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem' }}>👤 Novo Gerente</DialogTitle>
           <DialogContent sx={{ p: 2 }}>
@@ -1912,10 +1910,8 @@ const Admin = () => {
       {/* Action Dialog */}
       <Dialog 
         open={actionDialog.open} 
-        onClose={() => setActionDialog({ open: false, type: '', item: null, reason: '' })} 
-        fullWidth
-        maxWidth="xs"
-        PaperProps={{ sx: { borderRadius: 2, maxWidth: 380, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
+        onClose={() => setActionDialog({ open: false, type: '', item: null, reason: '' })}
+        PaperProps={{ sx: { borderRadius: 2, width: 380, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
       >
         <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem' }}>
           {actionDialog.type.includes('approve') && '✅ Aprovar'}
@@ -1961,10 +1957,8 @@ const Admin = () => {
       {/* User Detail Dialog */}
       <Dialog 
         open={userDetailDialog.open} 
-        onClose={() => setUserDetailDialog({ open: false, user: null, loading: false })} 
-        fullWidth
-        maxWidth="xs"
-        PaperProps={{ sx: { borderRadius: 2, maxWidth: 400, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
+        onClose={() => setUserDetailDialog({ open: false, user: null, loading: false })}
+        PaperProps={{ sx: { borderRadius: 2, width: 400, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
       >
         <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem', display: 'flex', alignItems: 'center', gap: 1 }}>
           <PersonIcon fontSize="small" /> Detalhes
@@ -2001,10 +1995,8 @@ const Admin = () => {
       {/* Balance Adjustment Dialog */}
       <Dialog 
         open={balanceDialog.open} 
-        onClose={() => setBalanceDialog({ open: false, user: null, amount: '', type: 'add', reason: '' })} 
-        fullWidth
-        maxWidth="xs"
-        PaperProps={{ sx: { borderRadius: 2, maxWidth: 380, maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
+        onClose={() => setBalanceDialog({ open: false, user: null, amount: '', type: 'add', reason: '' })}
+        PaperProps={{ sx: { borderRadius: 2, width: 380, maxWidth: '95vw', maxHeight: '85vh', display: 'flex', flexDirection: 'column' } }}
       >
         <DialogTitle sx={{ fontWeight: 600, py: 1.5, fontSize: '1rem' }}>💰 Ajustar Saldo</DialogTitle>
         <DialogContent sx={{ p: 2 }}>
