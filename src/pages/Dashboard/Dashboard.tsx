@@ -22,8 +22,6 @@ import {
   Share as ShareIcon,
   LocalOffer as OfferIcon,
   Event as EventIcon,
-  Lock as LockIcon,
-  Schedule as ScheduleIcon,
   GetApp as GetAppIcon,
   VerifiedUser as VerifiedUserIcon,
   Warning as WarningIcon,
@@ -44,16 +42,6 @@ import { getAuthToken } from '../../services/api-supabase';
 // API URL
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-interface ReserveData {
-  totalReserved: number;
-  reservesCount: number;
-  nextRelease: {
-    amount: number;
-    releaseDate: string;
-    description: string;
-  } | null;
-}
-
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
@@ -71,7 +59,6 @@ const Dashboard = () => {
   const [todayTotal, setTodayTotal] = useState(0);
   const [monthTotal, setMonthTotal] = useState(0);
   const [balance, setBalance] = useState(0);
-  const [reserveData, setReserveData] = useState<ReserveData>({ totalReserved: 0, reservesCount: 0, nextRelease: null });
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodStats>({
     PIX: { count: 0, total: 0 },
     CREDIT_CARD: { count: 0, total: 0 },
@@ -224,7 +211,7 @@ const Dashboard = () => {
       const result = await response.json();
       
       if (result.success && result.data) {
-        const { stats, chartData: apiChartData, user, reserves, paymentMethods: apiPaymentMethods } = result.data;
+        const { stats, chartData: apiChartData, user, paymentMethods: apiPaymentMethods } = result.data;
         
         setTodayTotal(stats.todayTotal || 0);
         setMonthTotal(stats.monthTotal || 0);
@@ -236,15 +223,6 @@ const Dashboard = () => {
         const finalStatus = userStatus || 'none';
         setVerificationStatus(finalStatus as any);
         setIsVerified(finalStatus === 'approved' || finalStatus === 'verified');
-        
-        // Dados de reserva
-        if (reserves) {
-          setReserveData({
-            totalReserved: reserves.totalReserved || 0,
-            reservesCount: reserves.reservesCount || 0,
-            nextRelease: reserves.nextRelease || null,
-          });
-        }
         
         // Dados de métodos de pagamento
         if (apiPaymentMethods) {
@@ -764,76 +742,6 @@ const Dashboard = () => {
                 </Box>
               </CardContent>
             </Card>
-
-                {/* Card de Reserva de Saldo */}
-                <Card
-                  sx={{
-                    height: 'fit-content',
-                    transition: 'transform 0.2s',
-                    background: 'linear-gradient(135deg, #5818C8 0%, #7c3aed 100%)',
-                    border: 'none',
-                    overflow: 'hidden',
-                    '&:hover': {
-                      transform: 'translateY(-4px)',
-                      boxShadow: '0 8px 32px rgba(88, 24, 200, 0.4)',
-                    },
-                  }}
-                >
-                  <CardContent sx={{ p: { xs: 1.5, md: 2.5 } }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                      <LockIcon sx={{ color: 'white', fontSize: { xs: 18, md: 22 } }} />
-                      <Typography variant="subtitle1" sx={{ color: 'white', fontSize: { xs: '0.9rem', md: '1.1rem' }, fontWeight: 600 }}>
-                        Reserva de Saldo
-                      </Typography>
-                    </Box>
-                    
-                    <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.8)', display: 'block', mb: 1.5, fontSize: { xs: '0.65rem', md: '0.75rem' } }}>
-                      Retenção de 5% por 30 dias
-                    </Typography>
-
-                    <Box sx={{ 
-                      backgroundColor: 'rgba(255,255,255,0.15)', 
-                      borderRadius: 1.5, 
-                      p: 1.5, 
-                      mb: 1.5,
-                    }}>
-                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: { xs: '0.65rem', md: '0.75rem' } }}>
-                        Total em Reserva
-                      </Typography>
-                      <Typography variant="h6" sx={{ color: 'white', fontWeight: 700, fontSize: { xs: '1.1rem', md: '1.3rem' } }}>
-                        {loading ? '...' : formatCurrency(reserveData.totalReserved)}
-                      </Typography>
-                      <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)', fontSize: { xs: '0.6rem', md: '0.7rem' } }}>
-                        {reserveData.reservesCount} reserva{reserveData.reservesCount !== 1 ? 's' : ''} ativa{reserveData.reservesCount !== 1 ? 's' : ''}
-                      </Typography>
-                    </Box>
-
-                    {reserveData.nextRelease && (
-                      <Box sx={{ 
-                        backgroundColor: 'rgba(255,255,255,0.1)', 
-                        borderRadius: 1.5, 
-                        p: 1.5,
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 1.5
-                      }}>
-                        <ScheduleIcon sx={{ color: 'white', fontSize: 18 }} />
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.8)', fontWeight: 500, fontSize: { xs: '0.65rem', md: '0.75rem' } }}>
-                            Próxima liberação
-                          </Typography>
-                          <Typography variant="body2" sx={{ color: 'white', fontWeight: 600, fontSize: { xs: '0.75rem', md: '0.85rem' } }}>
-                            {formatCurrency(reserveData.nextRelease.amount)} - {new Date(reserveData.nextRelease.releaseDate).toLocaleDateString('pt-BR')}
-                          </Typography>
-                        </Box>
-                      </Box>
-                    )}
-
-                    <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: 'rgba(255,255,255,0.75)', fontSize: { xs: '0.6rem', md: '0.7rem' } }}>
-                      💡 Liberação automática após 30 dias
-                    </Typography>
-                  </CardContent>
-                </Card>
               </Box>
             </Box>
           </Box>

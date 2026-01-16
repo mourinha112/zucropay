@@ -68,10 +68,21 @@ interface Withdrawal {
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 
+interface ReserveData {
+  totalReserved: number;
+  reservesCount: number;
+  nextRelease: {
+    amount: number;
+    releaseDate: string;
+    description: string;
+  } | null;
+}
+
 const Finances: React.FC = () => {
   const [balance, setBalance] = useState({ available: 0, reserved: 0, total: 0 });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [reserveData, setReserveData] = useState<ReserveData>({ totalReserved: 0, reservesCount: 0, nextRelease: null });
   const [loading, setLoading] = useState(true);
   const [tabValue, setTabValue] = useState(0);
   
@@ -143,6 +154,15 @@ const Finances: React.FC = () => {
           reserved,
           total: available + reserved,
         });
+        
+        // Dados de reserva detalhados
+        if (data.data.reserves) {
+          setReserveData({
+            totalReserved: data.data.reserves.totalReserved || 0,
+            reservesCount: data.data.reserves.reservesCount || 0,
+            nextRelease: data.data.reserves.nextRelease || null,
+          });
+        }
         
         // Transações vêm do mesmo endpoint (se disponível)
         if (data.data.transactions) {
@@ -379,9 +399,9 @@ const Finances: React.FC = () => {
                   </CardContent>
                 </Card>
 
-                {/* Saldo Retido */}
+                {/* Saldo Retido / Reserva */}
                 <Card sx={{ 
-                  background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                  background: 'linear-gradient(135deg, #5818C8 0%, #7c3aed 100%)',
                   color: 'white',
                   position: 'relative',
                   overflow: 'hidden',
@@ -399,15 +419,36 @@ const Finances: React.FC = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
                       <LockIcon sx={{ mr: 1 }} />
                       <Typography variant="body2" sx={{ opacity: 0.9 }}>
-                        Saldo Retido (30 dias)
+                        Reserva de Saldo
                       </Typography>
                     </Box>
-                    <Typography variant="h4" fontWeight={700} sx={{ mb: 2 }}>
-                      {formatCurrency(balance.reserved)}
+                    <Typography variant="h4" fontWeight={700}>
+                      {formatCurrency(reserveData.totalReserved || balance.reserved)}
                     </Typography>
-                    <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                      Reserva de 5% para chargebacks
+                    <Typography variant="caption" sx={{ opacity: 0.8, display: 'block', mb: 1.5 }}>
+                      {reserveData.reservesCount} reserva{reserveData.reservesCount !== 1 ? 's' : ''} • 5% retido por 30 dias
                     </Typography>
+                    
+                    {reserveData.nextRelease && (
+                      <Box sx={{ 
+                        bgcolor: 'rgba(255,255,255,0.15)', 
+                        borderRadius: 1, 
+                        p: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1
+                      }}>
+                        <ScheduleIcon sx={{ fontSize: 16 }} />
+                        <Box>
+                          <Typography variant="caption" sx={{ opacity: 0.9, display: 'block' }}>
+                            Próxima liberação
+                          </Typography>
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {formatCurrency(reserveData.nextRelease.amount)} • {new Date(reserveData.nextRelease.releaseDate).toLocaleDateString('pt-BR')}
+                          </Typography>
+                        </Box>
+                      </Box>
+                    )}
                   </CardContent>
                 </Card>
 
