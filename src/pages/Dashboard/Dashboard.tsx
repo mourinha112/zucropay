@@ -438,25 +438,30 @@ const Dashboard = () => {
                   </Tabs>
 
                   <Box sx={{ 
-                    height: { xs: 250, sm: 280, md: 300 }, 
+                    height: { xs: 220, sm: 260, md: 300 }, 
                     width: '100%',
-                    minHeight: 250,
-                    overflow: 'visible',
+                    mx: { xs: -1, sm: 0 },
+                    pr: { xs: 1, sm: 0 },
                   }}>
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart 
                         data={chartData}
-                        margin={{ top: 5, right: 5, left: -20, bottom: 5 }}
+                        margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
                       >
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                         <XAxis 
                           dataKey="date" 
-                          tick={{ fontSize: 10 }}
-                          interval={2}
+                          tick={{ fontSize: 9 }}
+                          interval="preserveStartEnd"
+                          tickLine={false}
+                          axisLine={{ stroke: '#e0e0e0' }}
                         />
                         <YAxis 
-                          tick={{ fontSize: 10 }}
-                          width={40}
+                          tick={{ fontSize: 9 }}
+                          width={35}
+                          tickLine={false}
+                          axisLine={{ stroke: '#e0e0e0' }}
+                          tickFormatter={(value) => value >= 1000 ? `${(value/1000).toFixed(0)}k` : value}
                         />
                         <Line
                           type="monotone"
@@ -464,6 +469,7 @@ const Dashboard = () => {
                           stroke="#5818C8"
                           strokeWidth={2}
                           dot={false}
+                          activeDot={{ r: 4, fill: '#5818C8' }}
                         />
                       </LineChart>
                     </ResponsiveContainer>
@@ -496,124 +502,144 @@ const Dashboard = () => {
                     <Box
                       sx={{
                         display: 'flex',
-                        flexDirection: { xs: 'column', sm: 'row' },
-                        gap: { xs: 2, md: 3 },
+                        flexDirection: 'column',
+                        gap: 3,
                         mt: 2,
                       }}
                     >
-                    {/* Imagem da Placa de Recompensa */}
-                    <Box
-                      sx={{
-                        position: 'relative',
-                        cursor: 'pointer',
-                        transition: 'transform 0.3s',
-                        flexShrink: 0,
-                        width: { xs: '100%', sm: 200, md: 240 },
-                        alignSelf: { xs: 'center', sm: 'flex-start' },
-                        '&:hover': { transform: 'scale(1.05)' },
-                      }}
-                    >
-                      <Box
-                        component="img"
-                        src="/plca.png"
-                        alt="Placa de Recompensa"
-                        sx={{
-                          width: '100%',
-                          maxWidth: '100%',
-                          height: 'auto',
-                          borderRadius: '12px',
-                          boxShadow: '0 8px 32px rgba(88, 24, 200, 0.3)',
-                        }}
-                      />
-                    </Box>
-
-                    {/* Progresso */}
-                    <Box>
+                    {/* Mobile: Imagem + Progresso lado a lado, no desktop só progresso */}
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: { xs: 'row', md: 'row' },
+                      gap: { xs: 2, md: 3 },
+                      alignItems: 'flex-start',
+                    }}>
+                      {/* Imagem da Placa de Recompensa */}
                       <Box
                         sx={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          mb: 1,
+                          position: 'relative',
+                          cursor: 'pointer',
+                          transition: 'transform 0.3s',
+                          flexShrink: 0,
+                          width: { xs: 100, sm: 140, md: 180 },
+                          '&:hover': { transform: 'scale(1.02)' },
                         }}
                       >
-                        <Typography variant="subtitle1">Sua próxima meta</Typography>
-                        <Typography variant="subtitle1" sx={{ color: '#5818C8', fontWeight: 600 }}>
-                          {Math.min(100, Math.round((monthTotal / 10000) * 100))}% completo
-                        </Typography>
+                        <Box
+                          component="img"
+                          src="/plca.png"
+                          alt="Placa de Recompensa"
+                          sx={{
+                            width: '100%',
+                            height: 'auto',
+                            borderRadius: { xs: '8px', md: '12px' },
+                            boxShadow: '0 4px 16px rgba(88, 24, 200, 0.25)',
+                          }}
+                        />
                       </Box>
-                      <Typography
-                        variant="body2"
-                        color="textSecondary"
-                        gutterBottom
-                      >
-                        Progresso atual - Meta: R$ 10.000,00
-                      </Typography>
 
-                      <Box sx={{ mt: 2, mb: 3 }}>
+                      {/* Progresso */}
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
                         <Box
                           sx={{
                             display: 'flex',
                             justifyContent: 'space-between',
-                            mb: 1,
+                            alignItems: 'center',
+                            mb: 0.5,
+                            flexWrap: 'wrap',
+                            gap: 0.5,
                           }}
                         >
-                          <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
+                          <Typography variant="subtitle2" sx={{ fontSize: { xs: '0.8rem', md: '1rem' }, fontWeight: 500 }}>
+                            Sua próxima meta
+                          </Typography>
+                          <Typography variant="subtitle2" sx={{ color: '#5818C8', fontWeight: 700, fontSize: { xs: '0.85rem', md: '1rem' } }}>
                             {Math.min(100, Math.round((monthTotal / 10000) * 100))}%
                           </Typography>
-                          <Typography variant="caption" color="textSecondary" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>
-                            100%
-                          </Typography>
                         </Box>
+                        <Typography
+                          variant="body2"
+                          color="textSecondary"
+                          sx={{ fontSize: { xs: '0.7rem', md: '0.8rem' }, mb: 1.5 }}
+                        >
+                          Meta: R$ 10.000,00
+                        </Typography>
+
                         <LinearProgress
                           variant="determinate"
                           value={Math.min(100, (monthTotal / 10000) * 100)}
                           sx={{
-                            height: { xs: 8, md: 10 },
-                            borderRadius: 5,
+                            height: { xs: 8, md: 12 },
+                            borderRadius: 6,
                             bgcolor: '#e9d5ff',
                             '& .MuiLinearProgress-bar': {
                               backgroundColor: '#5818C8',
-                              borderRadius: 5,
+                              borderRadius: 6,
                             },
                           }}
                         />
-                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, flexWrap: 'wrap', gap: 0.5 }}>
-                          <Typography variant="body2" sx={{ color: '#5818C8', fontWeight: 600, fontSize: { xs: '0.875rem', md: '1rem' } }}>
+                        <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+                          <Typography variant="body2" sx={{ color: '#5818C8', fontWeight: 600, fontSize: { xs: '0.75rem', md: '0.9rem' } }}>
                             {formatCurrency(monthTotal)}
                           </Typography>
-                          <Typography variant="body2" sx={{ color: '#5818C8', fontSize: { xs: '0.875rem', md: '1rem' } }}>
-                            / R$ 10.000,00
+                          <Typography variant="body2" sx={{ color: '#94a3b8', fontSize: { xs: '0.75rem', md: '0.9rem' } }}>
+                            R$ 10.000
                           </Typography>
-                        </Box>
-                      </Box>
-
-                      {/* Dicas */}
-                      <Box sx={{ mt: 2 }}>
-                        <Typography variant="subtitle1" gutterBottom>
-                          Dicas para alcançar sua meta
-                        </Typography>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <ShareIcon sx={{ color: '#5818C8', fontSize: 20 }} />
-                            <Typography variant="body2">
-                              Compartilhe seus produtos nas redes sociais
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <OfferIcon sx={{ color: '#5818C8', fontSize: 20 }} />
-                            <Typography variant="body2">
-                              Ofereça descontos para clientes recorrentes
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                            <EventIcon sx={{ color: '#5818C8', fontSize: 20 }} />
-                            <Typography variant="body2">
-                              Crie promoções especiais para datas comemorativas
-                            </Typography>
-                          </Box>
                         </Box>
                       </Box>
                     </Box>
+
+                      {/* Dicas para alcançar a meta */}
+                      <Box sx={{ mt: { xs: 1, md: 2 } }}>
+                        <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, fontSize: { xs: '0.8rem', md: '0.9rem' } }}>
+                          💡 Dicas para alcançar sua meta
+                        </Typography>
+                        <Box sx={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' },
+                          gap: { xs: 1, md: 1.5 },
+                        }}>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 1,
+                            p: { xs: 1, md: 1.5 },
+                            bgcolor: '#f8f5ff',
+                            borderRadius: 2,
+                          }}>
+                            <ShareIcon sx={{ color: '#5818C8', fontSize: { xs: 16, md: 18 } }} />
+                            <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', md: '0.8rem' }, lineHeight: 1.3 }}>
+                              Compartilhe nas redes sociais
+                            </Typography>
+                          </Box>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 1,
+                            p: { xs: 1, md: 1.5 },
+                            bgcolor: '#f8f5ff',
+                            borderRadius: 2,
+                          }}>
+                            <OfferIcon sx={{ color: '#5818C8', fontSize: { xs: 16, md: 18 } }} />
+                            <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', md: '0.8rem' }, lineHeight: 1.3 }}>
+                              Ofereça descontos
+                            </Typography>
+                          </Box>
+                          <Box sx={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            gap: 1,
+                            p: { xs: 1, md: 1.5 },
+                            bgcolor: '#f8f5ff',
+                            borderRadius: 2,
+                          }}>
+                            <EventIcon sx={{ color: '#5818C8', fontSize: { xs: 16, md: 18 } }} />
+                            <Typography variant="body2" sx={{ fontSize: { xs: '0.7rem', md: '0.8rem' }, lineHeight: 1.3 }}>
+                              Promoções especiais
+                            </Typography>
+                          </Box>
+                        </Box>
+                      </Box>
                   </Box>
                 </CardContent>
               </Card>
@@ -706,9 +732,9 @@ const Dashboard = () => {
                             variant="body2"
                             color="textSecondary"
                             sx={{ 
-                              mb: 1,
-                              fontSize: { xs: '0.75rem', md: '0.875rem' },
-                              display: { xs: 'none', sm: 'block' }
+                              mb: 0.5,
+                              fontSize: { xs: '0.7rem', md: '0.8rem' },
+                              lineHeight: 1.3,
                             }}
                           >
                             {method.subtitle}
