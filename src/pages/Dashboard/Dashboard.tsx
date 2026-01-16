@@ -25,7 +25,10 @@ import {
   Lock as LockIcon,
   Schedule as ScheduleIcon,
   GetApp as GetAppIcon,
+  VerifiedUser as VerifiedUserIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import {
   LineChart,
   Line,
@@ -62,6 +65,7 @@ interface PaymentMethodStats {
 }
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState(1);
   const [todayTotal, setTodayTotal] = useState(0);
   const [monthTotal, setMonthTotal] = useState(0);
@@ -79,14 +83,42 @@ const Dashboard = () => {
   const [showInstallButton, setShowInstallButton] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' | 'info' | 'warning' });
+  
+  // Estados de verificação de conta
+  const [isVerified, setIsVerified] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState<'none' | 'submitted' | 'approved' | 'rejected'>('none');
 
   useEffect(() => {
     loadDashboardData();
     setupPWAInstall();
+    checkVerificationStatus();
     
     // Inicializar Push Notifications
     initializePushNotifications();
   }, []);
+
+  // Verificar status de verificação da conta
+  const checkVerificationStatus = async () => {
+    try {
+      const token = localStorage.getItem('zucropay_token');
+      if (!token) return;
+
+      const response = await fetch(`${API_URL}/api/dashboard-data?type=verification`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.verification) {
+          const status = data.verification.status;
+          setVerificationStatus(status as any);
+          setIsVerified(status === 'approved');
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status:', error);
+    }
+  };
 
   const initializePushNotifications = async () => {
     // Aguardar um pouco para não bloquear o carregamento inicial
@@ -281,6 +313,45 @@ const Dashboard = () => {
             boxSizing: 'border-box',
           }}
         >
+          {/* Alerta de Verificação de Conta */}
+          {!isVerified && (
+            <Alert 
+              severity={verificationStatus === 'submitted' ? 'info' : verificationStatus === 'rejected' ? 'error' : 'warning'}
+              icon={verificationStatus === 'submitted' ? <VerifiedUserIcon /> : <WarningIcon />}
+              sx={{ 
+                mb: 3, 
+                borderRadius: 2,
+                '& .MuiAlert-message': { width: '100%' }
+              }}
+              action={
+                verificationStatus !== 'submitted' && (
+                  <Button 
+                    color="inherit" 
+                    size="small" 
+                    onClick={() => navigate('/configuracoes')}
+                    sx={{ whiteSpace: 'nowrap' }}
+                  >
+                    {verificationStatus === 'rejected' ? 'Reenviar' : 'Verificar Agora'}
+                  </Button>
+                )
+              }
+            >
+              {verificationStatus === 'submitted' ? (
+                <>
+                  <strong>Verificação em análise!</strong> Aguarde a aprovação para utilizar todas as funcionalidades.
+                </>
+              ) : verificationStatus === 'rejected' ? (
+                <>
+                  <strong>Verificação rejeitada.</strong> Acesse as configurações para enviar novamente seus documentos.
+                </>
+              ) : (
+                <>
+                  <strong>Conta não verificada.</strong> Para criar produtos e receber pagamentos, você precisa verificar sua identidade.
+                </>
+              )}
+            </Alert>
+          )}
+
           {/* Botão Instalar App PWA */}
           {showInstallButton && !isInstalled && (
             <Card
@@ -416,14 +487,14 @@ const Dashboard = () => {
               <Card
                 sx={{
                   transition: 'transform 0.2s',
-                  overflow: 'visible',
+                  overflow: 'hidden',
                   '&:hover': {
                     transform: 'translateY(-4px)',
                     boxShadow: 3,
                   },
                 }}
               >
-                <CardContent sx={{ p: { xs: 2, md: 3 }, overflow: 'visible' }}>
+                <CardContent sx={{ p: { xs: 2, md: 3 }, overflow: 'hidden' }}>
                   <Typography variant="h6" color="primary" gutterBottom sx={{ fontSize: { xs: '1rem', md: '1.25rem' } }}>
                     Visão Geral de Vendas
                   </Typography>
@@ -446,27 +517,28 @@ const Dashboard = () => {
                   </Tabs>
 
                   <Box sx={{ 
-                    height: { xs: 220, sm: 260, md: 300 }, 
+                    height: { xs: 200, sm: 260, md: 300 }, 
                     width: '100%',
-                    mx: { xs: -1, sm: 0 },
-                    pr: { xs: 1, sm: 0 },
+                    maxWidth: '100%',
+                    overflow: 'hidden',
                   }}>
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="99%" height="100%">
                       <LineChart 
                         data={chartData}
-                        margin={{ top: 10, right: 10, left: 0, bottom: 5 }}
+                        margin={{ top: 10, right: 5, left: -10, bottom: 5 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
                         <XAxis 
                           dataKey="date" 
-                          tick={{ fontSize: 9 }}
+                          tick={{ fontSize: 8 }}
                           interval="preserveStartEnd"
                           tickLine={false}
                           axisLine={{ stroke: '#e0e0e0' }}
+                          tickMargin={5}
                         />
                         <YAxis 
-                          tick={{ fontSize: 9 }}
-                          width={35}
+                          tick={{ fontSize: 8 }}
+                          width={30}
                           tickLine={false}
                           axisLine={{ stroke: '#e0e0e0' }}
                           tickFormatter={(value) => value >= 1000 ? `${(value/1000).toFixed(0)}k` : value}

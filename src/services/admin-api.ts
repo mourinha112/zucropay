@@ -444,6 +444,49 @@ export const checkIsAdmin = async (): Promise<boolean> => {
   }
 };
 
+// ========================================
+// GERENTES DE CONTA
+// ========================================
+
+export interface CreateManagerParams {
+  name: string;
+  email: string;
+  password: string;
+}
+
+export const createManager = async (params: CreateManagerParams) => {
+  return callAdminAPI('createManager', params);
+};
+
+export const listManagers = async () => {
+  return callAdminAPI('listManagers');
+};
+
+export const deleteManager = async (managerId: string) => {
+  return callAdminAPI('deleteManager', { managerId });
+};
+
+// ========================================
+// TAXAS PERSONALIZADAS
+// ========================================
+
+export interface SetUserCustomRatesParams {
+  userId: string;
+  pixRate?: number;
+  cardRate?: number;
+  boletoRate?: number;
+  withdrawalFee?: number;
+  notes?: string;
+}
+
+export const setUserCustomRates = async (params: SetUserCustomRatesParams) => {
+  return callAdminAPI('setUserCustomRates', params);
+};
+
+export const getUserCustomRates = async (userId: string) => {
+  return callAdminAPI('getUserCustomRates', { userId });
+};
+
 export default {
   getStats,
   getUsers,
@@ -472,5 +515,12 @@ export default {
   getAllPaymentLinks,
   getAdvancedStats,
   checkIsAdmin,
+  // Gerentes
+  createManager,
+  listManagers,
+  deleteManager,
+  // Taxas personalizadas
+  setUserCustomRates,
+  getUserCustomRates,
 };
 

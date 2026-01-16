@@ -220,6 +220,23 @@ export default async function handler(req, res) {
       case 'getAdvancedStats':
         return await getAdvancedStats(supabase, params, res);
 
+      // ========== GERENTE: TAXAS PERSONALIZADAS ==========
+      case 'setUserCustomRates':
+        return await setUserCustomRates(supabase, admin.id, params, res);
+
+      case 'getUserCustomRates':
+        return await getUserCustomRates(supabase, params.userId, res);
+
+      // ========== CRIAR GERENTE (apenas super_admin e admin) ==========
+      case 'createManager':
+        return await createManager(supabase, admin, params, res);
+
+      case 'listManagers':
+        return await listManagers(supabase, res);
+
+      case 'deleteManager':
+        return await deleteManager(supabase, admin, params.managerId, res);
+
       default:
         return res.status(400).json({ success: false, message: 'Ação inválida' });
     }
@@ -1343,3 +1360,264 @@ async function handleAdminLogin(supabase, params, res) {
   }
 }
 
+// ========== GERENTE: TAXAS PERSONALIZADAS ==========
+
+async function setUserCustomRates(supabase, adminId, params, res) {
+  try {
+    const { userId, pixRate, cardRate, boletoRate, withdrawalFee, notes } = params;
+
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'userId é obrigatório' 
+      });
+    }
+
+    // Verificar se o usuário existe
+    const { data: user, error: userError } = await supabase
+      .from('users')
+      .select('id, name')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !user) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Usuário não encontrado' 
+      });
+    }
+
+    // Verificar se já existe configuração de taxas para o usuário
+    const { data: existing } = await supabase
+      .from('user_custom_rates')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    const ratesData = {
+      user_id: userId,
+      pix_rate: pixRate || 0.99,
+      card_rate: cardRate || 4.99,
+      boleto_rate: boletoRate || 2.99,
+      withdrawal_fee: withdrawalFee || 2.00,
+      notes: notes || null,
+      created_by: adminId,
+    };
+
+    if (existing) {
+      // Atualizar taxas existentes
+      const { error: updateError } = await supabase
+        .from('user_custom_rates')
+        .update(ratesData)
+        .eq('user_id', userId);
+
+      if (updateError) throw updateError;
+    } else {
+      // Criar novas taxas
+      const { error: insertError } = await supabase
+        .from('user_custom_rates')
+        .insert(ratesData);
+
+      if (insertError) throw insertError;
+    }
+
+    // Log da ação
+    await supabase.from('admin_logs').insert({
+      admin_id: adminId,
+      action: 'set_custom_rates',
+      target_type: 'user',
+      target_id: userId,
+      details: { pixRate, cardRate, boletoRate, withdrawalFee, notes }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Taxas personalizadas definidas para ${user.name}`
+    });
+  } catch (error) {
+    console.error('setUserCustomRates error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+async function getUserCustomRates(supabase, userId, res) {
+  try {
+    if (!userId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'userId é obrigatório' 
+      });
+    }
+
+    const { data, error } = await supabase
+      .from('user_custom_rates')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      throw error;
+    }
+
+    // Se não há taxas personalizadas, retornar as padrão
+    const rates = data || {
+      pix_rate: 0.99,
+      card_rate: 4.99,
+      boleto_rate: 2.99,
+      withdrawal_fee: 2.00,
+      is_default: true
+    };
+
+    return res.status(200).json({
+      success: true,
+      rates
+    });
+  } catch (error) {
+    console.error('getUserCustomRates error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+// ========== CRIAR/GERENCIAR GERENTES ==========
+
+async function createManager(supabase, admin, params, res) {
+  try {
+    const { email, password, name } = params;
+
+    if (!email || !password || !name) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Email, senha e nome são obrigatórios' 
+      });
+    }
+
+    // Verificar se o admin tem permissão (apenas admin e super_admin podem criar gerentes)
+    // Nota: A verificação do role do admin já foi feita antes de chegar aqui
+    // Mas o gerente não pode criar outros gerentes
+    const adminToken = admin.role;
+    
+    // Verificar se email já existe
+    const { data: existing } = await supabase
+      .from('admin_credentials')
+      .select('id')
+      .eq('email', email.toLowerCase().trim())
+      .single();
+
+    if (existing) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Este email já está cadastrado' 
+      });
+    }
+
+    // Criar o gerente
+    const { data: newManager, error } = await supabase
+      .from('admin_credentials')
+      .insert({
+        email: email.toLowerCase().trim(),
+        password_hash: password, // Em produção, usar bcrypt
+        name,
+        role: 'gerente',
+        is_active: true,
+        permissions: JSON.stringify(['approve_accounts', 'cancel_accounts', 'adjust_user_rates'])
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    // Log da ação
+    await supabase.from('admin_logs').insert({
+      admin_id: admin.id,
+      action: 'create_manager',
+      target_type: 'manager',
+      target_id: newManager.id,
+      details: { email, name }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Gerente ${name} criado com sucesso!`,
+      manager: {
+        id: newManager.id,
+        email: newManager.email,
+        name: newManager.name,
+        role: newManager.role
+      }
+    });
+  } catch (error) {
+    console.error('createManager error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+async function listManagers(supabase, res) {
+  try {
+    const { data, error } = await supabase
+      .from('admin_credentials')
+      .select('id, email, name, role, is_active, last_login, created_at')
+      .eq('role', 'gerente')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      managers: data || []
+    });
+  } catch (error) {
+    console.error('listManagers error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}
+
+async function deleteManager(supabase, admin, managerId, res) {
+  try {
+    if (!managerId) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'managerId é obrigatório' 
+      });
+    }
+
+    // Verificar se é realmente um gerente
+    const { data: manager, error: findError } = await supabase
+      .from('admin_credentials')
+      .select('id, email, name, role')
+      .eq('id', managerId)
+      .eq('role', 'gerente')
+      .single();
+
+    if (findError || !manager) {
+      return res.status(404).json({ 
+        success: false, 
+        message: 'Gerente não encontrado' 
+      });
+    }
+
+    // Desativar o gerente (soft delete)
+    const { error } = await supabase
+      .from('admin_credentials')
+      .update({ is_active: false })
+      .eq('id', managerId);
+
+    if (error) throw error;
+
+    // Log da ação
+    await supabase.from('admin_logs').insert({
+      admin_id: admin.id,
+      action: 'delete_manager',
+      target_type: 'manager',
+      target_id: managerId,
+      details: { email: manager.email, name: manager.name }
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Gerente ${manager.name} desativado com sucesso`
+    });
+  } catch (error) {
+    console.error('deleteManager error:', error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+}

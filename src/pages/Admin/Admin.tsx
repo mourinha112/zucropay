@@ -544,6 +544,221 @@ const Admin = () => {
   };
 
   // ============================================
+  // COMPONENTE DE GERENTES TAB
+  // ============================================
+  const ManagersTab = () => {
+    const [managers, setManagers] = useState<any[]>([]);
+    const [loadingManagers, setLoadingManagers] = useState(false);
+    const [createDialog, setCreateDialog] = useState(false);
+    const [newManager, setNewManager] = useState({ name: '', email: '', password: '' });
+
+    const loadManagers = async () => {
+      try {
+        setLoadingManagers(true);
+        const response = await adminApi.listManagers();
+        setManagers(response.managers || []);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoadingManagers(false);
+      }
+    };
+
+    useEffect(() => {
+      loadManagers();
+    }, []);
+
+    const handleCreateManager = async () => {
+      try {
+        if (!newManager.name || !newManager.email || !newManager.password) {
+          setError('Preencha todos os campos');
+          return;
+        }
+        
+        setLoadingManagers(true);
+        await adminApi.createManager(newManager);
+        setSuccess('Gerente criado com sucesso!');
+        setCreateDialog(false);
+        setNewManager({ name: '', email: '', password: '' });
+        loadManagers();
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoadingManagers(false);
+      }
+    };
+
+    const handleDeleteManager = async (managerId: string) => {
+      try {
+        setLoadingManagers(true);
+        await adminApi.deleteManager(managerId);
+        setSuccess('Gerente desativado com sucesso!');
+        loadManagers();
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoadingManagers(false);
+      }
+    };
+
+    return (
+      <Box sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Box>
+            <Typography variant="h6" sx={{ fontWeight: 700, color: '#5818C8' }}>
+              👤 Gerentes de Conta
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Crie e gerencie gerentes que podem aprovar/cancelar contas e ajustar taxas
+            </Typography>
+          </Box>
+          <Button
+            variant="contained"
+            startIcon={<PeopleIcon />}
+            onClick={() => setCreateDialog(true)}
+            sx={{ bgcolor: '#5818C8', '&:hover': { bgcolor: '#4a14a8' } }}
+          >
+            Criar Gerente
+          </Button>
+        </Box>
+
+        <Alert severity="info" sx={{ mb: 3 }}>
+          <Typography variant="body2">
+            <strong>💡 O que um Gerente pode fazer:</strong><br />
+            ✅ Aprovar e cancelar contas de usuários<br />
+            ✅ Ajustar taxas personalizadas para usuários<br />
+            ❌ NÃO pode ver faturamento, estatísticas financeiras ou configurações do gateway
+          </Typography>
+        </Alert>
+
+        {loadingManagers ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress sx={{ color: '#5818C8' }} />
+          </Box>
+        ) : managers.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 6 }}>
+            <PeopleIcon sx={{ fontSize: 64, color: '#94a3b8', mb: 2 }} />
+            <Typography color="text.secondary">Nenhum gerente cadastrado</Typography>
+            <Button
+              variant="outlined"
+              sx={{ mt: 2 }}
+              onClick={() => setCreateDialog(true)}
+            >
+              Criar Primeiro Gerente
+            </Button>
+          </Box>
+        ) : (
+          <TableContainer component={Paper} variant="outlined">
+            <Table>
+              <TableHead>
+                <TableRow sx={{ bgcolor: '#f8fafc' }}>
+                  <TableCell sx={{ fontWeight: 600 }}>Nome</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Status</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Último Login</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Criado em</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }} align="center">Ações</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {managers.map((manager) => (
+                  <TableRow key={manager.id} hover>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <Avatar sx={{ bgcolor: '#7c3aed', width: 36, height: 36 }}>
+                          {manager.name?.charAt(0)?.toUpperCase()}
+                        </Avatar>
+                        <Typography variant="body2" sx={{ fontWeight: 500 }}>{manager.name}</Typography>
+                      </Box>
+                    </TableCell>
+                    <TableCell><Typography variant="body2">{manager.email}</Typography></TableCell>
+                    <TableCell>
+                      <Chip 
+                        label={manager.is_active ? 'Ativo' : 'Inativo'} 
+                        color={manager.is_active ? 'success' : 'default'} 
+                        size="small" 
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption">
+                        {manager.last_login ? formatDate(manager.last_login) : 'Nunca'}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="caption">{formatDate(manager.created_at)}</Typography>
+                    </TableCell>
+                    <TableCell align="center">
+                      {manager.is_active && (
+                        <Tooltip title="Desativar Gerente">
+                          <IconButton 
+                            size="small" 
+                            onClick={() => handleDeleteManager(manager.id)}
+                            sx={{ color: '#ef4444' }}
+                          >
+                            <BlockIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
+        {/* Dialog Criar Gerente */}
+        <Dialog open={createDialog} onClose={() => setCreateDialog(false)} maxWidth="sm" fullWidth>
+          <DialogTitle sx={{ fontWeight: 600 }}>👤 Criar Novo Gerente</DialogTitle>
+          <DialogContent>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+              <TextField
+                fullWidth
+                label="Nome do Gerente"
+                value={newManager.name}
+                onChange={(e) => setNewManager({ ...newManager, name: e.target.value })}
+                placeholder="Ex: João Silva"
+              />
+              <TextField
+                fullWidth
+                type="email"
+                label="Email"
+                value={newManager.email}
+                onChange={(e) => setNewManager({ ...newManager, email: e.target.value })}
+                placeholder="gerente@exemplo.com"
+              />
+              <TextField
+                fullWidth
+                type="password"
+                label="Senha"
+                value={newManager.password}
+                onChange={(e) => setNewManager({ ...newManager, password: e.target.value })}
+                placeholder="Mínimo 6 caracteres"
+              />
+              <Alert severity="warning">
+                <Typography variant="body2">
+                  ⚠️ O gerente usará essas credenciais para acessar em: <strong>/gerente-login</strong>
+                </Typography>
+              </Alert>
+            </Box>
+          </DialogContent>
+          <DialogActions sx={{ p: 2, gap: 1 }}>
+            <Button onClick={() => setCreateDialog(false)} sx={{ color: '#64748b' }}>Cancelar</Button>
+            <Button
+              variant="contained"
+              onClick={handleCreateManager}
+              disabled={loadingManagers || !newManager.name || !newManager.email || !newManager.password}
+              sx={{ bgcolor: '#5818C8', '&:hover': { bgcolor: '#4a14a8' } }}
+            >
+              {loadingManagers ? <CircularProgress size={20} sx={{ color: 'white' }} /> : 'Criar Gerente'}
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Box>
+    );
+  };
+
+  // ============================================
   // PÁGINA DE ACESSO NEGADO
   // ============================================
   if (accessDenied) {
@@ -1000,6 +1215,7 @@ const Admin = () => {
               <Tab icon={<InventoryIcon />} label="Produtos" iconPosition="start" />
               <Tab icon={<LinkIcon />} label="Links" iconPosition="start" />
               <Tab icon={<HistoryIcon />} label="Logs" iconPosition="start" />
+              <Tab icon={<PeopleIcon />} label="Gerentes" iconPosition="start" />
             </Tabs>
 
             {/* Dashboard Tab */}
@@ -1675,6 +1891,11 @@ const Admin = () => {
                   </Grid>
                 </Grid>
               </Box>
+            </TabPanel>
+
+            {/* Gerentes Tab */}
+            <TabPanel value={tabValue} index={8}>
+              <ManagersTab />
             </TabPanel>
           </Card>
         </Box>

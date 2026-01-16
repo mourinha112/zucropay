@@ -19,6 +19,8 @@ import Indique from './pages/Indique/Indique';
 import Admin from './pages/Admin/Admin';
 import AdminLogin from './pages/AdminLogin/AdminLogin';
 import Settings from './pages/Settings/Settings';
+import Manager from './pages/Manager/Manager';
+import ManagerLogin from './pages/ManagerLogin/ManagerLogin';
 
 // Componente de proteção de rota (usuário normal)
 const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
@@ -46,6 +48,28 @@ const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   }
   
   return <Navigate to="/admin-login" />;
+};
+
+// Componente de proteção de rota do Gerente
+const ManagerRoute = ({ children }: { children: React.ReactNode }) => {
+  const managerToken = localStorage.getItem('zucropay_manager_token');
+  
+  // Verificar se o token é válido e não expirou
+  if (managerToken) {
+    try {
+      const payload = JSON.parse(atob(managerToken));
+      if (payload.exp && payload.exp > Date.now() && payload.role === 'gerente') {
+        return <>{children}</>;
+      }
+    } catch {
+      // Token inválido
+    }
+    // Token expirado ou inválido, limpar
+    localStorage.removeItem('zucropay_manager_token');
+    localStorage.removeItem('zucropay_manager_user');
+  }
+  
+  return <Navigate to="/gerente-login" />;
 };
 
 const App = () => {
@@ -76,6 +100,10 @@ const App = () => {
           
           {/* Rota Admin (login separado) */}
           <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+          
+          {/* Rotas Gerente de Conta */}
+          <Route path="/gerente-login" element={<ManagerLogin />} />
+          <Route path="/gerente" element={<ManagerRoute><Manager /></ManagerRoute>} />
         </Routes>
       </Router>
     </ThemeProvider>
