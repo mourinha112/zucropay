@@ -2,6 +2,7 @@
 // Endpoints para gerenciamento administrativo da ZucroPay
 
 import { createClient } from '@supabase/supabase-js';
+import bcrypt from 'bcryptjs';
 
 // Criar cliente Supabase com service role para bypass de RLS
 const getSupabaseAdmin = () => {
@@ -32,7 +33,7 @@ const verifyAdmin = async (supabase, userId) => {
   return admin;
 };
 
-// Extrair user_id do token JWT do Supabase
+// Extrair user do token JWT do Supabase (valida assinatura)
 const getUserFromToken = async (authHeader) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     console.log('[Admin API] Token não fornecido ou formato inválido');
@@ -49,7 +50,7 @@ const getUserFromToken = async (authHeader) => {
   }
 
   try {
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
     const { data: { user }, error } = await supabase.auth.getUser(token);
     
     if (error) {
@@ -72,7 +73,15 @@ const getUserFromToken = async (authHeader) => {
 
 export default async function handler(req, res) {
   // Headers CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.VITE_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const origin = req.headers.origin;
+  const allowOrigin = (allowedOrigins.length && origin && allowedOrigins.includes(origin))
+    ? origin
+    : (allowedOrigins[0] || '*');
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
@@ -1313,8 +1322,23 @@ async function handleAdminLogin(supabase, params, res) {
       });
     }
 
-    // Verificar senha (comparação simples - em produção usar bcrypt)
-    if (admin.password_hash !== password) {
+    // Verificar senha (bcrypt com fallback legado)
+    const storedHash = admin.password_hash || '';
+    let passwordOk = false;
+
+    if (storedHash.startsWith('$2a$') || storedHash.startsWith('$2b$') || storedHash.startsWith('$2y$')) {
+      passwordOk = await bcrypt.compare(password, storedHash);
+    } else {
+      // Legacy: senha em texto puro
+      passwordOk = storedHash === password;
+      if (passwordOk) {
+        // Atualizar para bcrypt automaticamente
+        const newHash = await bcrypt.hash(password, 10);
+        await supabase.from('admin_credentials').update({ password_hash: newHash }).eq('id', admin.id);
+      }
+    }
+
+    if (!passwordOk) {
       console.log('[Admin Login] Senha incorreta para:', email);
       return res.status(401).json({ 
         success: false, 
@@ -1510,12 +1534,14 @@ async function createManager(supabase, admin, params, res) {
       });
     }
 
+    const passwordHash = await bcrypt.hash(password, 10);
+
     // Criar o gerente
     const { data: newManager, error } = await supabase
       .from('admin_credentials')
       .insert({
         email: email.toLowerCase().trim(),
-        password_hash: password, // Em produção, usar bcrypt
+        password_hash: passwordHash,
         name,
         role: 'gerente',
         is_active: true,

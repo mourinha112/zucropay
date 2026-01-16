@@ -22,34 +22,30 @@ const getEfiConfig = () => ({
   pixKey: process.env.EFI_PIX_KEY,
 });
 
-const getUserIdFromToken = (authHeader) => {
+const getUserFromToken = async (authHeader) => {
   if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.split(' ')[1];
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) return null;
   try {
-    const token = authHeader.split(' ')[1];
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    return payload.userId || payload.sub || payload.id;
+    const supabaseAuth = createClient(url, anonKey, { auth: { persistSession: false } });
+    const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
+    if (error || !user) return null;
+    return user;
   } catch { return null; }
 };
 
-// Verificar se usuário é admin (por email)
-const isAdmin = async (supabase, userId) => {
-  console.log('[Admin Check] Verificando userId:', userId);
-  
-  const { data: user, error } = await supabase
-    .from('users')
-    .select('email')
-    .eq('id', userId)
+// Verificar se usuário é admin (tabela admin_users)
+const getAdmin = async (supabase, userId) => {
+  const { data: admin, error } = await supabase
+    .from('admin_users')
+    .select('id, role')
+    .eq('user_id', userId)
     .single();
-  
-  console.log('[Admin Check] User encontrado:', user?.email, 'Error:', error);
-  
-  // Lista de emails de administradores
-  const adminEmails = ['mourinha112@gmail.com', 'admin@zucropay.com', 'victorgronnyt@gmail.com', 'felipeaugusto.zucro@gmail.com'];
-  const isAdminUser = adminEmails.includes(user?.email);
-  
-  console.log('[Admin Check] É admin?', isAdminUser);
-  
-  return isAdminUser;
+
+  if (error || !admin) return null;
+  return admin;
 };
 
 // ========================================
@@ -267,19 +263,28 @@ const enviarPixAutomatico = async (config, withdrawal) => {
 // ========================================
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.VITE_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const origin = req.headers.origin;
+  const allowOrigin = (allowedOrigins.length && origin && allowedOrigins.includes(origin))
+    ? origin
+    : (allowedOrigins[0] || '*');
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const userId = getUserIdFromToken(req.headers.authorization);
-  if (!userId) return res.status(401).json({ error: 'Token inválido' });
+  const user = await getUserFromToken(req.headers.authorization);
+  if (!user) return res.status(401).json({ error: 'Token inválido' });
+  const userId = user.id;
 
   const supabase = getSupabase();
 
   // Verificar se é admin
-  const admin = await isAdmin(supabase, userId);
+  const admin = await getAdmin(supabase, userId);
   if (!admin) {
     return res.status(403).json({ error: 'Acesso negado. Apenas administradores.' });
   }

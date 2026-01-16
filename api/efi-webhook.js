@@ -111,6 +111,20 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Validar token do webhook (configure EFI_WEBHOOK_TOKEN)
+    const webhookToken = process.env.EFI_WEBHOOK_TOKEN;
+    if (webhookToken) {
+      const incomingToken =
+        req.headers['x-webhook-token'] ||
+        req.headers['x-efi-webhook-token'] ||
+        req.headers['x-efibank-webhook-token'];
+
+      if (incomingToken !== webhookToken) {
+        console.error('[EfiBank Webhook] Token inválido');
+        return res.status(401).json({ success: false, message: 'Não autorizado' });
+      }
+    }
+
     const supabase = getSupabase();
     const payload = req.body;
 

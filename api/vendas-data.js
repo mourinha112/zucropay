@@ -45,17 +45,30 @@ const getSupabase = () => {
   return createClient(url, key);
 };
 
-const getUserIdFromToken = (authHeader) => {
+const getUserFromToken = async (authHeader) => {
   if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.split(' ')[1];
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) return null;
   try {
-    const token = authHeader.split(' ')[1];
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    return payload.userId || payload.sub || payload.id;
+    const supabaseAuth = createClient(url, anonKey, { auth: { persistSession: false } });
+    const { data: { user }, error } = await supabaseAuth.auth.getUser(token);
+    if (error || !user) return null;
+    return user;
   } catch { return null; }
 };
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  const allowedOrigins = (process.env.ALLOWED_ORIGINS || process.env.VITE_ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((o) => o.trim())
+    .filter(Boolean);
+  const origin = req.headers.origin;
+  const allowOrigin = (allowedOrigins.length && origin && allowedOrigins.includes(origin))
+    ? origin
+    : (allowedOrigins[0] || '*');
+  res.setHeader('Access-Control-Allow-Origin', allowOrigin);
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.setHeader('Cache-Control', 's-maxage=10, stale-while-revalidate=59');
@@ -64,8 +77,9 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const userId = getUserIdFromToken(req.headers.authorization);
-    if (!userId) return res.status(401).json({ error: 'Token inválido' });
+    const user = await getUserFromToken(req.headers.authorization);
+    if (!user) return res.status(401).json({ error: 'Token inválido' });
+    const userId = user.id;
 
     const supabase = getSupabase();
     const { filter, startDate, endDate, limit = 100 } = req.query;
