@@ -29,6 +29,7 @@ ADD COLUMN IF NOT EXISTS permissions JSONB DEFAULT '[]'::jsonb;
 -- ============================================
 
 -- 3. Criar tabela de taxas personalizadas por usuário
+-- NOTA: created_by não tem FK pois admin_users.id e admin_credentials.id são diferentes
 CREATE TABLE IF NOT EXISTS user_custom_rates (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -36,12 +37,15 @@ CREATE TABLE IF NOT EXISTS user_custom_rates (
   card_rate DECIMAL(5,2) DEFAULT 4.99, -- Taxa Cartão em %
   boleto_rate DECIMAL(5,2) DEFAULT 2.99, -- Taxa Boleto em %
   withdrawal_fee DECIMAL(10,2) DEFAULT 2.00, -- Taxa de saque em R$
-  created_by UUID REFERENCES admin_credentials(id),
+  created_by UUID, -- ID do admin/gerente que alterou (sem FK para flexibilidade)
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   notes TEXT,
   UNIQUE(user_id)
 );
+
+-- Se a tabela já existe com a FK, remover a constraint:
+-- ALTER TABLE user_custom_rates DROP CONSTRAINT IF EXISTS user_custom_rates_created_by_fkey;
 
 -- 4. Índices
 CREATE INDEX IF NOT EXISTS idx_user_custom_rates_user_id ON user_custom_rates(user_id);

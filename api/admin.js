@@ -1418,6 +1418,7 @@ async function setUserCustomRates(supabase, adminId, params, res) {
       .eq('user_id', userId)
       .single();
 
+    // Não usar created_by para evitar erro de FK (admin_users.id != admin_credentials.id)
     const ratesData = {
       user_id: userId,
       pix_rate: pixRate || 0.99,
@@ -1425,7 +1426,6 @@ async function setUserCustomRates(supabase, adminId, params, res) {
       boleto_rate: boletoRate || 2.99,
       withdrawal_fee: withdrawalFee || 2.00,
       notes: notes || null,
-      created_by: adminId,
     };
 
     if (existing) {
