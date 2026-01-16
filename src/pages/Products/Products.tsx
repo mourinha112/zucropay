@@ -510,7 +510,7 @@ const Products: React.FC = () => {
         PaperProps={{ 
           sx: { 
             borderRadius: 3, 
-            width: 560,
+            width: 600,
             maxWidth: '95vw',
             maxHeight: '90vh',
             display: 'flex',
@@ -557,7 +557,7 @@ const Products: React.FC = () => {
                 onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
                 required
                 inputProps={{ step: '0.01', min: '0' }}
-                sx={{ flex: 1 }}
+                sx={{ flex: 1, minWidth: 220 }}
               />
               <TextField
                 label="Estoque"
@@ -565,7 +565,7 @@ const Products: React.FC = () => {
                 value={formData.stock || ''}
                 onChange={(e) => setFormData({ ...formData, stock: e.target.value ? parseInt(e.target.value) : undefined })}
                 placeholder="Ilimitado"
-                sx={{ width: 140 }}
+                sx={{ width: 180 }}
               />
             </Box>
 
