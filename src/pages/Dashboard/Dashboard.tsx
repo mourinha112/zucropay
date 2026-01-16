@@ -265,12 +265,20 @@ const Dashboard = () => {
   return (
     <>
       <Header />
-      <Box sx={{ minHeight: '100vh', backgroundColor: '#fafafa' }}>
+      <Box sx={{ 
+        minHeight: '100vh', 
+        backgroundColor: '#fafafa',
+        width: '100%',
+        maxWidth: '100vw',
+        overflowX: 'hidden',
+      }}>
         <Box
           sx={{
             maxWidth: '1400px',
+            width: '100%',
             margin: '0 auto',
-            p: { xs: 2, sm: 3 },
+            p: { xs: 1.5, sm: 2, md: 3 },
+            boxSizing: 'border-box',
           }}
         >
           {/* Botão Instalar App PWA */}

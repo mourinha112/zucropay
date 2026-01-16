@@ -583,7 +583,7 @@ export const getProduct = async (id: string) => {
   };
 };
 
-export const createProduct = async (product: Product) => {
+export const createProduct = async (product: Product & { fee_payer?: 'seller' | 'buyer' }) => {
   const user = await getCurrentUser();
   if (!user) throw new Error('Usuário não autenticado');
 
@@ -597,6 +597,7 @@ export const createProduct = async (product: Product) => {
       image_url: product.imageUrl,
       stock: product.stock,
       active: product.active !== false,
+      fee_payer: product.fee_payer || 'seller', // Quem paga a taxa
     })
     .select()
     .single();
@@ -610,9 +611,9 @@ export const createProduct = async (product: Product) => {
   };
 };
 
-export const updateProduct = async (id: string, product: Partial<Product>) => {
+export const updateProduct = async (id: string, product: Partial<Product & { fee_payer?: 'seller' | 'buyer' }>) => {
   const updateData: any = {};
-  
+
   if (product.name !== undefined) updateData.name = product.name;
   if (product.description !== undefined) updateData.description = product.description;
   if (product.price !== undefined) updateData.price = product.price;
@@ -621,6 +622,7 @@ export const updateProduct = async (id: string, product: Partial<Product>) => {
   if (product.active !== undefined) updateData.active = product.active;
   if (product.marketplaceEnabled !== undefined) updateData.marketplace_enabled = product.marketplaceEnabled;
   if (product.commissionPercentage !== undefined) updateData.commission_percentage = product.commissionPercentage;
+  if (product.fee_payer !== undefined) updateData.fee_payer = product.fee_payer;
 
   const { error } = await supabase
     .from('products')

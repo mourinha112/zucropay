@@ -64,7 +64,8 @@ export default async function handler(req, res) {
           name,
           description,
           price,
-          image_url
+          image_url,
+          fee_payer
         )
       `)
       .eq('id', id)
@@ -92,6 +93,8 @@ export default async function handler(req, res) {
       productDescription: link.products?.description || link.description,
       productImage: link.products?.image_url,
       productPrice: link.products?.price || link.amount,
+      fee_payer: link.products?.fee_payer || 'seller', // Quem paga a taxa
+      product: link.products, // Dados completos do produto
     };
 
     console.log('[get-public-link] Success:', id);

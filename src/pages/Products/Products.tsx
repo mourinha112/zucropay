@@ -49,6 +49,7 @@ interface Product {
   totalSales?: number;
   totalReceived?: number;
   links?: PaymentLink[];
+  fee_payer?: 'seller' | 'buyer'; // Quem paga a taxa: vendedor ou comprador
 }
 
 interface PaymentLink {
@@ -86,6 +87,7 @@ const Products: React.FC = () => {
     imageUrl: '',
     stock: undefined,
     active: true,
+    fee_payer: 'seller', // Padrão: vendedor assume a taxa
   });
   
   const [linkFormData, setLinkFormData] = useState({
@@ -179,10 +181,13 @@ const Products: React.FC = () => {
       showSnackbar('Você precisa verificar sua conta para criar produtos. Acesse Configurações.', 'error');
       return;
     }
-    
+
     if (product) {
       setEditingProduct(product);
-      setFormData(product);
+      setFormData({
+        ...product,
+        fee_payer: product.fee_payer || 'seller',
+      });
       setImagePreview(product.imageUrl || '');
     } else {
       setEditingProduct(null);
@@ -193,6 +198,7 @@ const Products: React.FC = () => {
         imageUrl: '',
         stock: undefined,
         active: true,
+        fee_payer: 'seller',
       });
       setImagePreview('');
     }
@@ -605,6 +611,45 @@ const Products: React.FC = () => {
               <MenuItem value="true">Ativo</MenuItem>
               <MenuItem value="false">Inativo</MenuItem>
             </TextField>
+
+            {/* Quem paga a taxa */}
+            <Box sx={{ 
+              p: 2, 
+              bgcolor: '#f8f5ff', 
+              borderRadius: 2,
+              border: '1px solid #e9d5ff',
+            }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, color: '#5818C8', fontWeight: 600 }}>
+                💰 Quem assume as taxas?
+              </Typography>
+              <TextField
+                select
+                value={formData.fee_payer || 'seller'}
+                onChange={(e) => setFormData({ ...formData, fee_payer: e.target.value as 'seller' | 'buyer' })}
+                fullWidth
+                size="small"
+              >
+                <MenuItem value="seller">
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>Vendedor (você)</Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      Cliente paga R${formData.price?.toFixed(2) || '0,00'}, você recebe o valor menos taxas
+                    </Typography>
+                  </Box>
+                </MenuItem>
+                <MenuItem value="buyer">
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 500 }}>Comprador (cliente)</Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      Cliente paga valor + taxas, você recebe R${formData.price?.toFixed(2) || '0,00'} líquido
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              </TextField>
+              <Typography variant="caption" sx={{ display: 'block', mt: 1, color: '#666' }}>
+                Taxas: 5,99% + R$2,50 (PIX/Boleto) | 5,99% + 2,49% por parcela (Cartão)
+              </Typography>
+            </Box>
           </Box>
         </DialogContent>
         <DialogActions>

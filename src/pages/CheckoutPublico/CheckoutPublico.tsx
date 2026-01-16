@@ -558,8 +558,49 @@ const CheckoutPublicoHubla: React.FC = () => {
   };
 
 
-  const calculateInstallmentValue = (total: number, installmentNumber: number) => {
-    return total / installmentNumber;
+  // ===== CÁLCULO DE TAXAS =====
+  // Taxas: 5.99% + R$2.50 (PIX/Boleto) | 5.99% + 2.49% por parcela (Cartão)
+  const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
+  const PLATFORM_FEE_FIXED = 2.50; // R$2.50
+  const INSTALLMENT_FEE_PERCENT = 0.0249; // 2.49% por parcela
+
+  // Calcular valor total com taxas (quando comprador paga)
+  const calculateTotalWithFees = (baseValue: number, method: string, numInstallments: number = 1): number => {
+    const feePayer = productData?.fee_payer || productData?.product?.fee_payer || 'seller';
+    
+    // Se vendedor paga, valor não muda
+    if (feePayer === 'seller') {
+      return baseValue;
+    }
+
+    // Comprador paga: calcular valor inverso
+    if (method === 'CREDIT_CARD') {
+      // Taxa total cartão = 5.99% + (2.49% * parcelas)
+      const totalFeePercent = PLATFORM_FEE_PERCENT + (INSTALLMENT_FEE_PERCENT * numInstallments);
+      // Valor = base / (1 - taxa)
+      return baseValue / (1 - totalFeePercent);
+    } else {
+      // PIX ou Boleto: 5.99% + R$2.50
+      // Valor = (base + 2.50) / (1 - 0.0599)
+      return (baseValue + PLATFORM_FEE_FIXED) / (1 - PLATFORM_FEE_PERCENT);
+    }
+  };
+
+  // Calcular valor da parcela
+  const calculateInstallmentValue = (baseValue: number, installmentNumber: number) => {
+    const totalWithFees = calculateTotalWithFees(baseValue, paymentMethod, installmentNumber);
+    return totalWithFees / installmentNumber;
+  };
+
+  // Obter valor total atual (com ou sem taxas)
+  const getCurrentTotalValue = (): number => {
+    const baseValue = productData?.amount || productData?.value || 0;
+    return calculateTotalWithFees(baseValue, paymentMethod, installments);
+  };
+
+  // Verificar se comprador paga taxas
+  const buyerPaysFees = (): boolean => {
+    return (productData?.fee_payer || productData?.product?.fee_payer || 'seller') === 'buyer';
   };
 
   if (loading) {
@@ -711,17 +752,27 @@ const CheckoutPublicoHubla: React.FC = () => {
       sx={{ 
         bgcolor: customization?.backgroundColor || '#f9fafb', 
         minHeight: '100vh', 
-        py: 4 
+        py: { xs: 2, md: 4 },
+        px: { xs: 1, sm: 2, md: 3 },
+        width: '100%',
+        maxWidth: '100vw',
+        overflowX: 'hidden',
+        boxSizing: 'border-box',
       }}
     >
-      <Container maxWidth="md">
+      <Box sx={{ 
+        maxWidth: '900px', 
+        margin: '0 auto',
+        width: '100%',
+        px: { xs: 0.5, sm: 1 },
+      }}>
         {/* Logo e Banner */}
         {customization?.showLogo && customization?.logoUrl && (
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <img 
               src={customization.logoUrl} 
               alt="Logo" 
-              style={{ maxWidth: '200px', maxHeight: '80px', objectFit: 'contain' }}
+              style={{ maxWidth: '180px', maxHeight: '70px', objectFit: 'contain' }}
             />
           </Box>
         )}
@@ -731,15 +782,20 @@ const CheckoutPublicoHubla: React.FC = () => {
             <img 
               src={customization.bannerUrl} 
               alt="Banner" 
-              style={{ width: '100%', maxHeight: '200px', objectFit: 'cover' }}
+              style={{ width: '100%', maxHeight: '180px', objectFit: 'cover' }}
             />
           </Box>
         )}
 
-        <Box sx={{ display: 'flex', gap: 3, flexDirection: { xs: 'column', md: 'row' } }}>
+        <Box sx={{ 
+          display: 'flex', 
+          gap: { xs: 2, md: 3 }, 
+          flexDirection: { xs: 'column', md: 'row' },
+          width: '100%',
+        }}>
           {/* Lado Esquerdo - Imagem e Informações do Produto */}
-          <Box sx={{ flex: 1 }}>
-            <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid #e5e7eb' }}>
+          <Box sx={{ flex: 1, width: '100%', minWidth: 0 }}>
+            <Paper elevation={0} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid #e5e7eb', width: '100%' }}>
               {/* Imagem do Produto */}
               <Box
                 sx={{
@@ -802,15 +858,71 @@ const CheckoutPublicoHubla: React.FC = () => {
                 </Typography>
               )}
 
-              <Typography 
-                variant="h5" 
-                fontWeight={700} 
-                sx={{ color: customization?.priceColor || '#1e293b' }}
-              >
-                {installments > 1
-                  ? `${installments}x R$ ${calculateInstallmentValue(productData?.amount || productData?.value || 0, installments).toFixed(2)}`
-                  : `R$ ${(productData?.amount || productData?.value || 0).toFixed(2)}`}
-              </Typography>
+              {/* Preço com taxas quando comprador paga */}
+              <Box sx={{ textAlign: 'center' }}>
+                {/* Valor original riscado quando tem taxa */}
+                {buyerPaysFees() && getCurrentTotalValue() > (productData?.amount || productData?.value || 0) && (
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      color: '#94a3b8',
+                      textDecoration: 'line-through',
+                      mb: 0.5,
+                    }}
+                  >
+                    R$ {(productData?.amount || productData?.value || 0).toFixed(2)}
+                  </Typography>
+                )}
+                
+                {/* Preço principal */}
+                <Typography 
+                  variant="h4" 
+                  fontWeight={700} 
+                  sx={{ color: customization?.priceColor || '#1e293b' }}
+                >
+                  {paymentMethod === 'CREDIT_CARD' && installments > 1
+                    ? `${installments}x R$ ${calculateInstallmentValue(productData?.amount || productData?.value || 0, installments).toFixed(2)}`
+                    : `R$ ${getCurrentTotalValue().toFixed(2)}`}
+                </Typography>
+                
+                {/* Mostrar total quando parcelado */}
+                {paymentMethod === 'CREDIT_CARD' && installments > 1 && (
+                  <Typography variant="body1" sx={{ color: '#475569', mt: 0.5, fontWeight: 500 }}>
+                    Total: R$ {getCurrentTotalValue().toFixed(2)}
+                  </Typography>
+                )}
+                
+                {/* Indicador de taxa inclusa quando comprador paga */}
+                {buyerPaysFees() && (
+                  <Box 
+                    sx={{ 
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 0.5,
+                      mt: 1,
+                      color: '#059669',
+                      bgcolor: '#d1fae5',
+                      px: 1.5,
+                      py: 0.5,
+                      borderRadius: 2,
+                      fontSize: '0.75rem',
+                      fontWeight: 500,
+                    }}
+                  >
+                    ✓ Taxas de processamento inclusas
+                  </Box>
+                )}
+                
+                {/* Quando vendedor paga, mostrar que é o preço final */}
+                {!buyerPaysFees() && (
+                  <Typography 
+                    variant="caption" 
+                    sx={{ display: 'block', mt: 0.5, color: '#64748b' }}
+                  >
+                    Preço final
+                  </Typography>
+                )}
+              </Box>
 
               {/* Cronômetro */}
               {customization?.timerEnabled && timeLeft !== null && timeLeft > 0 && (
@@ -864,9 +976,9 @@ const CheckoutPublicoHubla: React.FC = () => {
           </Box>
 
           {/* Lado Direito - Formulário de Pagamento */}
-          <Box sx={{ flex: 1.5 }}>
+          <Box sx={{ flex: 1.5, width: '100%', minWidth: 0 }}>
             {!success ? (
-              <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid #e5e7eb' }}>
+              <Paper elevation={0} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid #e5e7eb', width: '100%' }}>
                 {/* Informações Pessoais */}
                 <Typography variant="subtitle2" sx={{ mb: 2, color: '#64748b', fontWeight: 600 }}>
                   Informações pessoais
@@ -1178,13 +1290,40 @@ const CheckoutPublicoHubla: React.FC = () => {
                           '& fieldset': { borderColor: '#e5e7eb' },
                         }}
                       >
-                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => (
-                          <MenuItem key={num} value={num}>
-                            {num}x R$ {calculateInstallmentValue(productData?.amount || productData?.value || 0, num).toFixed(2)}
-                          </MenuItem>
-                        ))}
+                        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((num) => {
+                          const baseValue = productData?.amount || productData?.value || 0;
+                          const totalWithFees = calculateTotalWithFees(baseValue, 'CREDIT_CARD', num);
+                          const installmentValue = totalWithFees / num;
+                          const showFeeInfo = buyerPaysFees() && num > 1;
+                          
+                          return (
+                            <MenuItem key={num} value={num}>
+                              <Box sx={{ width: '100%' }}>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                  <Typography variant="body2" fontWeight={500}>
+                                    {num}x R$ {installmentValue.toFixed(2)}
+                                  </Typography>
+                                  {showFeeInfo && (
+                                    <Typography variant="caption" sx={{ color: '#64748b' }}>
+                                      Total: R$ {totalWithFees.toFixed(2)}
+                                    </Typography>
+                                  )}
+                                </Box>
+                              </Box>
+                            </MenuItem>
+                          );
+                        })}
                       </Select>
                     </FormControl>
+                    
+                    {/* Info sobre taxas no parcelamento */}
+                    {buyerPaysFees() && installments > 1 && (
+                      <Alert severity="info" sx={{ py: 0.5, bgcolor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+                        <Typography variant="caption">
+                          Valor original: R$ {(productData?.amount || productData?.value || 0).toFixed(2)} + juros de parcelamento
+                        </Typography>
+                      </Alert>
+                    )}
                   </Stack>
                 )}
 
@@ -1514,7 +1653,7 @@ const CheckoutPublicoHubla: React.FC = () => {
             ) : null}
           </Box>
         </Box>
-      </Container>
+      </Box>
     </Box>
   );
 };

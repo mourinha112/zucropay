@@ -190,15 +190,16 @@ const Header = () => {
 
   return (
     <>
-      <AppBar position="sticky" color="default" elevation={1} sx={{ backgroundColor: 'white' }}>
-        <Container maxWidth={false} sx={{ maxWidth: '2000px' }}>
+      <AppBar position="sticky" color="default" elevation={1} sx={{ backgroundColor: 'white', width: '100%', maxWidth: '100vw' }}>
+        <Container maxWidth={false} sx={{ maxWidth: '2000px', px: { xs: 0.5, sm: 1, md: 2 } }}>
           <Toolbar 
             sx={{ 
               display: 'flex', 
               gap: { xs: 1, md: 4 }, 
               justifyContent: 'space-between',
-              px: { xs: 1, md: 2 },
-              minHeight: { xs: 56, md: 64 } 
+              px: { xs: 0.5, md: 2 },
+              minHeight: { xs: 56, md: 64 },
+              width: '100%',
             }}
           >
             {/* Mobile Menu Button */}
