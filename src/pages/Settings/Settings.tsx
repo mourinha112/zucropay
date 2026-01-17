@@ -35,6 +35,7 @@ import {
 } from '@mui/icons-material';
 import Header from '../../components/Header/Header';
 import { createClient } from '@supabase/supabase-js';
+import { getAuthToken } from '../../services/api-supabase';
 
 const API_URL = import.meta.env.VITE_API_URL || '';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
@@ -126,7 +127,7 @@ const Settings: React.FC = () => {
   const backInputRef = useRef<HTMLInputElement>(null);
   const selfieInputRef = useRef<HTMLInputElement>(null);
 
-  const getAuthToken = () => localStorage.getItem('zucropay_token');
+  // Token obtido via getAuthToken() importado de api-supabase.ts
 
   useEffect(() => {
     loadUserData();
@@ -135,7 +136,11 @@ const Settings: React.FC = () => {
   const loadUserData = async () => {
     setLoading(true);
     try {
-      const token = getAuthToken();
+      const token = await getAuthToken();
+      if (!token) {
+        setSnackbar({ open: true, message: 'Sessão expirada. Faça login novamente.', severity: 'error' });
+        return;
+      }
       const response = await fetch(`${API_URL}/api/dashboard-data?type=verification`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -170,7 +175,11 @@ const Settings: React.FC = () => {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      const token = getAuthToken();
+      const token = await getAuthToken();
+      if (!token) {
+        setSnackbar({ open: true, message: 'Sessão expirada. Faça login novamente.', severity: 'error' });
+        return;
+      }
       const response = await fetch(`${API_URL}/api/dashboard-data`, {
         method: 'PUT',
         headers: {
@@ -282,7 +291,10 @@ const Settings: React.FC = () => {
       const apiEndpoint = baseUrl.includes('/api') ? `${baseUrl}/dashboard-data` : `${baseUrl}/api/dashboard-data`;
 
       // Enviar verificação via API (usando service role, sem problemas de schema cache)
-      const token = getAuthToken();
+      const token = await getAuthToken();
+      if (!token) {
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
       const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
