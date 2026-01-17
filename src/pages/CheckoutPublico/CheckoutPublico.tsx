@@ -566,14 +566,24 @@ const CheckoutPublicoHubla: React.FC = () => {
 
 
   // ===== CÁLCULO DE TAXAS =====
-  // Taxas para comprador: 5.99% + 2.49% por parcela (Cartão) | 5.99% (PIX/Boleto)
+  // Taxas são definidas pelo admin para cada vendedor (ou padrão 5.99%)
   // NOTA: A taxa fixa de R$2.50 é descontada do vendedor na dashboard, NÃO vai para o comprador
-  const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
-  const INSTALLMENT_FEE_PERCENT = 0.0249; // 2.49% por parcela
+  
+  // Usar taxas personalizadas do vendedor (vêm da API) ou padrão
+  const getSellerRates = () => {
+    return productData?.sellerRates || {
+      pix_rate: 5.99,
+      card_rate: 5.99,
+      boleto_rate: 5.99,
+      fixed_fee: 2.50,
+      installment_fee: 2.49,
+    };
+  };
 
   // Calcular valor total com taxas (quando comprador paga)
   const calculateTotalWithFees = (baseValue: number, method: string, numInstallments: number = 1): number => {
     const feePayer = productData?.fee_payer || productData?.product?.fee_payer || 'seller';
+    const rates = getSellerRates();
     
     // Se vendedor paga, valor não muda
     if (feePayer === 'seller') {
@@ -583,14 +593,20 @@ const CheckoutPublicoHubla: React.FC = () => {
     // Comprador paga: calcular valor inverso para que vendedor receba o valor base
     // NOTA: A taxa fixa de R$2.50 é descontada do vendedor na dashboard, NÃO vai para o comprador
     if (method === 'CREDIT_CARD') {
-      // Taxa total cartão para comprador = 5.99% + (2.49% * parcelas)
-      const totalFeePercent = PLATFORM_FEE_PERCENT + (INSTALLMENT_FEE_PERCENT * numInstallments);
+      // Taxa total cartão para comprador = X% + (2.49% * parcelas)
+      const cardFeePercent = rates.card_rate / 100;
+      const installmentFeePercent = rates.installment_fee / 100;
+      const totalFeePercent = cardFeePercent + (installmentFeePercent * numInstallments);
       // Valor = base / (1 - taxa_percentual)
       return baseValue / (1 - totalFeePercent);
+    } else if (method === 'PIX') {
+      // PIX: apenas X% para o comprador (R$2.50 é descontado do vendedor)
+      const pixFeePercent = rates.pix_rate / 100;
+      return baseValue / (1 - pixFeePercent);
     } else {
-      // PIX ou Boleto: apenas 5.99% para o comprador (R$2.50 é descontado do vendedor)
-      // Valor = base / (1 - 0.0599)
-      return baseValue / (1 - PLATFORM_FEE_PERCENT);
+      // Boleto: apenas X% para o comprador
+      const boletoFeePercent = rates.boleto_rate / 100;
+      return baseValue / (1 - boletoFeePercent);
     }
   };
 

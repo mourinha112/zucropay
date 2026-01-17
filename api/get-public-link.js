@@ -48,7 +48,7 @@ export default async function handler(req, res) {
 
     const supabase = getSupabase();
 
-    // Buscar o link de pagamento com dados do produto
+    // Buscar o link de pagamento com dados do produto e user_id
     const { data: link, error: linkError } = await supabase
       .from('payment_links')
       .select(`
@@ -59,6 +59,7 @@ export default async function handler(req, res) {
         billing_type,
         active,
         product_id,
+        user_id,
         products (
           id,
           name,
@@ -80,6 +81,34 @@ export default async function handler(req, res) {
       });
     }
 
+    // Buscar taxas personalizadas do vendedor
+    let sellerRates = {
+      pix_rate: 5.99,
+      card_rate: 5.99,
+      boleto_rate: 5.99,
+      fixed_fee: 2.50,
+      installment_fee: 2.49,
+    };
+
+    if (link.user_id) {
+      const { data: customRates } = await supabase
+        .from('user_custom_rates')
+        .select('pix_rate, card_rate, boleto_rate')
+        .eq('user_id', link.user_id)
+        .maybeSingle();
+      
+      if (customRates) {
+        sellerRates = {
+          pix_rate: customRates.pix_rate !== null ? parseFloat(customRates.pix_rate) : 5.99,
+          card_rate: customRates.card_rate !== null ? parseFloat(customRates.card_rate) : 5.99,
+          boleto_rate: customRates.boleto_rate !== null ? parseFloat(customRates.boleto_rate) : 5.99,
+          fixed_fee: 2.50,
+          installment_fee: 2.49,
+        };
+        console.log('[get-public-link] Taxas personalizadas do vendedor:', sellerRates);
+      }
+    }
+
     // Mapear dados para o formato esperado pelo checkout
     const response = {
       id: link.id,
@@ -95,6 +124,7 @@ export default async function handler(req, res) {
       productPrice: link.products?.price || link.amount,
       fee_payer: link.products?.fee_payer || 'seller', // Quem paga a taxa
       product: link.products, // Dados completos do produto
+      sellerRates: sellerRates, // Taxas do vendedor (personalizadas ou padrão)
     };
 
     console.log('[get-public-link] Success:', id);
