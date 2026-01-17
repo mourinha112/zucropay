@@ -675,9 +675,14 @@ const Products: React.FC = () => {
                   <Typography variant="body1" sx={{ fontWeight: 600, color: '#5818C8' }}>💰 Quem paga as taxas?</Typography>
                   <Typography variant="body2" color="text.secondary">
                     {formData.fee_payer === 'seller' 
-                      ? `Você paga: ${userRates.pix_rate.toFixed(2).replace('.', ',')}% + R$${userRates.fixed_fee.toFixed(2).replace('.', ',')} por venda${userRates.is_custom ? ' (taxa especial)' : ''}` 
-                      : 'Cliente paga as taxas, você recebe o valor cheio'}
+                      ? `Você paga: 5,99% + R$2,50 por venda` 
+                      : 'Cliente paga: 5,99% (você recebe o valor cheio)'}
                   </Typography>
+                  {userRates.is_custom && userRates.pix_rate !== 5.99 && (
+                    <Typography variant="caption" sx={{ color: '#16a34a', fontWeight: 500 }}>
+                      ✨ Sua taxa especial: {userRates.pix_rate.toFixed(2).replace('.', ',')}%
+                    </Typography>
+                  )}
                 </Box>
                 <TextField
                   select
