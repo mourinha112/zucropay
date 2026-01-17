@@ -97,8 +97,41 @@ CREATE POLICY "Users can view own rates" ON user_custom_rates
 -- );
 
 -- ============================================
+-- POLICIES PARA TABELA USERS (IMPORTANTE PARA REGISTRO!)
+-- ============================================
+
+-- Permitir que usuários autenticados criem seu próprio registro
+DROP POLICY IF EXISTS "Users can insert own record" ON users;
+CREATE POLICY "Users can insert own record" ON users
+  FOR INSERT
+  WITH CHECK (auth.uid() = id);
+
+-- Permitir que usuários vejam seu próprio registro
+DROP POLICY IF EXISTS "Users can view own record" ON users;
+CREATE POLICY "Users can view own record" ON users
+  FOR SELECT
+  USING (auth.uid() = id);
+
+-- Permitir que usuários atualizem seu próprio registro
+DROP POLICY IF EXISTS "Users can update own record" ON users;
+CREATE POLICY "Users can update own record" ON users
+  FOR UPDATE
+  USING (auth.uid() = id)
+  WITH CHECK (auth.uid() = id);
+
+-- Permitir service role acesso total (para APIs do backend)
+DROP POLICY IF EXISTS "Service role full access users" ON users;
+CREATE POLICY "Service role full access users" ON users
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
+-- ============================================
 -- VERIFICAR SE FOI CRIADO CORRETAMENTE
 -- ============================================
 SELECT id, email, name, role, is_active, permissions, created_at 
 FROM admin_credentials 
 ORDER BY created_at;
+
+-- Verificar policies da tabela users
+SELECT * FROM pg_policies WHERE tablename = 'users';
