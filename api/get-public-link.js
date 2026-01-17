@@ -81,14 +81,18 @@ export default async function handler(req, res) {
       });
     }
 
-    // Buscar taxas personalizadas do vendedor
-    let sellerRates = {
+    // Taxas padrão da plataforma
+    const DEFAULT_RATES = {
       pix_rate: 5.99,
       card_rate: 5.99,
       boleto_rate: 5.99,
       fixed_fee: 2.50,
       installment_fee: 2.49,
     };
+
+    // Buscar taxas personalizadas do vendedor
+    let sellerRates = { ...DEFAULT_RATES };
+    let hasCustomRates = false;
 
     if (link.user_id) {
       const { data: customRates } = await supabase
@@ -97,15 +101,27 @@ export default async function handler(req, res) {
         .eq('user_id', link.user_id)
         .maybeSingle();
       
+      // Só usar taxas personalizadas se existirem e forem > 0
       if (customRates) {
-        sellerRates = {
-          pix_rate: customRates.pix_rate !== null ? parseFloat(customRates.pix_rate) : 5.99,
-          card_rate: customRates.card_rate !== null ? parseFloat(customRates.card_rate) : 5.99,
-          boleto_rate: customRates.boleto_rate !== null ? parseFloat(customRates.boleto_rate) : 5.99,
-          fixed_fee: 2.50,
-          installment_fee: 2.49,
-        };
-        console.log('[get-public-link] Taxas personalizadas do vendedor:', sellerRates);
+        const pixRate = parseFloat(customRates.pix_rate);
+        const cardRate = parseFloat(customRates.card_rate);
+        const boletoRate = parseFloat(customRates.boleto_rate);
+        
+        // Usar taxa personalizada apenas se for maior que 0
+        if (pixRate > 0) {
+          sellerRates.pix_rate = pixRate;
+          hasCustomRates = true;
+        }
+        if (cardRate > 0) {
+          sellerRates.card_rate = cardRate;
+          hasCustomRates = true;
+        }
+        if (boletoRate > 0) {
+          sellerRates.boleto_rate = boletoRate;
+          hasCustomRates = true;
+        }
+        
+        console.log('[get-public-link] Taxas do vendedor:', sellerRates, hasCustomRates ? '(personalizadas)' : '(padrão)');
       }
     }
 

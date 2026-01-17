@@ -375,18 +375,39 @@ export default async function handler(req, res) {
       reserve_days: 30,
     };
     
-    // Taxas efetivas do vendedor (personalizadas ou padrão)
+    // Taxas efetivas do vendedor - só usar taxa personalizada se for > 0
+    let hasCustomRates = false;
     const sellerRates = {
-      pix_rate: sellerCustomRates?.pix_rate !== undefined ? parseFloat(sellerCustomRates.pix_rate) : DEFAULT_RATES.pix_rate,
-      card_rate: sellerCustomRates?.card_rate !== undefined ? parseFloat(sellerCustomRates.card_rate) : DEFAULT_RATES.card_rate,
-      boleto_rate: sellerCustomRates?.boleto_rate !== undefined ? parseFloat(sellerCustomRates.boleto_rate) : DEFAULT_RATES.boleto_rate,
+      pix_rate: DEFAULT_RATES.pix_rate,
+      card_rate: DEFAULT_RATES.card_rate,
+      boleto_rate: DEFAULT_RATES.boleto_rate,
       fixed_fee: DEFAULT_RATES.fixed_fee,
       installment_fee: DEFAULT_RATES.installment_fee,
       reserve_percent: DEFAULT_RATES.reserve_percent,
       reserve_days: DEFAULT_RATES.reserve_days,
     };
     
-    console.log(`[PAYMENT] Taxas do vendedor (${link.user_id}):`, sellerRates, sellerCustomRates ? '(personalizadas)' : '(padrão)');
+    if (sellerCustomRates) {
+      const pixRate = parseFloat(sellerCustomRates.pix_rate);
+      const cardRate = parseFloat(sellerCustomRates.card_rate);
+      const boletoRate = parseFloat(sellerCustomRates.boleto_rate);
+      
+      // Usar taxa personalizada apenas se for maior que 0
+      if (pixRate > 0) {
+        sellerRates.pix_rate = pixRate;
+        hasCustomRates = true;
+      }
+      if (cardRate > 0) {
+        sellerRates.card_rate = cardRate;
+        hasCustomRates = true;
+      }
+      if (boletoRate > 0) {
+        sellerRates.boleto_rate = boletoRate;
+        hasCustomRates = true;
+      }
+    }
+    
+    console.log(`[PAYMENT] Taxas do vendedor (${link.user_id}):`, sellerRates, hasCustomRates ? '(personalizadas)' : '(padrão)');
 
     // Determinar quem paga as taxas
     const feePayer = link.products?.fee_payer || link.fee_payer || 'seller';

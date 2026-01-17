@@ -370,6 +370,13 @@ const CheckoutPublicoHubla: React.FC = () => {
       return;
     }
 
+    // Validar nome completo (nome + sobrenome) - EfiBank exige
+    const nameParts = customerData.name.trim().split(/\s+/).filter(p => p.length > 0);
+    if (nameParts.length < 2) {
+      setError('Por favor, preencha seu nome completo (nome e sobrenome)');
+      return;
+    }
+
     if (!customerData.email.trim() || !customerData.email.includes('@')) {
       setError('Por favor, preencha um email válido');
       return;
@@ -387,8 +394,10 @@ const CheckoutPublicoHubla: React.FC = () => {
         return;
       }
 
-      if (!cardData.name.trim()) {
-        setError('Por favor, preencha o nome do titular do cartão');
+      // Validar nome do titular - EfiBank exige nome completo
+      const cardNameParts = cardData.name.trim().split(/\s+/).filter(p => p.length > 0);
+      if (cardNameParts.length < 2) {
+        setError('Por favor, preencha o nome completo do titular (nome e sobrenome)');
         return;
       }
 
