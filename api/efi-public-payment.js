@@ -341,6 +341,8 @@ export default async function handler(req, res) {
       cardBrand,
       // Dados de endereço (para cartão)
       billingAddress,
+      // Valor calculado pelo checkout (com taxas se comprador paga)
+      totalValue,
     } = req.body;
 
     // Buscar dados do link de pagamento
@@ -355,7 +357,16 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: false, message: 'Link de pagamento não encontrado ou inativo' });
     }
 
-    const value = parseFloat(link.amount);
+    // Determinar quem paga as taxas
+    const feePayer = link.products?.fee_payer || link.fee_payer || 'seller';
+    const baseValue = parseFloat(link.amount); // Valor original do produto
+    
+    // Se comprador paga as taxas, usar o valor do checkout (já inclui taxas)
+    // Se vendedor paga, usar o valor base
+    const value = (feePayer === 'buyer' && totalValue) ? parseFloat(totalValue) : baseValue;
+    
+    console.log(`[PAYMENT] fee_payer: ${feePayer}, baseValue: ${baseValue}, totalValue: ${totalValue}, valueToCharge: ${value}`);
+    
     const description = link.products?.name || link.name || 'Pagamento ZucroPay';
 
     let payment;
@@ -579,27 +590,47 @@ export default async function handler(req, res) {
           if (user) {
             // ===== TAXAS DA PLATAFORMA =====
             const PLATFORM_FEE_PERCENT = 0.0599;      // 5.99% base
+            const PLATFORM_FEE_FIXED = 2.50;          // R$2.50 fixo por transação
             const INSTALLMENT_FEE_PERCENT = 0.0249;   // 2.49% por parcela (Cartão)
             const RESERVE_PERCENT = 0.05;             // 5% reserva
             const RESERVE_DAYS = 30;
             
-            // Cartão de crédito: 5.99% + (2.49% × parcelas)
             const installments = cardInstallments || 1;
-            let platformFee = value * PLATFORM_FEE_PERCENT;
-            platformFee += value * INSTALLMENT_FEE_PERCENT * installments;
             
-            // Garantir que taxa não seja maior que 50% do valor
-            if (platformFee > value * 0.5) {
-              platformFee = value * 0.5;
+            // Se comprador paga as taxas, vendedor recebe valor base completo
+            // Se vendedor paga as taxas, descontar do valor
+            let platformFee = 0;
+            let netAmount = 0;
+            let reserveAmount = 0;
+            
+            if (feePayer === 'buyer') {
+              // Comprador já pagou as taxas - vendedor recebe valor base
+              // Reserva de 5% sobre o valor base
+              reserveAmount = Math.max(0, baseValue * RESERVE_PERCENT);
+              netAmount = Math.max(0, baseValue - reserveAmount);
+              // Taxa foi paga pelo comprador (diferença entre value cobrado e baseValue)
+              platformFee = value - baseValue;
+              
+              console.log(`[CARTAO] COMPRADOR PAGA TAXAS - Base: R$${baseValue.toFixed(2)}, Cobrado: R$${value.toFixed(2)}, Taxa: R$${platformFee.toFixed(2)}, Reserva: R$${reserveAmount.toFixed(2)}, Líquido: R$${netAmount.toFixed(2)}`);
+            } else {
+              // Vendedor paga as taxas - descontar do valor
+              // Cartão de crédito: 5.99% + R$2.50 + (2.49% × parcelas)
+              platformFee = (value * PLATFORM_FEE_PERCENT) + PLATFORM_FEE_FIXED;
+              platformFee += value * INSTALLMENT_FEE_PERCENT * installments;
+              
+              // Garantir que taxa não seja maior que 50% do valor
+              if (platformFee > value * 0.5) {
+                platformFee = value * 0.5;
+              }
+              const valueAfterFees = Math.max(0, value - platformFee);
+              reserveAmount = Math.max(0, valueAfterFees * RESERVE_PERCENT);
+              netAmount = Math.max(0, valueAfterFees - reserveAmount);
+              
+              console.log(`[CARTAO] VENDEDOR PAGA TAXAS - Bruto: R$${value.toFixed(2)}, Parcelas: ${installments}, Taxa: R$${platformFee.toFixed(2)}, Reserva: R$${reserveAmount.toFixed(2)}, Líquido: R$${netAmount.toFixed(2)}`);
             }
-            const valueAfterFees = Math.max(0, value - platformFee);
-            const reserveAmount = Math.max(0, valueAfterFees * RESERVE_PERCENT);
-            const netAmount = Math.max(0, valueAfterFees - reserveAmount);
             
             const releaseDate = new Date();
             releaseDate.setDate(releaseDate.getDate() + RESERVE_DAYS);
-            
-            console.log(`[CARTAO] Valor bruto: R$${value.toFixed(2)}, Parcelas: ${installments}, Taxa: R$${platformFee.toFixed(2)}, Reserva: R$${reserveAmount.toFixed(2)}, Líquido: R$${netAmount.toFixed(2)}`);
             
             await supabase.from('users').update({ 
               balance: (user.balance || 0) + netAmount,
@@ -610,21 +641,21 @@ export default async function handler(req, res) {
             await supabase.from('balance_reserves').insert({
               user_id: link.user_id,
               payment_id: savedPayment?.id,
-              original_amount: value,
+              original_amount: feePayer === 'buyer' ? baseValue : value,
               reserve_amount: reserveAmount,
               status: 'held',
               release_date: releaseDate.toISOString(),
               description: `Reserva 5% - ${description}`,
-              metadata: { gross_value: value, platform_fee: platformFee, value_after_fees: valueAfterFees, installments }
+              metadata: { gross_value: value, base_value: baseValue, platform_fee: platformFee, fee_payer: feePayer, installments }
             });
             
             await supabase.from('transactions').insert({
               user_id: link.user_id,
               type: 'payment_received',
-              amount: value,
+              amount: feePayer === 'buyer' ? baseValue : value,
               status: 'completed',
-              description: `Venda com cartão ${installments}x - ${description} (Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)})`,
-              metadata: { gross_value: value, platform_fee: platformFee, net_amount: netAmount, reserve_amount: reserveAmount, installments }
+              description: `Venda com cartão ${installments}x - ${description} (Taxa: R$${platformFee.toFixed(2)} | Reserva: R$${reserveAmount.toFixed(2)})${feePayer === 'buyer' ? ' [Cliente pagou taxas]' : ''}`,
+              metadata: { gross_value: value, base_value: baseValue, platform_fee: platformFee, net_amount: netAmount, reserve_amount: reserveAmount, fee_payer: feePayer, installments }
             });
             
             // Registrar taxa da plataforma
@@ -633,8 +664,10 @@ export default async function handler(req, res) {
               type: 'platform_fee',
               amount: -platformFee,
               status: 'completed',
-              description: `Taxa da plataforma (5.99% + ${installments}x 2.49%) - ${description}`,
-              metadata: { gross_value: value, fee_percent: PLATFORM_FEE_PERCENT, installment_fee_percent: INSTALLMENT_FEE_PERCENT, installments }
+              description: feePayer === 'buyer' 
+                ? `Taxa da plataforma (paga pelo cliente) - ${description}`
+                : `Taxa da plataforma (5.99% + R$2.50 + ${installments}x 2.49%) - ${description}`,
+              metadata: { gross_value: value, base_value: baseValue, fee_percent: PLATFORM_FEE_PERCENT, fee_payer: feePayer, installments }
             });
           }
         }

@@ -418,6 +418,10 @@ const CheckoutPublicoHubla: React.FC = () => {
     setError('');
 
     try {
+      // Calcular valor total (com taxas se comprador paga)
+      const baseValue = productData?.amount || productData?.value || 0;
+      const totalValueWithFees = getCurrentTotalValue();
+      
       const paymentData: any = {
         linkId: linkId || '',
         customer: {
@@ -428,6 +432,9 @@ const CheckoutPublicoHubla: React.FC = () => {
         },
         billingType: paymentMethod as 'CREDIT_CARD' | 'PIX' | 'BOLETO',
         installments: paymentMethod === 'CREDIT_CARD' ? installments : undefined,
+        // Enviar valor total calculado (com taxas se comprador paga)
+        totalValue: totalValueWithFees,
+        baseValue: baseValue,
       };
 
       // Para cartão, tokenizar primeiro usando SDK EfiBank
@@ -573,12 +580,12 @@ const CheckoutPublicoHubla: React.FC = () => {
       return baseValue;
     }
 
-    // Comprador paga: calcular valor inverso
+    // Comprador paga: calcular valor inverso para que vendedor receba o valor base
     if (method === 'CREDIT_CARD') {
-      // Taxa total cartão = 5.99% + (2.49% * parcelas)
+      // Taxa total cartão = 5.99% + (2.49% * parcelas) + R$2.50 fixo
       const totalFeePercent = PLATFORM_FEE_PERCENT + (INSTALLMENT_FEE_PERCENT * numInstallments);
-      // Valor = base / (1 - taxa)
-      return baseValue / (1 - totalFeePercent);
+      // Valor = (base + taxa_fixa) / (1 - taxa_percentual)
+      return (baseValue + PLATFORM_FEE_FIXED) / (1 - totalFeePercent);
     } else {
       // PIX ou Boleto: 5.99% + R$2.50
       // Valor = (base + 2.50) / (1 - 0.0599)
