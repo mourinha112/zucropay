@@ -586,9 +586,26 @@ export default async function handler(req, res) {
 
         if (!payResult.success) {
           console.error('[CARTAO] Erro ao processar pagamento:', payResult.data);
+          
+          // Traduzir erros comuns da EfiBank para mensagens amigáveis
+          let errorMessage = payResult.data?.message || payResult.data?.error_description || 'Erro ao processar pagamento com cartão';
+          
+          // Erro de valor mínimo de parcela
+          if (payResult.data?.code === 4600111 || (typeof errorMessage === 'string' && errorMessage.includes('R$ 5,00'))) {
+            errorMessage = 'O valor mínimo por parcela é R$ 5,00. Por favor, selecione menos parcelas ou pague à vista.';
+          }
+          // Erro de validação de nome
+          else if (payResult.data?.error_description?.property?.includes('name')) {
+            errorMessage = 'Nome inválido. Por favor, informe o nome completo (nome e sobrenome).';
+          }
+          // Erro de validação de CPF
+          else if (payResult.data?.error_description?.property?.includes('cpf')) {
+            errorMessage = 'CPF inválido. Por favor, verifique o número informado.';
+          }
+          
           return res.status(200).json({
             success: false,
-            message: payResult.data?.message || payResult.data?.error_description || 'Erro ao processar pagamento com cartão',
+            message: typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage),
             debug: payResult.data,
           });
         }

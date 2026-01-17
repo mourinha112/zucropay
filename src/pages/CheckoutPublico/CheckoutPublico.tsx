@@ -423,6 +423,18 @@ const CheckoutPublicoHubla: React.FC = () => {
       return;
     }
 
+    // Validar valor mínimo da parcela (EfiBank exige R$5,00 mínimo)
+    if (paymentMethod === 'CREDIT_CARD' && installments > 1) {
+      const baseValue = productData?.amount || productData?.value || 0;
+      const totalWithFees = calculateTotalWithFees(baseValue, 'CREDIT_CARD', installments);
+      const installmentValue = totalWithFees / installments;
+      
+      if (installmentValue < 5.00) {
+        setError(`Valor mínimo por parcela é R$ 5,00. Selecione menos parcelas.`);
+        return;
+      }
+    }
+
     setProcessing(true);
     setError('');
 
@@ -1328,6 +1340,13 @@ const CheckoutPublicoHubla: React.FC = () => {
                           const totalWithFees = calculateTotalWithFees(baseValue, 'CREDIT_CARD', num);
                           const installmentValue = totalWithFees / num;
                           const showFeeInfo = buyerPaysFees() && num > 1;
+                          
+                          // EfiBank exige mínimo de R$5,00 por parcela
+                          const MIN_INSTALLMENT_VALUE = 5.00;
+                          const isDisabled = installmentValue < MIN_INSTALLMENT_VALUE;
+                          
+                          // Não mostrar opções com parcela menor que R$5
+                          if (isDisabled) return null;
                           
                           return (
                             <MenuItem key={num} value={num}>
