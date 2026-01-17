@@ -226,15 +226,42 @@ export const login = async (data: LoginData): Promise<AuthResponse> => {
   // Salvar token no localStorage para o PrivateRoute funcionar
   localStorage.setItem('zucropay_token', authData.session.access_token);
 
-  // Buscar dados completos do usuário
-  const { data: userData, error: userError } = await supabase
+  // Buscar dados completos do usuário (usar maybeSingle para evitar erro se não existir)
+  let { data: userData, error: userError } = await supabase
     .from('users')
     .select('*')
     .eq('id', authData.user.id)
-    .single();
+    .maybeSingle();
+
+  // Se o usuário não existe na tabela users, criar o registro
+  if (!userData && !userError) {
+    console.log('[Login] Usuário Auth existe mas não está na tabela users. Criando...');
+    const { data: newUser, error: createError } = await supabase
+      .from('users')
+      .insert({
+        id: authData.user.id,
+        name: authData.user.email?.split('@')[0] || 'Usuário',
+        email: authData.user.email,
+        balance: 0,
+        reserved_balance: 0,
+        verification_status: 'none',
+      })
+      .select()
+      .maybeSingle();
+
+    if (createError) {
+      console.error('[Login] Erro ao criar usuário:', createError);
+      throw new Error('Erro ao configurar conta. Tente novamente.');
+    }
+    userData = newUser;
+  }
 
   if (userError) {
     throw new Error(userError.message);
+  }
+
+  if (!userData) {
+    throw new Error('Erro ao carregar dados do usuário');
   }
 
   // Salvar dados do usuário no localStorage
@@ -331,7 +358,7 @@ export const getCurrentUser = async (): Promise<User | null> => {
     .from('users')
     .select('*')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
   if (!userData) return null;
 
