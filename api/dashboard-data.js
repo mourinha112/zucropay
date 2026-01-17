@@ -317,7 +317,9 @@ export default async function handler(req, res) {
             id: userId,
             name: full_name,
             email: user.email,
+            password_hash: 'supabase_auth', // Placeholder - senha é gerenciada pelo Supabase Auth
             verification_status: 'none',
+            account_status: 'active',
             balance: 0,
             reserved_balance: 0,
           });

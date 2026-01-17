@@ -242,9 +242,11 @@ export const login = async (data: LoginData): Promise<AuthResponse> => {
         id: authData.user.id,
         name: authData.user.email?.split('@')[0] || 'Usuário',
         email: authData.user.email,
+        password_hash: 'supabase_auth', // Placeholder - senha é gerenciada pelo Supabase Auth
         balance: 0,
         reserved_balance: 0,
         verification_status: 'none',
+        account_status: 'active',
       })
       .select()
       .maybeSingle();
@@ -319,6 +321,7 @@ export const register = async (data: RegisterData): Promise<AuthResponse> => {
       email: data.email,
       cpf_cnpj: data.cpfCnpj || null,
       phone: data.phone || null,
+      password_hash: 'supabase_auth', // Placeholder - senha é gerenciada pelo Supabase Auth
       balance: 0,
       reserved_balance: 0,
       verification_status: 'none',
