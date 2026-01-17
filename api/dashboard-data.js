@@ -111,7 +111,7 @@ export default async function handler(req, res) {
             .select('id')
             .eq('user_id', userId)
             .eq('endpoint', subscription.endpoint)
-            .single();
+            .maybeSingle();
 
           if (existing) {
             await supabase
@@ -315,7 +315,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Você já possui uma verificação pendente' });
       }
 
-      const { data: newVerification, error: insertError } = await supabase
+      const { data: insertedData, error: insertError } = await supabase
         .from('user_verifications')
         .insert({
           user_id: userId,
@@ -328,10 +328,11 @@ export default async function handler(req, res) {
           document_number,
           status: 'pending'
         })
-        .select()
-        .single();
+        .select();
 
       if (insertError) throw insertError;
+      
+      const newVerification = insertedData?.[0];
 
       await supabase
         .from('users')
@@ -359,19 +360,18 @@ export default async function handler(req, res) {
       if (phone) updateData.phone = phone;
       if (cpf_cnpj) updateData.cpf_cnpj = cpf_cnpj;
 
-      const { data, error } = await supabase
+      const { data: updatedData, error } = await supabase
         .from('users')
         .update(updateData)
         .eq('id', userId)
-        .select()
-        .single();
+        .select();
 
       if (error) throw error;
 
       return res.status(200).json({
         success: true,
         message: 'Dados atualizados com sucesso!',
-        user: data
+        user: updatedData?.[0] || null
       });
     }
 
