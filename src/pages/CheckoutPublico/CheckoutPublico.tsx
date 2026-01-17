@@ -566,9 +566,9 @@ const CheckoutPublicoHubla: React.FC = () => {
 
 
   // ===== CÁLCULO DE TAXAS =====
-  // Taxas: 5.99% + R$2.50 (PIX/Boleto) | 5.99% + 2.49% por parcela (Cartão)
+  // Taxas para comprador: 5.99% + 2.49% por parcela (Cartão) | 5.99% (PIX/Boleto)
+  // NOTA: A taxa fixa de R$2.50 é descontada do vendedor na dashboard, NÃO vai para o comprador
   const PLATFORM_FEE_PERCENT = 0.0599; // 5.99%
-  const PLATFORM_FEE_FIXED = 2.50; // R$2.50
   const INSTALLMENT_FEE_PERCENT = 0.0249; // 2.49% por parcela
 
   // Calcular valor total com taxas (quando comprador paga)
