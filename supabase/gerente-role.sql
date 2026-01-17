@@ -127,6 +127,19 @@ CREATE POLICY "Service role full access users" ON users
   WITH CHECK (true);
 
 -- ============================================
+-- CAMPOS ADICIONAIS NA TABELA PAYMENTS (IMPORTANTE!)
+-- Necessários para armazenar detalhes das vendas
+-- ============================================
+
+-- Adicionar campos que podem não existir
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS net_value DECIMAL(10,2);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS platform_fee DECIMAL(10,2);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS reserve_amount DECIMAL(10,2);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS installments INTEGER DEFAULT 1;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS fee_payer VARCHAR(20) DEFAULT 'seller';
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb;
+
+-- ============================================
 -- VERIFICAR SE FOI CRIADO CORRETAMENTE
 -- ============================================
 SELECT id, email, name, role, is_active, permissions, created_at 
@@ -135,3 +148,6 @@ ORDER BY created_at;
 
 -- Verificar policies da tabela users
 SELECT * FROM pg_policies WHERE tablename = 'users';
+
+-- Verificar estrutura da tabela payments
+SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'payments';
