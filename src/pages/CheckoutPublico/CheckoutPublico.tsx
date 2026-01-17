@@ -581,15 +581,16 @@ const CheckoutPublicoHubla: React.FC = () => {
     }
 
     // Comprador paga: calcular valor inverso para que vendedor receba o valor base
+    // NOTA: A taxa fixa de R$2.50 é descontada do vendedor na dashboard, NÃO vai para o comprador
     if (method === 'CREDIT_CARD') {
-      // Taxa total cartão = 5.99% + (2.49% * parcelas) + R$2.50 fixo
+      // Taxa total cartão para comprador = 5.99% + (2.49% * parcelas)
       const totalFeePercent = PLATFORM_FEE_PERCENT + (INSTALLMENT_FEE_PERCENT * numInstallments);
-      // Valor = (base + taxa_fixa) / (1 - taxa_percentual)
-      return (baseValue + PLATFORM_FEE_FIXED) / (1 - totalFeePercent);
+      // Valor = base / (1 - taxa_percentual)
+      return baseValue / (1 - totalFeePercent);
     } else {
-      // PIX ou Boleto: 5.99% + R$2.50
-      // Valor = (base + 2.50) / (1 - 0.0599)
-      return (baseValue + PLATFORM_FEE_FIXED) / (1 - PLATFORM_FEE_PERCENT);
+      // PIX ou Boleto: apenas 5.99% para o comprador (R$2.50 é descontado do vendedor)
+      // Valor = base / (1 - 0.0599)
+      return baseValue / (1 - PLATFORM_FEE_PERCENT);
     }
   };
 

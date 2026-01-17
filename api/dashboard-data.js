@@ -301,6 +301,33 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'Todos os campos obrigatórios devem ser preenchidos' });
       }
 
+      // Verificar se o usuário existe na tabela users
+      const { data: userExists } = await supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (!userExists) {
+        // Usuário Auth existe mas não está na tabela users - criar registro
+        console.log(`[Verification] Usuário ${userId} não encontrado na tabela users. Criando...`);
+        const { error: createUserError } = await supabase
+          .from('users')
+          .insert({
+            id: userId,
+            name: full_name,
+            email: user.email,
+            verification_status: 'none',
+            balance: 0,
+            reserved_balance: 0,
+          });
+        
+        if (createUserError) {
+          console.error('[Verification] Erro ao criar usuário:', createUserError);
+          return res.status(500).json({ error: 'Erro ao processar verificação. Tente fazer logout e login novamente.' });
+        }
+      }
+
       const { data: existingVerification } = await supabase
         .from('user_verifications')
         .select('id, status')

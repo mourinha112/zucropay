@@ -604,14 +604,19 @@ export default async function handler(req, res) {
             let reserveAmount = 0;
             
             if (feePayer === 'buyer') {
-              // Comprador já pagou as taxas - vendedor recebe valor base
-              // Reserva de 5% sobre o valor base
-              reserveAmount = Math.max(0, baseValue * RESERVE_PERCENT);
-              netAmount = Math.max(0, baseValue - reserveAmount);
-              // Taxa foi paga pelo comprador (diferença entre value cobrado e baseValue)
-              platformFee = value - baseValue;
+              // Comprador pagou as taxas PERCENTUAIS - vendedor ainda paga R$2.50 fixo
+              // Taxa percentual paga pelo comprador (diferença entre value cobrado e baseValue)
+              const buyerPaidFee = value - baseValue;
+              // Vendedor paga apenas a taxa fixa de R$2.50
+              platformFee = PLATFORM_FEE_FIXED + buyerPaidFee;
               
-              console.log(`[CARTAO] COMPRADOR PAGA TAXAS - Base: R$${baseValue.toFixed(2)}, Cobrado: R$${value.toFixed(2)}, Taxa: R$${platformFee.toFixed(2)}, Reserva: R$${reserveAmount.toFixed(2)}, Líquido: R$${netAmount.toFixed(2)}`);
+              // Valor após taxa fixa
+              const valueAfterFixedFee = Math.max(0, baseValue - PLATFORM_FEE_FIXED);
+              // Reserva de 5% sobre o valor após taxa fixa
+              reserveAmount = Math.max(0, valueAfterFixedFee * RESERVE_PERCENT);
+              netAmount = Math.max(0, valueAfterFixedFee - reserveAmount);
+              
+              console.log(`[CARTAO] COMPRADOR PAGA TAXAS - Base: R$${baseValue.toFixed(2)}, Cobrado: R$${value.toFixed(2)}, Taxa comprador: R$${buyerPaidFee.toFixed(2)}, Taxa vendedor (fixa): R$${PLATFORM_FEE_FIXED.toFixed(2)}, Reserva: R$${reserveAmount.toFixed(2)}, Líquido: R$${netAmount.toFixed(2)}`);
             } else {
               // Vendedor paga as taxas - descontar do valor
               // Cartão de crédito: 5.99% + R$2.50 + (2.49% × parcelas)
