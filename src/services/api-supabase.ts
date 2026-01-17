@@ -290,9 +290,17 @@ export const register = async (data: RegisterData): Promise<AuthResponse> => {
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email: data.email,
     password: data.password,
+    options: {
+      data: {
+        name: data.name,
+        cpf_cnpj: data.cpfCnpj,
+        phone: data.phone,
+      }
+    }
   });
 
   if (authError) {
+    console.error('[Register] Auth error:', authError);
     throw new Error(authError.message);
   }
 
@@ -300,42 +308,56 @@ export const register = async (data: RegisterData): Promise<AuthResponse> => {
     throw new Error('Falha no registro');
   }
 
-  // Criar registro na tabela users
-  const { error: userError } = await supabase
+  console.log('[Register] Auth user criado:', authData.user.id);
+
+  // Criar registro na tabela users com todos os campos necessários
+  const { data: newUser, error: userError } = await supabase
     .from('users')
     .insert({
       id: authData.user.id,
       name: data.name,
       email: data.email,
-      cpf_cnpj: data.cpfCnpj,
-      phone: data.phone,
-      password_hash: '', // Hash será gerenciado pelo Supabase Auth
-    });
+      cpf_cnpj: data.cpfCnpj || null,
+      phone: data.phone || null,
+      balance: 0,
+      reserved_balance: 0,
+      verification_status: 'none',
+      account_status: 'active',
+      created_at: new Date().toISOString(),
+    })
+    .select()
+    .maybeSingle();
 
   if (userError) {
-    // Se falhar ao criar o usuário, deletar da auth
-    await supabase.auth.admin.deleteUser(authData.user.id);
-    throw new Error(userError.message);
+    console.error('[Register] Erro ao criar usuário na tabela users:', userError);
+    // Não conseguimos deletar do auth sem service role, então logamos o erro
+    // O usuário pode tentar fazer login e o sistema criará o registro automaticamente
+    throw new Error(`Erro ao criar conta: ${userError.message}. Tente fazer login.`);
   }
 
-  // Buscar usuário completo
-  const { data: userData } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', authData.user.id)
-    .single();
+  if (!newUser) {
+    console.error('[Register] Usuário não foi criado na tabela users');
+    throw new Error('Erro ao criar conta. Tente fazer login.');
+  }
+
+  console.log('[Register] Usuário criado na tabela users:', newUser.id);
+
+  // Salvar token se disponível
+  if (authData.session?.access_token) {
+    localStorage.setItem('zucropay_token', authData.session.access_token);
+  }
 
   return {
     success: true,
     message: 'Registro realizado com sucesso',
     user: {
-      id: userData.id,
-      name: userData.name,
-      email: userData.email,
-      cpfCnpj: userData.cpf_cnpj,
-      phone: userData.phone,
-      avatar: userData.avatar,
-      balance: userData.balance,
+      id: newUser.id,
+      name: newUser.name,
+      email: newUser.email,
+      cpfCnpj: newUser.cpf_cnpj,
+      phone: newUser.phone,
+      avatar: newUser.avatar,
+      balance: newUser.balance,
     },
   };
 };
