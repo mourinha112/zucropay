@@ -51,6 +51,21 @@ interface Sale {
   due_date: string;
   description: string;
   created_at: string;
+  // Campos adicionais para detalhamento financeiro
+  installments?: number;
+  platform_fee?: number;
+  reserve_amount?: number;
+  fee_payer?: 'buyer' | 'seller';
+  metadata?: {
+    gross_value?: number;
+    base_value?: number;
+    platform_fee?: number;
+    net_amount?: number;
+    reserve_amount?: number;
+    fee_payer?: string;
+    installments?: number;
+    installment_value?: number;
+  };
 }
 
 interface Stats {
@@ -434,6 +449,7 @@ const Vendas: React.FC = () => {
                   <Typography variant="body2" fontWeight={500}>{selectedSale.description || 'Sem descrição'}</Typography>
                 </Box>
 
+                {/* Valores principais */}
                 <Stack direction="row" spacing={1.5}>
                   <Box flex={1} sx={{ p: 1, bgcolor: '#fafafa', borderRadius: 1, textAlign: 'center' }}>
                     <Typography variant="caption" color="text.secondary">Bruto</Typography>
@@ -444,6 +460,57 @@ const Vendas: React.FC = () => {
                     <Typography variant="body2" fontWeight={600} color="success.main">{formatCurrency(selectedSale.net_value || selectedSale.value)}</Typography>
                   </Box>
                 </Stack>
+
+                {/* Detalhamento financeiro */}
+                <Box sx={{ p: 1.5, bgcolor: '#fef3c7', borderRadius: 1, border: '1px solid #fcd34d' }}>
+                  <Typography variant="caption" fontWeight={600} color="#92400e" sx={{ display: 'block', mb: 1 }}>
+                    💰 Detalhamento Financeiro
+                  </Typography>
+                  
+                  {/* Parcelas - só para cartão */}
+                  {(selectedSale.billing_type === 'CREDIT_CARD' || selectedSale.billing_type === 'CARTAO') && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                      <Typography variant="caption" color="text.secondary">Parcelas:</Typography>
+                      <Typography variant="caption" fontWeight={600}>
+                        {selectedSale.installments || selectedSale.metadata?.installments || 1}x
+                        {selectedSale.metadata?.installment_value && ` de ${formatCurrency(selectedSale.metadata.installment_value)}`}
+                      </Typography>
+                    </Box>
+                  )}
+                  
+                  {/* Taxa da plataforma */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary">Taxa da Plataforma:</Typography>
+                    <Typography variant="caption" fontWeight={600} color="error.main">
+                      - {formatCurrency(selectedSale.platform_fee || selectedSale.metadata?.platform_fee || 0)}
+                    </Typography>
+                  </Box>
+                  
+                  {/* Reserva (5%) */}
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+                    <Typography variant="caption" color="text.secondary">Reserva (5% - 30 dias):</Typography>
+                    <Typography variant="caption" fontWeight={600} color="warning.main">
+                      - {formatCurrency(selectedSale.reserve_amount || selectedSale.metadata?.reserve_amount || 0)}
+                    </Typography>
+                  </Box>
+
+                  {/* Quem pagou as taxas */}
+                  {(selectedSale.fee_payer || selectedSale.metadata?.fee_payer) && (
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1, pt: 1, borderTop: '1px dashed #fcd34d' }}>
+                      <Typography variant="caption" color="text.secondary">Taxas pagas por:</Typography>
+                      <Chip 
+                        label={(selectedSale.fee_payer || selectedSale.metadata?.fee_payer) === 'buyer' ? 'Cliente' : 'Você'} 
+                        size="small" 
+                        sx={{ 
+                          height: 18, 
+                          fontSize: '0.65rem',
+                          bgcolor: (selectedSale.fee_payer || selectedSale.metadata?.fee_payer) === 'buyer' ? '#dcfce7' : '#fee2e2',
+                          color: (selectedSale.fee_payer || selectedSale.metadata?.fee_payer) === 'buyer' ? '#166534' : '#991b1b',
+                        }} 
+                      />
+                    </Box>
+                  )}
+                </Box>
 
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Typography variant="caption" color="text.secondary">Status:</Typography>
@@ -456,6 +523,9 @@ const Vendas: React.FC = () => {
                   </Typography>
                   <Typography variant="body2">
                     {getPaymentMethodLabel(selectedSale.billing_type)}
+                    {(selectedSale.billing_type === 'CREDIT_CARD' || selectedSale.billing_type === 'CARTAO') && 
+                      ` (${selectedSale.installments || selectedSale.metadata?.installments || 1}x)`
+                    }
                   </Typography>
                 </Box>
 
