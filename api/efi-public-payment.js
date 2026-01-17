@@ -530,7 +530,21 @@ export default async function handler(req, res) {
           });
         }
 
-        const status = payResult.data?.data?.status === 'approved' ? 'RECEIVED' : 'PENDING';
+        // Verificar se o cartão foi recusado
+        const paymentData = payResult.data?.data;
+        const refusal = paymentData?.refusal;
+        
+        if (refusal || paymentData?.status === 'unpaid') {
+          console.log('[CARTAO] Cartão recusado:', refusal);
+          return res.status(200).json({
+            success: false,
+            message: refusal?.reason || 'Transação não autorizada. Tente outro cartão ou método de pagamento.',
+            cardRefused: true,
+            canRetry: refusal?.retry || true,
+          });
+        }
+
+        const status = paymentData?.status === 'approved' ? 'RECEIVED' : 'PENDING';
         console.log('[CARTAO] Status do pagamento:', status);
 
         // Salvar no banco
